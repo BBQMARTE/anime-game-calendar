@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+// 读取 keystore.properties(由 构建APK.bat 自动生成);不存在时 release 不签名、脚本回退 debug 构建
+def ksPropsFile = rootProject.file('keystore.properties')
+def ksProps = new Properties()
+if (ksPropsFile.exists()) {
+    ksProps.load(new FileInputStream(ksPropsFile))
+}
+
+android {
+    namespace 'com.yoyuxi.ycal'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.yoyuxi.ycal'
+        minSdk 26
+        targetSdk 36
+        versionCode 3
+        versionName '1.2'
+    }
+
+    signingConfigs {
+        if (ksPropsFile.exists()) {
+            release {
+                storeFile rootProject.file(ksProps['storeFile'])
+                storePassword ksProps['storePassword']
+                keyAlias ksProps['keyAlias']
+                keyPassword ksProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (ksPropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

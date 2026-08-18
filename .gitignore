@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# AI 工具内部笔记(与本仓库无关)
+.codebuddy/
+
+# 运行时数据与测试输出
+data/cache.json
+tests/_out*.txt
+
+# Android 构建产物与本地配置
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+# 签名密钥(含密码,不入库;请单独备份,丢失后无法覆盖升级)
+android/keystore.properties
+android/ycal.keystore
+
+# 分发产物
+*.apk

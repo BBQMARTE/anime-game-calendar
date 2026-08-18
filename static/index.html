@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>二游活动聚合</title>
+<style>
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --card2:#f7f7fa;
+  --label:#000000; --label2:rgba(60,60,67,.62); --label3:rgba(60,60,67,.36);
+  --sep:rgba(60,60,67,.1); --fill:rgba(120,120,128,.16); --seg:rgba(118,118,128,.12);
+  --blue:#007AFF; --red:#FF3B30; --green:#34C759; --orange:#FF9500;
+  --purple:#AF52DE; --pink:#FF2D55; --teal:#5AC8FA; --yellow:#FFCC00; --indigo:#5856D6;
+  --glass:rgba(242,242,247,.78);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#000000; --card:#1c1c1e; --card2:#2c2c2e;
+    --label:#ffffff; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
+    --sep:rgba(84,84,88,.5); --fill:rgba(120,120,128,.24); --seg:rgba(118,118,128,.24);
+    --blue:#0A84FF; --red:#FF453A; --green:#30D158; --orange:#FF9F0A;
+    --purple:#BF5AF2; --pink:#FF375F; --teal:#64D2FF; --yellow:#FFD60A; --indigo:#5E5CE6;
+    --glass:rgba(0,0,0,.72);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro SC","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--label); -webkit-font-smoothing:antialiased;
+  letter-spacing:-.01em; min-height:100vh;
+}
+button{font-family:inherit; border:none; background:none; cursor:pointer; color:inherit}
+
+/* ---------- 顶部毛玻璃导航 ---------- */
+header{
+  position:sticky; top:0; z-index:40;
+  background:var(--glass);
+  -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:.5px solid var(--sep);
+}
+.nav-top{
+  display:flex; align-items:center; max-width:1180px; margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) 20px 0;
+}
+.nav-title{font-size:15px; font-weight:600}
+.nav-top .spacer{flex:1}
+.updated{font-size:11px; color:var(--label3); margin-right:10px}
+.refresh-btn{
+  width:32px; height:32px; border-radius:50%;
+  background:var(--fill); display:inline-flex; align-items:center; justify-content:center;
+  transition:transform .15s, opacity .15s;
+}
+.refresh-btn:active{transform:scale(.9)}
+.refresh-btn svg{width:16px; height:16px; fill:var(--blue)}
+.refresh-btn.loading svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.large-title{
+  max-width:1180px; margin:0 auto; padding:2px 20px 10px;
+  font-size:32px; font-weight:800; letter-spacing:-.02em;
+}
+
+/* ---------- 数据源状态 ---------- */
+.sources{
+  max-width:1180px; margin:0 auto; padding:10px 20px 0;
+  display:flex; gap:14px; overflow-x:auto; scrollbar-width:none;
+}
+.sources::-webkit-scrollbar{display:none}
+.src{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--label2); white-space:nowrap}
+.src i{width:6px; height:6px; border-radius:50%; background:var(--label3)}
+.src.ok i{background:var(--green)}
+.src.bad i{background:var(--red)}
+
+/* ---------- 筛选 chips ---------- */
+.filters{
+  max-width:1180px; margin:0 auto; padding:10px 20px;
+  display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
+}
+.filters::-webkit-scrollbar{display:none}
+.chip{
+  flex:none; padding:6px 14px; border-radius:99px; font-size:13px; font-weight:500;
+  background:var(--fill); color:var(--label); transition:.15s;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.chip i{width:7px; height:7px; border-radius:50%; background:var(--c)}
+.chip.on{background:var(--c); color:#fff; box-shadow:0 2px 10px -2px var(--c)}
+.chip.on i{background:#fff}
+.chip.cat.on{color:#fff}
+.vsep{flex:none; width:.5px; background:var(--sep); margin:4px 2px}
+
+/* ---------- 主布局 ---------- */
+main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
+
+/* ---------- 分段控件 + 事件列表 ---------- */
+.seg{
+  display:flex; background:var(--seg); border-radius:11px; padding:2px; margin-bottom:12px;
+}
+.seg button{
+  flex:1; padding:7px 0; font-size:13px; font-weight:600; color:var(--label2); border-radius:9px; transition:.18s;
+}
+.seg button.on{background:var(--card); color:var(--label); box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.sec-title{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:4px 6px 8px}
+.group{background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.row{
+  display:flex; align-items:center; gap:12px; padding:11px 14px; cursor:pointer;
+  border-bottom:.5px solid var(--sep); transition:background .12s; position:relative;
+}
+.row:last-child{border-bottom:none}
+.row:active{background:var(--fill)}
+.thumb{
+  width:40px; height:40px; border-radius:10px; flex:none; object-fit:cover; background:var(--c);
+  display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px;
+  overflow:hidden;
+}
+.thumb img{width:100%; height:100%; object-fit:cover}
+.row-main{flex:1; min-width:0}
+.row-title{font-size:14px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.row-sub{font-size:11.5px; color:var(--label2); margin-top:3px; display:flex; align-items:center; gap:6px}
+.tag{font-size:9.5px; font-weight:700; color:#fff; background:var(--tc); border-radius:5px; padding:1px 5px}
+.row-side{flex:none; text-align:right; display:flex; align-items:center; gap:4px}
+.cd{font-size:11px; font-weight:700; color:var(--c)}
+.chev{color:var(--label3); font-size:17px; font-weight:600}
+.prog{height:3px; background:var(--fill); border-radius:2px; margin-top:5px; overflow:hidden}
+.prog i{display:block; height:100%; background:var(--c); border-radius:2px}
+.empty{color:var(--label3); text-align:center; padding:36px 0; font-size:13px}
+
+/* ---------- 搜索框 ---------- */
+.searchbar{max-width:1180px; margin:0 auto; padding:0 20px 10px}
+.searchbar input{
+  width:100%; border:none; outline:none; font-size:14px; font-family:inherit;
+  background:var(--fill); color:var(--label); border-radius:12px; padding:9px 14px;
+}
+.searchbar input::placeholder{color:var(--label3)}
+.cd.urgent{color:var(--red)}
+#list .sec-title{margin:16px 6px 8px}
+#list .sec-title:first-child{margin-top:4px}
+
+footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3); font-size:11px; text-align:center}
+
+/* ---------- 详情弹窗 ---------- */
+.detail-overlay{
+  position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.55);
+  display:flex; align-items:flex-end; justify-content:center;
+  animation:fadeIn .2s;
+}
+@keyframes fadeIn{from{opacity:0}}
+.detail-sheet{
+  width:100%; max-width:600px; max-height:88vh; background:var(--card); border-radius:20px 20px 0 0;
+  display:flex; flex-direction:column; animation:slideUp .3s ease-out;
+  box-shadow:0 -4px 30px rgba(0,0,0,.2);
+}
+@keyframes slideUp{from{transform:translateY(100%)}}
+.detail-header{
+  display:flex; align-items:center; gap:12px; padding:14px 16px 10px;
+  border-bottom:.5px solid var(--sep);
+}
+.detail-header .dthumb{
+  width:36px; height:36px; border-radius:9px; background:var(--c); display:flex;
+  align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px; flex:none;
+}
+.detail-header .dmeta{flex:1; min-width:0}
+.detail-header .dtitle{font-size:15px; font-weight:700; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.detail-header .dsub{font-size:11px; color:var(--label2); margin-top:2px}
+.detail-close{
+  width:30px; height:30px; border-radius:50%; background:var(--fill); font-size:18px; color:var(--label); line-height:30px; text-align:center; flex:none; cursor:pointer;
+}
+.detail-close:active{opacity:.6}
+.detail-body{
+  flex:1; overflow-y:auto; padding:14px 16px 30px; font-size:14px; line-height:1.75; color:var(--label);
+  -webkit-user-select:text; user-select:text;
+}
+.detail-body img{max-width:100%; height:auto; border-radius:8px; margin:8px 0}
+.detail-body table{width:100%; border-collapse:collapse; margin:8px 0; font-size:12px}
+.detail-body td, .detail-body th{border:1px solid var(--sep); padding:6px 8px}
+.detail-body p{margin:6px 0}
+.detail-body h3,.detail-body h4{font-size:15px; font-weight:700; margin:14px 0 6px}
+.detail-body a{color:var(--blue)}
+.detail-loading{text-align:center; padding:40px; color:var(--label3); font-size:13px}
+.detail-loading svg{width:20px; height:20px; animation:spin 1s linear infinite; fill:var(--blue)}
+.detail-err{text-align:center; padding:40px; color:var(--label3); font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-top">
+    <div class="nav-title" id="navTitle">二游活动聚合</div>
+    <div class="spacer"></div>
+    <span class="updated" id="updated"></span>
+    <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()" title="抓取最新数据">
+      <svg viewBox="0 0 24 24"><path d="M12 4V1L7 6l5 5V7c3.3 0 6 2.7 6 6 0 1.3-.4 2.5-1.1 3.5l1.5 1.5C19.4 16.5 20 14.3 20 12c0-4.4-3.6-8-8-8zm-6 8c0-1.3.4-2.5 1.1-3.5L5.6 7C4.6 7.9 4 9.7 4 12c0 4.4 3.6 8 8 8v3l5-5-5-5v3c-3.3 0-6-2.7-6-6z"/></svg>
+    </button>
+  </div>
+  <h1 class="large-title" id="bigTitle">活动聚合</h1>
+</header>
+
+<div class="sources" id="sources"></div>
+<div class="filters" id="filters"></div>
+<div class="searchbar"><input type="search" id="q" placeholder="搜索活动或资讯…" oninput="onSearch(this.value)"></div>
+
+<main>
+  <div class="seg" id="seg">
+    <button class="on" data-tab="ongoing" onclick="setTab('ongoing')">进行中</button>
+    <button data-tab="soon" onclick="setTab('soon')">即将开始</button>
+    <button data-tab="all" onclick="setTab('all')">全部资讯</button>
+  </div>
+  <div id="list"></div>
+</main>
+
+<footer>数据来源：各游戏官方网站公开接口 · 每 30 分钟自动抓取 · 时间为北京时间<span id="nativeCtl"></span></footer>
+
+<script src="scraper.js"></script>
+<script>
+const CAT_COLOR={'活动':'#34C759','角色与专武':'#FF2D55','公告':'#FF9500','资讯':'#007AFF'};
+const IS_ANDROID=/[?&]platform=android/.test(location.search);
+let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
+let tab='ongoing', q='';
+/* 筛选状态记忆(跨会话保留) */
+try{
+  const f=JSON.parse(localStorage.getItem('ycal_filters')||'null');
+  if(f){if(f.g&&f.g.length)activeGames=new Set(f.g);
+    if(f.c&&f.c.length)activeCats=new Set(f.c);
+    if(f.tab)tab=f.tab;}
+}catch(e){}
+function saveFilters(){try{localStorage.setItem('ycal_filters',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
+let _qT=null;
+function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderList,200)}  // 防抖,避免每击键全量重绘
+
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+function evStart(e){return e.start?new Date(e.start):(e.date?new Date(e.date):null)}
+function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59):null}
+function gameColor(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.color:'#007AFF'}
+function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.name:id}
+function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+/* ================= 数据加载(双模式) ================= */
+/* 游戏勾选与当前列表对齐:剔除已下架的游戏id,空则全选 */
+function syncGames(){
+  const ids=(DATA.games||[]).map(g=>g.id);
+  if(activeGames.size)activeGames=new Set([...activeGames].filter(id=>ids.includes(id)));
+  if(!activeGames.size)ids.forEach(id=>activeGames.add(id));
+}
+async function load(){
+  if(IS_ANDROID){
+    const cached=localStorage.getItem('ycal_data');
+    if(cached){try{DATA=JSON.parse(cached)}catch(e){}}
+    if(DATA&&DATA.events){
+      // 剔除已从游戏列表移除的旧缓存游戏
+      const ok=new Set(Scraper.GAMES.map(g=>g.id));
+      DATA.events=DATA.events.filter(e=>ok.has(e.game_id)||e.src==='manual');
+      DATA.games=Scraper.GAMES;
+      if(DATA.sources)Object.keys(DATA.sources).forEach(k=>{if(!ok.has(k)&&k!=='bilibili')delete DATA.sources[k]});
+      syncGames();
+      render();
+    }
+    const stale=!DATA||!DATA._ts||(Date.now()-DATA._ts>30*60e3);
+    if(stale)doRefresh();
+  }else{
+    const r=await fetch('/api/events'); DATA=await r.json();
+    syncGames();
+    render();
+  }
+}
+function setLoading(on,txt){
+  const b=$('#refreshBtn');
+  b.classList.toggle('loading',on);
+  $('#navTitle').textContent=on?(txt||'抓取中…'):'二游活动聚合';
+}
+async function doRefresh(){
+  if(IS_ANDROID){
+    setLoading(true,'准备抓取…');
+    try{
+      const res=await Scraper.fetchAll(p=>setLoading(true,p));
+      DATA={events:res.events,sources:res.sources,games:res.games,updated:res.updated,_ts:Date.now()};
+      syncGames();
+      localStorage.setItem('ycal_data',JSON.stringify(DATA));
+      render();
+    }finally{setLoading(false)}
+  }else{
+    setLoading(true);
+    try{
+      const old=(DATA&&DATA.updated)||'';
+      try{await fetch('/api/refresh',{method:'POST',headers:{'X-Requested-With':'ycal'}})}catch(e){}
+      // 刷新在后台执行:轮询等 updated 变化(最长90秒),期间已有刷新在进行也一并等到完成
+      for(let i=0;i<90;i++){
+        await new Promise(r=>setTimeout(r,1000));
+        try{
+          const r=await fetch('/api/events'),d=await r.json();
+          if(d.updated&&d.updated!==old){DATA=d;syncGames();render();return}
+        }catch(e){}
+      }
+    }finally{setLoading(false)}
+  }
+}
+function filtered(){
+  const k=q.trim().toLowerCase();
+  return (DATA.events||[]).filter(e=>
+    (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
+    &&activeCats.has(e.category)
+    &&(!k||((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k)));
+}
+/* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
+function isEv(e){return (e.kind||'event')==='event'}
+function filteredEvents(){return filtered().filter(isEv)}
+function filteredAll(){return filtered()}
+
+/* ================= 状态 / 筛选 ================= */
+function renderMeta(){
+  $('#updated').textContent=DATA.updated?('更新于 '+String(DATA.updated).replace('T',' ').slice(5,16)):'';
+  $('#sources').innerHTML=Object.entries(DATA.sources||{}).map(([k,s])=>{
+    const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`:('抓取失败: '+(s.error||'未知'));
+    return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
+  }).join('');
+  const gs=DATA.games||[];
+  const allOn=gs.length>0&&gs.every(g=>activeGames.has(g.id));
+  let h=`<span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleAll()">全部</span>`;
+  h+=gs.map(g=>
+    `<span class="chip ${activeGames.has(g.id)?'on':''}" style="--c:${g.color}" onclick="toggleGame('${g.id}')"><i></i>${esc(g.name)}</span>`
+  ).join('');
+  h+='<span class="vsep"></span>';
+  h+=Object.keys(CAT_COLOR).map(c=>
+    `<span class="chip cat ${activeCats.has(c)?'on':''}" style="--c:${CAT_COLOR[c]}" onclick="toggleCat('${c}')">${c}</span>`
+  ).join('');
+  $('#filters').innerHTML=h;
+}
+function toggleGame(id){activeGames.has(id)?activeGames.delete(id):activeGames.add(id);saveFilters();render()}
+function toggleCat(c){activeCats.has(c)?activeCats.delete(c):activeCats.add(c);saveFilters();render()}
+function toggleAll(){
+  const ids=(DATA.games||[]).map(g=>g.id);
+  const allOn=ids.length>0&&ids.every(id=>activeGames.has(id));
+  activeGames=allOn?new Set():new Set(ids);
+  saveFilters();render();
+}
+
+/* ================= 事件行 ================= */
+function setTab(t){tab=t;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderList()}
+function fmtRange(e){
+  const s=evStart(e),t=evEnd(e);
+  if(!s)return '';
+  const f=d=>`${d.getMonth()+1}月${d.getDate()}日${(d.getHours()||d.getMinutes())?' '+pad(d.getHours())+':'+pad(d.getMinutes()):''}`;
+  if(e.start&&e.end)return f(s)+' ~ '+f(t);
+  if(e.start&&!e.end)return f(s)+' 起';
+  return f(s);
+}
+function cdText(e){
+  const now=new Date(),s=evStart(e),t=evEnd(e);
+  const dur=ms=>{const m=Math.floor(ms/6e4),h=Math.floor(m/60),d=Math.floor(h/24);
+    return d>0?`${d}天${h%24?h%24+'小时':''}`:(h>0?`${h}小时${m%60?m%60+'分':''}`:`${Math.max(m,1)}分钟`)};
+  if(s&&s>now)return {txt:'还有 '+dur(s-now),urgent:(s-now)<24*3600e3};
+  if(t&&t>now)return {txt:'剩 '+dur(t-now),prog:(now-s)/(t-s)*100,urgent:(t-now)<24*3600e3};
+  return null;
+}
+function rowHtml(e){
+  const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
+  const cd=cdText(e);
+  const thumb=e.image
+    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(e.image)}" loading="lazy" onerror="this.remove()"></div>`
+    :`<div class="thumb" style="--c:${c}">${esc(gameName(e.game_id).slice(0,1))}</div>`;
+  return `<div class="row" style="--c:${c}" onclick="openEv('${e.id}')">
+    ${thumb}
+    <div class="row-main">
+      <div class="row-title">${esc(e.title)}</div>
+      <div class="row-sub"><span class="tag" style="--tc:${cc}">${e.category}</span>${e.src==='bilibili'?'<span class="tag" style="--tc:#FB7299">B站</span>':''}${e.src==='manual'?'<span class="tag" style="--tc:#8e8e93">手动</span>':''}<span>${esc(e.game)} · ${fmtRange(e)}</span></div>
+      ${cd&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
+    </div>
+    <div class="row-side">${cd?`<span class="cd ${cd.urgent?'urgent':''}">${cd.txt}</span>`:''}<span class="chev">›</span></div>
+  </div>`;
+}
+function dayLabel(d){
+  const now=new Date();
+  const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const d0=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const diff=Math.round((d0-t0)/864e5);
+  const md=`${d.getMonth()+1}月${d.getDate()}日`, wd='周'+'日一二三四五六'[d.getDay()];
+  if(diff===0)return `今天 · ${md} ${wd}`;
+  if(diff===1)return `明天 · ${md} ${wd}`;
+  if(diff===-1)return `昨天 · ${md} ${wd}`;
+  return `${md} ${wd}`;
+}
+function renderList(){
+  const now=new Date();
+  document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===tab));
+  let html='';
+  if(tab==='ongoing'){
+    const arr=filteredEvents().filter(e=>{const s=evStart(e),t=evEnd(e);return s&&t&&s<=now&&t>=now})
+      .sort((a,b)=>evEnd(a)-evEnd(b));
+    html=`<div class="sec-title">进行中 · ${arr.length}</div>`
+      +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`:'');
+  }else{
+    const arr=(tab==='soon'
+      ?filteredEvents().filter(e=>{const s=evStart(e);return s&&s>now}).sort((a,b)=>evStart(a)-evStart(b)).slice(0,60)
+      :filteredAll().slice(0,100));
+    const groups=new Map();  // 按开始日期分组
+    for(const e of arr){
+      const d=evStart(e)||new Date();
+      const key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+      if(!groups.has(key))groups.set(key,{d,items:[]});
+      groups.get(key).items.push(e);
+    }
+    for(const {d,items} of groups.values())
+      html+=`<div class="sec-title">${dayLabel(d)} · ${items.length}</div><div class="group">${items.map(rowHtml).join('')}</div>`;
+  }
+  $('#list').innerHTML=html||'<div class="empty">暂无数据</div>';
+}
+function openEv(id){
+  const e=(DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  // 米哈游事件:用内容 API 获取正文并弹窗展示,而非跳转到无用的 SDK 管理页
+  if(e.ann_id) return showMihoyoDetail(e);
+  // 有正常链接:跳转
+  if(e.link){
+    if(IS_ANDROID)location.href=e.link; else window.open(e.link,'_blank');
+  }
+}
+/* 米哈游事件:通过内容 API 获取正文并弹窗展示 */
+async function showMihoyoDetail(e){
+  const overlay=document.createElement('div');
+  overlay.className='detail-overlay';
+  overlay.innerHTML=`<div class="detail-sheet">
+    <div class="detail-header" style="--c:${gameColor(e.game_id)}">
+      <div class="dthumb">${esc(gameName(e.game_id).slice(0,1))}</div>
+      <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
+      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">✕</div>
+    </div>
+    <div class="detail-body"><div class="detail-loading"><svg viewBox="0 0 24 24"><path d="M12 4V1L7 6l5 5V7c3.3 0 6 2.7 6 6 0 1.3-.4 2.5-1.1 3.5l1.5 1.5C19.4 16.5 20 14.3 20 12c0-4.4-3.6-8-8-8z"/></svg><br>加载中…</div></div>
+  </div>`;
+  overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove();});
+  document.body.appendChild(overlay);
+  // 获取公告正文
+  try{
+    const api=e._content_api.replace('getAnnList','getAnnContent');
+    const url=`${api}?${e._content_params}&ann_id=${e.ann_id}`;
+    const r=await fetch(url); const d=await r.json();
+    const lst=((d.data||{}).list)||[];
+    const content=lst.length?(lst[0].content||''):(((d.data||{}).content)||'');
+    const body=overlay.querySelector('.detail-body');
+    if(content){
+      // 清洗:先解码实体(还原出的 on* 属性也会被后续规则去掉),再去脚本/内联事件;
+      // 链接仅放行 http/https(阻断 javascript: 与畸形编码导致的整页渲染失败)
+      body.innerHTML=content
+        .replace(/&#x([0-9a-fA-F]+);/g,(_,h)=>String.fromCodePoint(parseInt(h,16)))
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi,'')
+        .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi,'')
+        .replace(/<\/?(?:iframe|object|embed|form)[^>]*>/gi,'')
+        .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,'')
+        .replace(/style="[^"]*"/gi,'')
+        .replace(/javascript:/gi,'')
+        .replace(/<a\s+href="([^"]*)"/gi,(_,u)=>{
+          let href=u; try{href=decodeURI(u)}catch(e){}
+          return /^https?:\/\//i.test(href)?`<a href="${encodeURI(href)}"`:'<a href="#"';
+        });
+    }else{
+      body.innerHTML='<div class="detail-err">公告内容为空</div>';
+    }
+  }catch(err){
+    const body=overlay.querySelector('.detail-body');
+    body.innerHTML=`<div class="detail-err">加载失败<br><small>${esc(err.message)}</small></div>`;
+  }
+}
+
+function render(){renderMeta();renderList()}
+
+load();
+if(!IS_ANDROID){
+  setInterval(async()=>{try{const r=await fetch('/api/events');const d=await r.json();
+    if(d.updated!==(DATA&&DATA.updated)){DATA=d;render();}}catch(e){}},60000);
+}
+setInterval(()=>{if(tab!=='all'&&!document.hidden)renderList()},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab!=='all')renderList()});  // 回前台立即刷新倒计时
+/* Android WebView 套壳内置入口:切换服务器(普通浏览器不显示) */
+if(/; wv\)/.test(navigator.userAgent)&&window.YCalNative){
+  document.getElementById('nativeCtl').innerHTML=' · <a href="#" onclick="YCalNative.openSettings();return false" style="color:inherit;text-decoration:underline">切换服务器</a>';
+}
+</script>
+</body>
+</html>

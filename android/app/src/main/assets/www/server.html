@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>连接服务器</title>
+<style>
+:root{--bg:#f2f2f7;--card:#ffffff;--label:#000000;--label2:rgba(60,60,67,.62);--label3:rgba(60,60,67,.36);--fill:rgba(120,120,128,.16);--blue:#007AFF;--red:#FF3B30}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#000000;--card:#1c1c1e;--label:#ffffff;--label2:rgba(235,235,245,.6);--label3:rgba(235,235,245,.3);--fill:rgba(120,120,128,.24);--blue:#0A84FF;--red:#FF453A}
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro SC","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--label); -webkit-font-smoothing:antialiased;
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.wrap{width:100%; max-width:360px}
+h1{font-size:28px; font-weight:800; letter-spacing:-.02em; margin-bottom:6px}
+.sub{font-size:13px; color:var(--label2); line-height:1.65; margin-bottom:20px}
+.err{background:rgba(255,59,48,.12); color:var(--red); font-size:12.5px; line-height:1.65; border-radius:12px; padding:10px 12px; margin-bottom:16px; white-space:pre-line}
+.hidden{display:none}
+label{display:block; font-size:12px; font-weight:600; color:var(--label2); margin:0 0 6px 4px}
+input{
+  width:100%; border:none; outline:none; font-size:15px; font-family:inherit;
+  background:var(--fill); color:var(--label); border-radius:12px; padding:12px 14px; margin-bottom:14px;
+}
+input::placeholder{color:var(--label3)}
+.btn{display:block; width:100%; border:none; outline:none; font-family:inherit; font-size:15px; font-weight:600; background:var(--blue); color:#fff; border-radius:12px; padding:13px 0; cursor:pointer}
+.btn:active{opacity:.75}
+.btn[disabled]{opacity:.5}
+.tips{margin-top:18px; font-size:12px; color:var(--label3); line-height:1.75}
+.offline{display:block; margin-top:16px; font-size:13px; color:var(--blue); text-decoration:none; text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>二游活动日历</h1>
+  <div class="sub">本应用连接电脑上的服务器获取数据。请确保平板/手机与电脑连接同一 WiFi，且电脑服务已启动（双击 启动.bat）。</div>
+  <div id="err" class="err hidden"></div>
+  <label for="url">服务器地址</label>
+  <input id="url" type="url" inputmode="url" placeholder="http://192.168.50.178:5000" autocomplete="off">
+  <button id="go" class="btn">连接</button>
+  <a id="offline" class="offline" href="#">使用离线模式（内置数据）</a>
+  <div class="tips">· 地址为电脑服务窗口打印的局域网地址（如 http://192.168.50.178:5000）<br>· 连不上：确认电脑服务已启动、两台设备在同一 WiFi<br>· 离线模式使用应用内置抓取，活动数据不如服务器版准确</div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+
+// 连接失败被踢回本页时展示原因
+const params=new URLSearchParams(location.search);
+const errText=params.get('err');
+if(errText){
+  $('#err').textContent='无法连接服务器\n'+errText+'\n\n请确认电脑服务已启动、两台设备在同一 WiFi。';
+  $('#err').classList.remove('hidden');
+}
+
+// 预填:上次使用的地址 > 默认地址
+let saved='';
+try{saved=(window.YCalNative&&YCalNative.getServer())||''}catch(e){}
+if(!saved){try{saved=(window.YCalNative&&YCalNative.getDefaultServer())||''}catch(e){}}
+$('#url').value=saved;
+
+function showErr(msg){$('#err').textContent=msg;$('#err').classList.remove('hidden')}
+
+$('#go').addEventListener('click',async()=>{
+  let url=$('#url').value.trim().replace(/\/+$/,'');
+  if(!url)return;
+  if(!/^https?:\/\//i.test(url))url='http://'+url;
+  const btn=$('#go');
+  btn.disabled=true; btn.textContent='连接中…';
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),5000);
+  try{
+    const r=await fetch(url+'/api/events',{signal:ctl.signal});
+    clearTimeout(t);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(!d||!Array.isArray(d.events))throw new Error('服务器返回数据异常');
+    try{window.YCalNative&&YCalNative.saveServer(url)}catch(e){}
+    location.href=url;
+  }catch(e){
+    clearTimeout(t);
+    const why=e.name==='AbortError'?'连接超时':e.message;
+    showErr('连接失败：'+why+'\n请检查地址是否正确、电脑服务是否已启动。');
+    btn.disabled=false; btn.textContent='连接';
+  }
+});
+
+// 离线模式:内置 assets 页面(端内抓取)
+$('#offline').addEventListener('click',()=>{
+  location.href='file:///android_asset/www/index.html?platform=android';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 圆角底板 -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M30,6h48a24,24 0 0 1 24,24v48a24,24 0 0 1 -24,24h-48a24,24 0 0 1 -24,-24v-48a24,24 0 0 1 24,-24z" />
+
+    <!-- 日历挂环 -->
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M40,26h5v16h-5z" />
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M63,26h5v16h-5z" />
+
+    <!-- 日历主体 -->
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M30,40h48a7,7 0 0 1 7,7v33a7,7 0 0 1 -7,7h-48a7,7 0 0 1 -7,-7v-33a7,7 0 0 1 7,-7z" />
+
+    <!-- 红色月份条 -->
+    <path
+        android:fillColor="#FF453A"
+        android:pathData="M30,40h48a7,7 0 0 1 7,7v7h-62v-7a7,7 0 0 1 7,-7z" />
+
+    <!-- 日期格点 -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M33,62h8v8h-8z" />
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M50,62h8v8h-8z" />
+    <path
+        android:fillColor="#FF453A"
+        android:pathData="M67,62h8v8h-8z" />
+</vector>
