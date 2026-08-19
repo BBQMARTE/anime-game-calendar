@@ -116,6 +116,8 @@ Android 版はネイティブ WebView シェルで、ページとスクレイピ
 
 **直接ダウンロード:** [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases) ページから APK をダウンロードし、スマホに転送してインストールしてください(不明なソースからのインストールを許可する必要があります)。
 
+Web 版右上の**歯車ボタン**で設定:カレンダー表示のワンタップ切替、ゲームごとのカレンダー表示チェックボックス(リストのフィルターとは独立)。
+
 **このマシンでのビルド(SDK は D: ドライブにインストール済み):**
 
 `构建APK.bat` をダブルクリック。初回実行時にリリース署名キーが自動生成されます(`android/ycal.keystore`、パスワードは `android/keystore.properties`)。成果物は `android/app/build/outputs/apk/release/app-release.apk`。keytool がない場合は debug APK にフォールバックします。
@@ -128,6 +130,28 @@ Android 8.0(API 26)以上に対応。
 
 > Android プロジェクトのページリソースは `android/app/src/main/assets/www/`(`static/` のコピー)です。
 > **`static/` を編集したら `android/app/src/main/assets/www/` にコピーしてから再ビルドしてください。**
+
+## 購読とリマインダー
+
+| 機能 | 使い方 |
+|---|---|
+| **ICS カレンダー購読** | 端末の純正カレンダー / Google カレンダーで `http://<サーバー>:5000/api/calendar.ics` を購読 — 本物のイベントがすべて純正カレンダーに入ります |
+| **PWA インストール** | タブレット/スマホのブラウザで「ホーム画面に追加」→ フルスクリーン App アイコン、オフラインでも閲覧可 |
+| **イベント開始リマインダー** | `data/notify.json` に webhook(Feishu グループボット / Bark)を設定すると、今日・明日開始のイベントを毎日定時にまとめて推送 |
+| **外出先からアクセス** | PC とタブレットの両方に [Tailscale](https://tailscale.com) を入れて同じアカウントでログインすれば、どこからでも `http://100.x.x.x:5000` で自宅サーバーにアクセス可 |
+
+`data/notify.json` の設定例:
+
+```json
+{
+  "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
+  "time": "08:30"
+}
+```
+
+- **Feishu**: グループ設定 → ボット → 「カスタムボット」を追加し、webhook URL を貼る
+- **Bark**(iOS アプリ): `https://api.day.app/自分のキー` を指定
+- 空欄なら無効。保存すれば次のサイクルで反映されます
 
 ## 時間解析カーネル
 

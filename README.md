@@ -113,6 +113,8 @@ Agent 会自己读完本文档,完成剩下的一切:装依赖 → 启动服务 
 
 **直接下载:** [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases) 页下载 APK,传到手机安装即可(需允许安装未知来源应用)。
 
+网页版右上角**齿轮设置**支持:一键开关日历视图;按游戏勾选是否显示在月历上(独立于列表筛选)。
+
 **本机构建(已装好 SDK 到 D 盘):**
 
 直接双击 `构建APK.bat`。首次运行会自动生成正式签名密钥(`android/ycal.keystore`,密码见 `android/keystore.properties`),产物在 `android/app/build/outputs/apk/release/app-release.apk`;若机器上没有 keytool,脚本会自动回退构建 debug APK。
@@ -125,6 +127,28 @@ Agent 会自己读完本文档,完成剩下的一切:装依赖 → 启动服务 
 
 > 安卓工程引用的页面资源在 `android/app/src/main/assets/www/`,是 `static/` 的副本;
 > **修改 `static/` 后记得先复制到 `android/app/src/main/assets/www/`,再双击 `构建APK.bat` 重新打包。**
+
+## 订阅与提醒
+
+| 能力 | 用法 |
+|---|---|
+| **ICS 日历订阅** | 系统日历 / Google 日历添加订阅日历,填 `http://<服务器地址>:5000/api/calendar.ics`,全部真活动进入系统日历 |
+| **PWA 安装** | 平板/手机浏览器打开网页 →「添加到主屏幕」,获得全屏 App 图标,离线可看缓存数据 |
+| **活动开始提醒** | 编辑 `data/notify.json` 填入 webhook(支持飞书群机器人 / Bark),每天定时推送今明两天开始的活动汇总 |
+| **外网访问** | 电脑与平板都安装 [Tailscale](https://tailscale.com) 并登录同一账号,出门在外用 `http://100.x.x.x:5000` 访问家里服务器 |
+
+`data/notify.json` 配置示例:
+
+```json
+{
+  "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
+  "time": "08:30"
+}
+```
+
+- **飞书**:群设置 → 群机器人 → 添加「自定义机器人」,把 webhook 地址填入
+- **Bark**(iOS App):填 `https://api.day.app/你的Key`
+- 留空则不推送;改完保存,下一轮生效
 
 ## 活动时间识别(识别内核)
 

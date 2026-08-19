@@ -9,9 +9,10 @@ import socket
 import threading
 import time
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
-from flask import Flask, jsonify, request, send_from_directory
+import requests
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 import bilibili
 import scrapers
@@ -152,6 +153,25 @@ def scraper_js():
     return send_from_directory(app.static_folder, 'scraper.js')
 
 
+@app.route('/manifest.webmanifest')
+def manifest():
+    return send_from_directory(app.static_folder, 'manifest.webmanifest',
+                               mimetype='application/manifest+json')
+
+
+@app.route('/sw.js')
+def sw_js():
+    return send_from_directory(app.static_folder, 'sw.js', mimetype='text/javascript')
+
+
+@app.route('/icon-<int:size>.png')
+def icon(size):
+    name = {192: 'icon-192.png', 512: 'icon-512.png'}.get(size)
+    if not name:
+        return jsonify({'error': 'not found'}), 404
+    return send_from_directory(app.static_folder, name)
+
+
 @app.route('/api/events')
 def api_events():
     with _lock:
@@ -176,6 +196,143 @@ def api_refresh():
     started = _start_refresh()
     with _lock:
         return jsonify({'ok': True, 'started': started, 'updated': _state['updated']})
+
+
+# ================= ICS 日历订阅 =================
+_CST = timezone(timedelta(hours=8))  # 数据时间为北京时间
+
+
+def _ics_escape(s):
+    return str(s or '').replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', ' ')
+
+
+def _ics_utc(iso, day_end=False):
+    """本地 ISO 时间串 → ICS UTC 时间;day_end=True 且无时分则取当天 23:59"""
+    try:
+        dt = datetime.fromisoformat(str(iso))
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_CST)
+    if day_end and not (dt.hour or dt.minute or dt.second):
+        dt = dt.replace(hour=23, minute=59)
+    return dt.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+
+
+@app.route('/api/calendar.ics')
+def api_ics():
+    """ICS 订阅源:系统日历/Google 日历可直接订阅(仅真活动,含手动录入)"""
+    now = datetime.now(_CST).strftime('%Y%m%dT%H%M%SZ')
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
+             'PRODID:-//yoyuxi//anime-game-calendar//CN',
+             'CALSCALE:GREGORIAN',
+             'X-WR-CALNAME:二游活动日历',
+             'X-WR-TIMEZONE:Asia/Shanghai']
+    with _lock:
+        events = list(_state['events'])
+    n = 0
+    for e in events:
+        if (e.get('kind') or 'event') != 'event':
+            continue
+        s_iso = e.get('start') or e.get('date')
+        if not s_iso:
+            continue
+        ds = _ics_utc(s_iso)
+        de = _ics_utc(e.get('end'), day_end=True) if e.get('end') else _ics_utc(s_iso, day_end=True)
+        if not ds or not de:
+            continue
+        lines += ['BEGIN:VEVENT',
+                  f'UID:{e.get("id", n)}@ycal',
+                  f'DTSTAMP:{now}',
+                  f'DTSTART:{ds}',
+                  f'DTEND:{de}',
+                  f'SUMMARY:{_ics_escape("【" + (e.get("game") or "活动") + "】" + e.get("title", ""))}']
+        if e.get('link'):
+            lines.append(f'URL:{_ics_escape(e["link"])}')
+        lines += ['DESCRIPTION:数据来源:游戏官方公告', 'END:VEVENT']
+        n += 1
+    lines.append('END:VCALENDAR')
+    print(f'[订阅] 生成 ICS: {n} 个事件')
+    return Response('\r\n'.join(lines) + '\r\n', mimetype='text/calendar; charset=utf-8')
+
+
+# ================= 活动开始提醒 =================
+NOTIFY_FILE = os.path.join(DATA_DIR, 'notify.json')
+
+
+def _ensure_notify_file():
+    if not os.path.exists(NOTIFY_FILE):
+        with open(NOTIFY_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'webhook': '', 'time': '08:30'}, f, ensure_ascii=False, indent=2)
+
+
+def _notify_config():
+    try:
+        with open(NOTIFY_FILE, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _send_notify(title, body):
+    """推送 webhook:支持飞书群机器人 / Bark / 通用 JSON {title,body}"""
+    url = (_notify_config().get('webhook') or '').strip()
+    if not url:
+        return False
+    try:
+        if 'feishu' in url or 'larksuite' in url:
+            requests.post(url, json={'msg_type': 'text',
+                                     'content': {'text': f'{title}\n{body}'}}, timeout=10)
+        else:
+            requests.post(url, json={'title': title, 'body': body}, timeout=10)
+        print(f'[提醒] 已推送: {title}')
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f'[提醒] 推送失败: {e}')
+        return False
+
+
+def _daily_notify():
+    """今明两天开始的活动汇总推送"""
+    if not (_notify_config().get('webhook') or '').strip():
+        return
+    with _lock:
+        events = list(_state['events'])
+    today = datetime.now().strftime('%Y-%m-%d')
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    starting = []
+    for e in events:
+        if (e.get('kind') or 'event') != 'event':
+            continue
+        s = str(e.get('start') or e.get('date') or '')
+        if s[:10] in (today, tomorrow):
+            starting.append((s, e))
+    if not starting:
+        _send_notify('二游活动日历', '今明两天没有新活动开始。')
+        return
+    lines = []
+    for s, e in sorted(starting, key=lambda x: x[0]):
+        when = '今天' if s[:10] == today else '明天'
+        tm = s[11:16] if len(s) >= 16 else ''
+        lines.append(f'· {when}{tm and " " + tm} 【{e.get("game") or ""}】{e.get("title", "")}')
+    _send_notify(f'二游活动提醒:今明两天 {len(starting)} 个活动开始', '\n'.join(lines))
+
+
+def _notify_loop():
+    """每天到点推送一次(配置在 data/notify.json,改完下一轮生效)"""
+    sent_day = None
+    while True:
+        try:
+            hh, mm = map(int, (_notify_config().get('time') or '08:30').split(':'))
+        except ValueError:
+            hh, mm = 8, 30
+        now = datetime.now()
+        key = now.strftime('%Y-%m-%d')
+        if (now.hour, now.minute) >= (hh, mm) and sent_day != key:
+            _daily_notify()
+            sent_day = key
+        time.sleep(60)
 
 
 def _port_in_use(port):
@@ -210,14 +367,18 @@ def main():
         webbrowser.open(url)
         return
     _load_cache()
+    _ensure_notify_file()
     # 启动后立即在后台刷新一次(不阻塞服务启动)
     threading.Thread(target=do_refresh, daemon=True).start()
     threading.Thread(target=_refresh_loop, daemon=True).start()
+    threading.Thread(target=_notify_loop, daemon=True).start()
     lan = _lan_ip()
     print('=' * 50)
     print(f'  二游活动聚合已启动: {url}')
     if lan:
         print(f'  局域网访问(手机/平板): http://{lan}:{port}')
+    print(f'  ICS 日历订阅: {url}/api/calendar.ics')
+    print(f'  活动提醒: 配置 data/notify.json 的 webhook(默认 {(_notify_config().get("time") or "08:30")})')
     print('  每 30 分钟自动抓取一次,关闭本窗口即停止服务')
     print('=' * 50)
     threading.Timer(1.2, lambda: webbrowser.open(url)).start()

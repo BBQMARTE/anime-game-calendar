@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="二游日历">
 <title>二游活动聚合</title>
 <style>
 :root{
@@ -148,6 +154,21 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .cal-dots{display:flex; gap:3px; height:5px; align-items:center}
 .cal-dots i{width:5px; height:5px; border-radius:50%}
 
+/* ---------- 设置面板 ---------- */
+.set-sec{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:18px 0 8px}
+.set-row{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:.5px solid var(--sep)}
+.set-row:last-child{border-bottom:none}
+.set-row .lbl{flex:1; font-size:14px}
+.set-row .sub{display:block; font-size:11px; color:var(--label3); margin-top:2px}
+.switch{position:relative; width:46px; height:28px; flex:none; cursor:pointer}
+.switch input{opacity:0; width:0; height:0}
+.switch .tr{position:absolute; inset:0; border-radius:99px; background:var(--fill); transition:.2s}
+.switch .tr:before{content:''; position:absolute; width:24px; height:24px; border-radius:50%; background:#fff; top:2px; left:2px; transition:.2s; box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.switch input:checked + .tr{background:var(--green)}
+.switch input:checked + .tr:before{transform:translateX(18px)}
+.set-games{display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 12px}
+.set-games .chip{cursor:pointer}
+
 /* ---------- 搜索框 ---------- */
 .searchbar{max-width:1180px; margin:0 auto; padding:0 20px 10px}
 .searchbar input{
@@ -211,6 +232,9 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
     <div class="nav-title" id="navTitle">二游活动聚合</div>
     <div class="spacer"></div>
     <span class="updated" id="updated"></span>
+    <button class="refresh-btn" id="settingsBtn" onclick="openSettings()" title="设置">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-4c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h4c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
     <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()" title="抓取最新数据">
       <svg viewBox="0 0 24 24"><path d="M12 4V1L7 6l5 5V7c3.3 0 6 2.7 6 6 0 1.3-.4 2.5-1.1 3.5l1.5 1.5C19.4 16.5 20 14.3 20 12c0-4.4-3.6-8-8-8zm-6 8c0-1.3.4-2.5 1.1-3.5L5.6 7C4.6 7.9 4 9.7 4 12c0 4.4 3.6 8 8 8v3l5-5-5-5v3c-3.3 0-6-2.7-6-6z"/></svg>
     </button>
@@ -248,6 +272,21 @@ try{
     if(f.tab)tab=f.tab;}
 }catch(e){}
 function saveFilters(){try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
+/* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
+let settings={calOn:true,calGames:null};
+try{settings=Object.assign(settings,JSON.parse(localStorage.getItem('ycal_settings')||'{}'))}catch(e){}
+function saveSettings(){try{localStorage.setItem('ycal_settings',JSON.stringify(settings))}catch(e){}}
+function calGamesSet(){
+  const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  if(!settings.calGames)return new Set(ids);  // 未配置 = 全部显示
+  return new Set(settings.calGames.filter(id=>ids.includes(id)));  // 已配置:空 = 都不显示
+}
+function calVisible(e){return !e.game_id||calGamesSet().has(e.game_id)}
+/* 日历关闭时隐藏页签;记忆停留在日历页则回退到进行中 */
+function applySettings(){
+  document.querySelector('#seg button[data-tab="cal"]').style.display=settings.calOn?'':'none';
+  if(!settings.calOn&&tab==='cal')setTab('ongoing');
+}
 let _qT=null;
 function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200)}  // 防抖,避免每击键全量重绘
 
@@ -411,6 +450,7 @@ function eventsOnDay(y,mo,d){
   const day0=new Date(y,mo,d), day1=new Date(y,mo,d+1);
   const starts=[],ends=[],runs=[];
   for(const e of filteredEvents()){
+    if(!calVisible(e))continue;  // 设置里勾掉的游戏不上月历
     const s=evStart(e); if(!s)continue;
     const t=evEnd(e)||s;
     const s0=new Date(s.getFullYear(),s.getMonth(),s.getDate());
@@ -546,7 +586,57 @@ async function showMihoyoDetail(e){
 }
 
 function renderView(){tab==='cal'?renderCal():renderList()}
-function render(){renderMeta();renderView()}
+function render(){renderMeta();applySettings();renderView()}
+/* ================= 设置面板 ================= */
+function openSettings(){
+  const o=document.createElement('div');
+  o.className='detail-overlay';
+  const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  const allOn=calGamesSet().size===ids.length&&ids.length>0;
+  const games=(DATA&&DATA.games||[]).map(g=>
+    `<span class="chip ${calGamesSet().has(g.id)?'on':''}" style="--c:${g.color}" onclick="toggleCalGame('${g.id}')"><i></i>${esc(g.name)}</span>`
+  ).join('');
+  o.innerHTML=`<div class="detail-sheet">
+    <div class="detail-header" style="--c:var(--blue)">
+      <div class="dthumb">⚙</div>
+      <div class="dmeta"><div class="dtitle">设置</div></div>
+      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">✕</div>
+    </div>
+    <div class="detail-body" style="padding-top:4px">
+      <div class="set-sec">日历</div>
+      <div class="set-row">
+        <div class="lbl">显示日历视图<span class="sub">关闭后隐藏「日历」页签,仅保留列表</span></div>
+        <label class="switch"><input type="checkbox" ${settings.calOn?'checked':''} onchange="toggleCalOn(this.checked)"><span class="tr"></span></label>
+      </div>
+      <div style="padding:11px 0 2px">
+        <div class="lbl" style="font-size:14px">日历上显示的游戏<span class="sub">只影响月历,列表页签仍用顶部筛选器</span></div>
+        <div class="set-games" style="margin-top:10px">
+          <span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleCalAllGames()">全部</span>${games}
+        </div>
+      </div>
+    </div>
+  </div>`;
+  o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
+  document.body.appendChild(o);
+}
+function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFilters()}
+function toggleCalGame(id){
+  const cur=calGamesSet(); const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  cur.has(id)?cur.delete(id):cur.add(id);
+  settings.calGames=ids.filter(x=>cur.has(x));  // 全选时存 null(空配置=全显),避免新增游戏被漏掉
+  if(settings.calGames.length===ids.length)settings.calGames=null;
+  saveSettings();openSettingsRefresh();
+}
+function toggleCalAllGames(){
+  const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  const allOn=ids.length>0&&ids.every(id=>calGamesSet().has(id));
+  settings.calGames=allOn?[]:null;  // 全选↔全不选;全选态回退默认(新增游戏自动纳入)
+  saveSettings();openSettingsRefresh();
+}
+function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历
+  const o=document.querySelector('.detail-overlay:last-of-type'); if(o)o.remove();
+  renderView();openSettings();
+}
 
 load();
 if(!IS_ANDROID){
@@ -558,6 +648,10 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab!=='al
 /* Android WebView 套壳内置入口:切换服务器(普通浏览器不显示) */
 if(/; wv\)/.test(navigator.userAgent)&&window.YCalNative){
   document.getElementById('nativeCtl').innerHTML=' · <a href="#" onclick="YCalNative.openSettings();return false" style="color:inherit;text-decoration:underline">切换服务器</a>';
+}
+/* PWA:浏览器环境注册 Service Worker(安卓壳/文件协议下跳过) */
+if(!IS_ANDROID&&/^https?:$/.test(location.protocol)&&'serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }
 </script>
 </body>

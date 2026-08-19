@@ -115,6 +115,8 @@ The Android app is a native WebView shell with the pages and scraping logic bund
 
 **Direct download:** grab the APK from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases), transfer it to your phone and install (allow installing from unknown sources).
 
+The web app's **gear button** (top-right) opens settings: one-tap toggle for the calendar view, and per-game checkboxes for what shows on the monthly calendar (independent of the list filters).
+
 **Build on this machine (SDK installed on D:):**
 
 Double-click `构建APK.bat`. On first run it generates a release signing key (`android/ycal.keystore`, password in `android/keystore.properties`); the output lands in `android/app/build/outputs/apk/release/app-release.apk`. If keytool is missing, the script falls back to a debug APK.
@@ -127,6 +129,28 @@ Minimum Android 8.0 (API 26).
 
 > The Android project bundles its pages from `android/app/src/main/assets/www/` (a copy of `static/`).
 > **After editing `static/`, copy it to `android/app/src/main/assets/www/` before rebuilding.**
+
+## Subscriptions & reminders
+
+| Feature | Usage |
+|---|---|
+| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar |
+| **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
+| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest of events starting today & tomorrow is pushed |
+| **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |
+
+Example `data/notify.json`:
+
+```json
+{
+  "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
+  "time": "08:30"
+}
+```
+
+- **Feishu/Lark**: group settings → bots → add a "Custom Bot", paste its webhook URL
+- **Bark** (iOS app): use `https://api.day.app/<your-key>`
+- Leave empty to disable; changes take effect on the next cycle
 
 ## Time parsing kernel
 
