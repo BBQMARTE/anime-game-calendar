@@ -8,6 +8,16 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 
 > The supported games are their CN-server versions; all data comes from official Chinese channels.
 
+## Quick start: send the repo link to your AI agent
+
+Installing, configuring and scheduling this project is one message. Open your favorite AI agent app (anything with terminal / file / web-search access — Trae, Claude Code, Cursor, …) and send:
+
+> https://github.com/BBQMARTE/anime-game-calendar Deploy this project for me and set up the daily automation described in the README
+
+The agent will read this document and do everything else: install dependencies → start the server → create the daily automation (web-search & verify new events, update the calendar, clean up expired ones). No manual steps, nothing to copy by hand.
+
+Prefer doing it yourself? Keep scrolling for traditional instructions; the Android app can be downloaded directly from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases).
+
 ## Origin: the scrapers kept failing — agent search saved the day
 
 The first version of this project was a pure scraper: fetch official APIs, split version-update articles into events, parse time ranges with regex. It worked — sort of.
@@ -27,11 +37,11 @@ So the project settled on a **dual-engine** design:
 
 ## The agent automation: reproducible with any agent app
 
-The data accuracy comes down to a single automation prompt. **Any agent app with web search + scheduled tasks** (Trae, Claude Code, Cursor, …) can replicate it:
+The data accuracy comes down to a single automation prompt. Send the repo link to your agent as described in "Quick start" — it will read this section and **create the scheduled task itself**, filling in the project path for you. Nothing to copy.
 
-1. Create a scheduled task in your agent app (once a day, e.g. 20:00)
-2. Paste the prompt below into the task, replacing `<project-path>` with your local repo path
-3. Done. Every day the agent will automatically: make sure the server is up → web-search & verify new events → update the calendar → clean up expired ones
+The full prompt is included below for two purposes: ① for agents to consume directly, and ② for anyone who prefers manual setup (create a once-a-day scheduled task in your agent app, e.g. 20:00, paste the prompt, replace `<project-path>` with your local repo path).
+
+Every day the agent will automatically: make sure the server is up → web-search & verify new events → update the calendar → clean up expired ones.
 
 ```text
 Daily maintenance task for the anime game event calendar. Project directory: <project-path>. Follow the steps below strictly. Do not modify any source code.
@@ -89,7 +99,7 @@ Each game's **version update article** is automatically split into individual ev
 | Ananta | Perfect World official news pages (notices/events/news) |
 | Official Bilibili accounts of all 5 games | public Bilibili post API (categorized as info) |
 
-## PC web app
+## PC web app (manual install)
 
 1. Install dependencies (first run): `pip install -r requirements.txt`
 2. Double-click `启动.bat` (or run `python app.py`)
@@ -102,6 +112,8 @@ Each game's **version update article** is automatically split into individual ev
 ## Android app
 
 The Android app is a native WebView shell with the pages and scraping logic bundled inside (no PC server needed); data is fetched on-device and cached locally.
+
+**Direct download:** grab the APK from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases), transfer it to your phone and install (allow installing from unknown sources).
 
 **Build on this machine (SDK installed on D:):**
 
