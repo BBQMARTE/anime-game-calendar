@@ -170,6 +170,8 @@ If the automatic fetch misses an event, there are two ways to add it (this is al
 
 ## Notes
 
+> **Data copyright notice: all event schedules and announcement content displayed by this project are entirely copyrighted by the games' official publishers (HoYoverse/miHoYo, Hypergryph, Kuro Games, Perfect World, etc.).** This project is an information-aggregation display for personal learning and exchange only; it contains no official asset files and is not used for any commercial purpose. For official details of each event, refer to the games' official channels. Contact me for removal in case of infringement.
+
 - All data comes from official public pages/APIs and public Bilibili posts; no logins, no exploits. Please keep request rates low.
 - Times are in Beijing time; events with an official start~end range get a countdown and progress bar.
 - To add a game: register it in `REGISTRY` in `scrapers.py` (web) or in `RUNNERS` in `scraper.js` (Android).
