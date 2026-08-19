@@ -126,6 +126,28 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .prog i{display:block; height:100%; background:var(--c); border-radius:2px}
 .empty{color:var(--label3); text-align:center; padding:36px 0; font-size:13px}
 
+/* ---------- 月历视图 ---------- */
+.cal-card{background:var(--card); border-radius:16px; padding:12px 6px 8px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.cal-head{display:flex; align-items:center; gap:4px; padding:0 8px 10px}
+.cal-title{flex:1; text-align:center; font-size:17px; font-weight:700; letter-spacing:.02em}
+.cal-nav{
+  width:32px; height:32px; border-radius:50%; background:var(--fill); color:var(--label);
+  font-size:19px; font-weight:600; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.cal-nav:active{opacity:.6}
+.cal-today{padding:6px 13px; border-radius:99px; background:var(--fill); font-size:12px; font-weight:600; color:var(--label2); cursor:pointer}
+.cal-today:active{opacity:.6}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr)}
+.cal-wd{font-size:11px; font-weight:600; color:var(--label3); text-align:center; padding-bottom:6px}
+.cal-cell{display:flex; flex-direction:column; align-items:center; gap:3px; padding:2px 0 5px; cursor:pointer; border-radius:10px}
+.cal-cell:active{background:var(--fill)}
+.cal-cell .d{width:30px; height:30px; line-height:30px; text-align:center; font-size:14px; font-weight:600; border-radius:50%}
+.cal-cell.dim .d{color:var(--label3); font-weight:400}
+.cal-cell.sel .d{background:var(--blue); color:#fff}
+.cal-cell.today .d{background:var(--red); color:#fff; font-weight:700}
+.cal-dots{display:flex; gap:3px; height:5px; align-items:center}
+.cal-dots i{width:5px; height:5px; border-radius:50%}
+
 /* ---------- 搜索框 ---------- */
 .searchbar{max-width:1180px; margin:0 auto; padding:0 20px 10px}
 .searchbar input{
@@ -202,7 +224,8 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 
 <main>
   <div class="seg" id="seg">
-    <button class="on" data-tab="ongoing" onclick="setTab('ongoing')">进行中</button>
+    <button class="on" data-tab="cal" onclick="setTab('cal')">日历</button>
+    <button data-tab="ongoing" onclick="setTab('ongoing')">进行中</button>
     <button data-tab="soon" onclick="setTab('soon')">即将开始</button>
     <button data-tab="all" onclick="setTab('all')">全部资讯</button>
   </div>
@@ -216,17 +239,17 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 const CAT_COLOR={'活动':'#34C759','角色与专武':'#FF2D55','公告':'#FF9500','资讯':'#007AFF'};
 const IS_ANDROID=/[?&]platform=android/.test(location.search);
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
-let tab='ongoing', q='';
-/* 筛选状态记忆(跨会话保留) */
+let tab='cal', q='';
+/* 筛选状态记忆(跨会话保留;键升级 v2 以重置旧 tab 记忆,让月历成为默认视图) */
 try{
-  const f=JSON.parse(localStorage.getItem('ycal_filters')||'null');
+  const f=JSON.parse(localStorage.getItem('ycal_filters2')||'null');
   if(f){if(f.g&&f.g.length)activeGames=new Set(f.g);
     if(f.c&&f.c.length)activeCats=new Set(f.c);
     if(f.tab)tab=f.tab;}
 }catch(e){}
-function saveFilters(){try{localStorage.setItem('ycal_filters',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
+function saveFilters(){try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
 let _qT=null;
-function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderList,200)}  // 防抖,避免每击键全量重绘
+function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200)}  // 防抖,避免每击键全量重绘
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
@@ -336,7 +359,7 @@ function toggleAll(){
 }
 
 /* ================= 事件行 ================= */
-function setTab(t){tab=t;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderList()}
+function setTab(t){tab=t;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderView()}
 function fmtRange(e){
   const s=evStart(e),t=evEnd(e);
   if(!s)return '';
@@ -379,6 +402,66 @@ function dayLabel(d){
   if(diff===1)return `明天 · ${md} ${wd}`;
   if(diff===-1)return `昨天 · ${md} ${wd}`;
   return `${md} ${wd}`;
+}
+/* ================= 月历视图 ================= */
+let calY=null, calM=0, selDay=null;
+function sameDay(a,b){return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+/* 某日的活动:starts 当天开始 / runs 当天进行中(跨越) / ends 当天结束 */
+function eventsOnDay(y,mo,d){
+  const day0=new Date(y,mo,d), day1=new Date(y,mo,d+1);
+  const starts=[],ends=[],runs=[];
+  for(const e of filteredEvents()){
+    const s=evStart(e); if(!s)continue;
+    const t=evEnd(e)||s;
+    const s0=new Date(s.getFullYear(),s.getMonth(),s.getDate());
+    const t0=new Date(t.getFullYear(),t.getMonth(),t.getDate());
+    if(s0>=day0&&s0<day1)starts.push(e);
+    else if(t0>=day0&&t0<day1)ends.push(e);
+    else if(s0<day0&&t0>=day1)runs.push(e);
+  }
+  return {starts,ends,runs};
+}
+function calNav(n){calM+=n; if(calM<0){calM=11;calY--} if(calM>11){calM=0;calY++} renderCal()}
+function calToday(){const n=new Date(); calY=n.getFullYear(); calM=n.getMonth(); selDay=n; renderCal()}
+function pickDay(y,mo,d){
+  if(y!==calY||mo!==calM){calY=y;calM=mo}  // 点击前后月灰格自动翻月
+  selDay=new Date(y,mo,d);
+  renderCal();
+}
+function renderCal(){
+  const now=new Date();
+  if(calY===null){calY=now.getFullYear(); calM=now.getMonth(); selDay=now}
+  /* 42 格网格:从本月第一周周日开始 */
+  const first=new Date(calY,calM,1);
+  const cells=[]; const start=new Date(first); start.setDate(1-first.getDay());
+  for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); cells.push(d)}
+  let h=`<div class="cal-card"><div class="cal-head">
+    <button class="cal-nav" onclick="calNav(-1)">‹</button>
+    <div class="cal-title">${calY}年${calM+1}月</div>
+    <button class="cal-nav" onclick="calNav(1)">›</button>
+    <button class="cal-today" onclick="calToday()">今天</button>
+  </div><div class="cal-grid">
+  ${'日一二三四五六'.split('').map(w=>`<div class="cal-wd">${w}</div>`).join('')}
+  ${cells.map(d=>{
+    const inM=d.getMonth()===calM;
+    const ev=eventsOnDay(d.getFullYear(),d.getMonth(),d.getDate());
+    const colors=[...new Set(ev.starts.concat(ev.runs,ev.ends).map(e=>gameColor(e.game_id)))].slice(0,3);
+    const cls=[!inM?'dim':'', sameDay(d,now)?'today':'', sameDay(d,selDay)?'sel':''].join(' ');
+    return `<div class="cal-cell ${cls}" onclick="pickDay(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
+      <span class="d">${d.getDate()}</span>
+      <span class="cal-dots">${colors.map(c=>`<i style="background:${c}"></i>`).join('')}</span>
+    </div>`;
+  }).join('')}
+  </div></div>`;
+  /* 选中日的活动列表:当天开始 / 进行中 / 当天结束 */
+  const ev=eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate());
+  const cnt=ev.starts.length+ev.runs.length+ev.ends.length;
+  h+=`<div class="sec-title" style="margin-top:16px">${dayLabel(selDay)}${cnt?' · '+cnt+' 个活动':''}</div>`;
+  if(!cnt) h+='<div class="empty">当天无排期活动</div>';
+  if(ev.starts.length) h+=`<div class="sec-title">当天开始 · ${ev.starts.length}</div><div class="group">${ev.starts.map(rowHtml).join('')}</div>`;
+  if(ev.runs.length) h+=`<div class="sec-title">进行中 · ${ev.runs.length}</div><div class="group">${ev.runs.map(rowHtml).join('')}</div>`;
+  if(ev.ends.length) h+=`<div class="sec-title">当天结束 · ${ev.ends.length}</div><div class="group">${ev.ends.map(rowHtml).join('')}</div>`;
+  $('#list').innerHTML=h;
 }
 function renderList(){
   const now=new Date();
@@ -462,15 +545,16 @@ async function showMihoyoDetail(e){
   }
 }
 
-function render(){renderMeta();renderList()}
+function renderView(){tab==='cal'?renderCal():renderList()}
+function render(){renderMeta();renderView()}
 
 load();
 if(!IS_ANDROID){
   setInterval(async()=>{try{const r=await fetch('/api/events');const d=await r.json();
     if(d.updated!==(DATA&&DATA.updated)){DATA=d;render();}}catch(e){}},60000);
 }
-setInterval(()=>{if(tab!=='all'&&!document.hidden)renderList()},30000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab!=='all')renderList()});  // 回前台立即刷新倒计时
+setInterval(()=>{if(tab!=='all'&&!document.hidden)renderView()},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab!=='all')renderView()});  // 回前台立即刷新倒计时
 /* Android WebView 套壳内置入口:切换服务器(普通浏览器不显示) */
 if(/; wv\)/.test(navigator.userAgent)&&window.YCalNative){
   document.getElementById('nativeCtl').innerHTML=' · <a href="#" onclick="YCalNative.openSettings();return false" style="color:inherit;text-decoration:underline">切换服务器</a>';
