@@ -1,10 +1,10 @@
-# Eryou Rili — Anime Game Event Calendar
+# Anime Game Event Calendar (动漫游戏活动日历)
 
 > **This entire project was written by an AI agent** — the web front-end, the Flask back-end, the time-parsing kernel, the Android app, and even the daily verification of event schedules.
 
 [简体中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md)
 
-Eryou Rili (二游日历) aggregates event schedules and announcements from the **official public APIs** of popular anime gacha games into an iOS-style event list, with countdowns and progress bars. Available as a **PC web app** and an **Android app**.
+Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules and announcements from the **official public APIs** of popular anime gacha games into an iOS-style event list, with countdowns and progress bars. Available as a **PC web app** and an **Android app**.
 
 > The supported games are their CN-server versions; all data comes from official Chinese channels.
 
