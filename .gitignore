@@ -20,3 +20,4 @@ android/ycal.keystore
 
 # 分发产物
 *.apk
+.ai-handoff/

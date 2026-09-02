@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
+from urllib.parse import urlparse
 
 import bilibili
 import scrapers
@@ -145,7 +146,18 @@ def _refresh_loop():
 
 @app.route('/')
 def index():
-    return send_from_directory(app.static_folder, 'index.html')
+    resp = send_from_directory(app.static_folder, 'index.html')
+    resp.headers['Cache-Control'] = 'no-cache'  # 每次协商,杜绝浏览器启发式缓存旧页面
+    return resp
+
+
+@app.after_request
+def _no_cache_static(resp):
+    """HTML/JS 每次协商更新(由 SW 或 304 保证速度);图片代理自带长缓存头不动"""
+    ct = resp.headers.get('Content-Type', '')
+    if 'text/html' in ct or 'javascript' in ct or 'manifest+json' in ct:
+        resp.headers.setdefault('Cache-Control', 'no-cache')
+    return resp
 
 
 @app.route('/scraper.js')
@@ -254,6 +266,38 @@ def api_ics():
     lines.append('END:VCALENDAR')
     print(f'[订阅] 生成 ICS: {n} 个事件')
     return Response('\r\n'.join(lines) + '\r\n', mimetype='text/calendar; charset=utf-8')
+
+
+# ================= 图片代理(绕过图床跨域/防盗链) =================
+# 浏览器直接加载 B站等图床会被 ORB/防盗链拦截,统一走服务端同源转发
+IMG_HOSTS = ('hdslb.com', 'biliimg.com', 'mihoyo.com', 'hoyoverse.com', 'hoyolab.com',
+             'kurogame.com', 'kurobbs.com', 'hypergryph.com', 'gryphline.com',
+             'wanmei.com', 'taptap.cn', 'taptap.io', 'weibo.cn', 'weibo.com',
+             'sinaimg.cn', 'bilivideo.com', 'akamaized.net', 'im9.com', 'ipaperclip.net')
+
+
+@app.route('/api/img')
+def api_img():
+    url = (request.args.get('url') or '').strip()
+    if not url.startswith(('http://', 'https://')):
+        return jsonify({'error': 'bad url'}), 400
+    host = urlparse(url).hostname or ''
+    if not any(host == h or host.endswith('.' + h) for h in IMG_HOSTS):
+        return jsonify({'error': 'host not allowed'}), 403
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    if 'hdslb' in host or 'biliimg' in host:
+        headers['Referer'] = 'https://www.bilibili.com/'  # B站图床防盗链
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        ctype = (r.headers.get('Content-Type') or '').lower()
+        if r.status_code != 200 or not ctype.startswith('image/'):
+            return jsonify({'error': 'fetch failed'}), 502
+        resp = Response(r.content, mimetype=ctype)
+        resp.headers['Cache-Control'] = 'public, max-age=86400'  # 图片缓存 1 天
+        return resp
+    except Exception as e:  # noqa: BLE001
+        print(f'[图片代理] 失败 {host}: {e}')
+        return jsonify({'error': 'proxy error'}), 502
 
 
 # ================= 活动开始提醒 =================

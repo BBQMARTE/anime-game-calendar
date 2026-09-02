@@ -1,6 +1,6 @@
 /* 二游活动聚合 PWA Service Worker
    静态资源缓存优先;/api/events 网络优先、失败回退缓存(离线可看) */
-const CACHE = 'ycal-v3';
+const CACHE = 'ycal-v4';
 const ASSETS = ['/', '/scraper.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {

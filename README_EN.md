@@ -41,7 +41,7 @@ The data accuracy comes down to a single automation prompt. Send the repo link t
 
 The full prompt is included below for two purposes: ① for agents to consume directly, and ② for anyone who prefers manual setup (create a once-a-day scheduled task in your agent app, e.g. 20:00, paste the prompt, replace `<project-path>` with your local repo path).
 
-Every day the agent will automatically: make sure the server is up → web-search & verify new events → update the calendar → clean up expired ones.
+Every day the agent will automatically: make sure the server is up → web-search & verify new events → recognize image-only schedules (requires multimodal) → update the calendar → clean up expired ones.
 
 ```text
 Daily maintenance task for the anime game event calendar. Project directory: <project-path>. Follow the steps below strictly. Do not modify any source code.
@@ -59,11 +59,18 @@ Search for events/banners officially published in the last 1–2 days for:
 Look for: version update notes / event overviews, limited-time events, character & weapon banners with exact start/end times.
 Verification standard: times must be cross-confirmed by official sources (official site news, official Bilibili account, in-game announcements); times are in Beijing time, precise to HH:MM; if a time cannot be verified, do not record it.
 
+[Image-only announcements (self-check routing, no third-party API)]
+Some games (typically Arknights: Endfield) publish event schedules as images — plain text search cannot see them. Handle by priority:
+1. Self-check first: do you have vision capability — a multimodal model that can read images directly, or a vision tool provided by your agent platform (text-only model with an external recognizer)?
+2. If yes: when you encounter image-only schedules on official pages, use vision recognition to extract every event name and start/end time, record them per Step 3, and fill the image field with the original image URL (the frontend shows it as a list thumbnail and in the detail popup)
+3. If no: fall back to text-only search, skip image-only content, and note in the report "image-only announcements not covered — rerun with a multimodal agent"; never guess image contents
+
 [Step 3: update data/manual.json]
 1. Read all existing entries first
 2. Deduplicate by (game_id + title); do not add entries that already exist
 3. Append new entries at the end of the JSON array:
-   {"game_id": "hsr", "title": "Event Name", "category": "活动", "start": "2026-08-20T10:00", "end": "2026-09-03T03:59", "link": "official link", "image": ""}
+   {"game_id": "hsr", "title": "Event Name", "category": "活动", "start": "2026-08-20T10:00", "end": "2026-09-03T03:59", "link": "official link", "image": "image URL, optional"}
+   image: direct URL of the official artwork/schedule image — shown as list thumbnail & detail popup; empty string if none
    category values: 活动 (event) / 角色与专武 (character & weapon banner) / 公告 (notice) / 资讯 (info)
    Leave end as an empty string for permanent/no-end events; only record events whose end time is in the future
 4. Cleanup: delete entries whose end is a valid date earlier than now; keep entries with an empty end
