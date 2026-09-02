@@ -43,7 +43,7 @@ The agent will read this document and do everything else: install dependencies �
 
 Prefer doing it yourself? See [Install & usage](#install) below; the Android app can be downloaded directly from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases).
 
-> **Agent software notice**: the author developed this project **in relay across multiple AI agent apps** (switching to the next one whenever credits ran out) — the initial prototype was built by **Kimi K3**, and the front/back-end, Android app and daily automation were completed across several other agent apps. **The finished project was only fully tested on [TRAE Work](https://www.trae.ai/)** (including the daily automation and browser-screenshot image recognition). Other agent apps are theoretically compatible (anything with terminal / file / web-search access should work) but were not individually tested — when in doubt, treat TRAE Work as the reference environment.
+> **Agent software notice**: this project has **only been tested with [TRAE Work](https://www.trae.ai/)**; the author has not tested it with other agent apps (Claude Code, Cursor, etc.) — when in doubt, treat TRAE Work as the reference environment.
 
 <a id="install"></a>
 
