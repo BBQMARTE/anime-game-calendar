@@ -139,7 +139,9 @@ Each game's **version update article** is automatically split into individual ev
 
 ## Why the data is accurate: scraper + AI dual engine
 
-The first version of this project was a pure scraper: fetch official APIs, split version-update articles into events, parse time ranges with regex. It worked — sort of.
+The initial prototype was built by **Kimi K3**, then developed in relay across **several AI agent apps** (switching whenever credits ran out), and finally completed and fully tested in [TRAE Work](https://www.trae.ai/) — this project really is written by AI.
+
+The first version was a pure scraper: fetch official APIs, split version-update articles into events, parse time ranges with regex. It worked — sort of.
 
 In practice, the scraped data was riddled with errors: swapped start/end times, article body fragments leaking into event titles, occasionally broken API responses producing garbage entries… Rule-based parsing can never plug all of these edge cases.
 
