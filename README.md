@@ -41,7 +41,7 @@ Agent 会自己读完本文档,完成剩下的一切:装依赖 → 启动服务 
 
 不想用 Agent?往下看[安装与使用](#install);安卓 App 也可以直接去 [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases) 下载。
 
-> **智能体软件声明**:本项目**仅在** **[TRAE Work](https://www.trae.ai/)** **中测试过**;其他智能体软件(Claude Code、Cursor 等)作者均未测试,遇到问题请以 TRAE Work 环境为准。
+> **智能体软件声明**:本项目仅在 **[TRAE Work](https://www.trae.ai/)** 中测试过;其他智能体软件(Claude Code、Cursor 等)作者均未测试,遇到问题请以 TRAE Work 环境为准。
 
 <a id="install"></a>
 
