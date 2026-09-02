@@ -1,24 +1,143 @@
 # Anime Game Event Calendar (动漫游戏活动日历)
 
-> **This entire project was written by an AI agent** — the web front-end, the Flask back-end, the time-parsing kernel, the Android app, and even the daily verification of event schedules.
-
 [简体中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md)
+
+> **This entire project was written by AI agents** — from the prototype, front-end and back-end code, scraping kernel and Android app, to the daily verification of event schedules, all done by AI agents working in relay.
 
 Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules and announcements from the **official public APIs** of popular anime gacha games into an iOS-style **monthly calendar** (tap any day to see that day's schedule) and event lists, with countdowns and progress bars. Available as a **PC web app** and an **Android app**.
 
 > The supported games are their CN-server versions; all data comes from official Chinese channels.
 
+## Feature overview
+
+| Feature | Description |
+|---|---|
+| 5 games aggregated | Honkai: Star Rail, Zenless Zone Zero, Arknights: Endfield, Wuthering Waves, Ananta + official Bilibili posts |
+| Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects daily for accuracy |
+| Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
+| Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
+| Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline) |
+| Subscriptions & reminders | ICS calendar feed, Feishu/Bark event-start push, Tailscale remote access |
+| Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |
+
+## Contents
+
+1. [Quick start: one message, your AI agent deploys it all](#quickstart)
+2. [Install & usage](#install): [Android app](#android) / [PC web app](#pc) / [Subscriptions & reminders](#notify)
+3. [Supported games & data sources](#games)
+4. [Why the data is accurate: scraper + AI dual engine](#why)
+5. [Appendix](#appendix): [AI agent daily automation prompt](#automation) / [Time parsing kernel](#timeparse) / [Adding events manually](#manual-add)
+6. [Notes](#notes)
+
+---
+
+<a id="quickstart"></a>
+
 ## Quick start: send the repo link to your AI agent
 
-Installing, configuring and scheduling this project is one message. Open your favorite AI agent app (anything with terminal / file / web-search access — Trae, Claude Code, Cursor, …) and send:
+Installing, configuring and scheduling this project is one message. Open your favorite AI agent app (anything with terminal / file / web-search access — TRAE, Claude Code, Cursor, …) and send:
 
 > https://github.com/BBQMARTE/anime-game-calendar Deploy this project for me and set up the daily automation described in the README
 
 The agent will read this document and do everything else: install dependencies → start the server → create the daily automation (web-search & verify new events, update the calendar, clean up expired ones). No manual steps, nothing to copy by hand.
 
-Prefer doing it yourself? Keep scrolling for traditional instructions; the Android app can be downloaded directly from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases).
+Prefer doing it yourself? See [Install & usage](#install) below; the Android app can be downloaded directly from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases).
 
-## Origin: the scrapers kept failing — agent search saved the day
+> **Agent software notice**: the author developed this project **in relay across multiple AI agent apps** (switching to the next one whenever credits ran out) — the initial prototype was built by **Kimi K3**, and the front/back-end, Android app and daily automation were completed across several other agent apps. **The finished project was only fully tested on [TRAE Work](https://www.trae.ai/)** (including the daily automation and browser-screenshot image recognition). Other agent apps are theoretically compatible (anything with terminal / file / web-search access should work) but were not individually tested — when in doubt, treat TRAE Work as the reference environment.
+
+<a id="install"></a>
+
+## Install & usage
+
+<a id="android"></a>
+
+### Android app
+
+The Android app is a native WebView shell with two built-in modes: **server mode** (connect to the PC server for the most complete & accurate data) and **scraper mode** (fetch official APIs on-device, no PC needed).
+
+**Direct download:** grab the APK from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases), transfer it to your phone and install (allow installing from unknown sources).
+
+The web app's **gear button** (top-right) opens settings: one-tap toggle for the calendar view, and per-game checkboxes for what shows on the monthly calendar (independent of the list filters).
+
+**Build on this machine (SDK installed on D:):**
+
+Double-click `构建APK.bat`. On first run it generates a release signing key (`android/ycal.keystore`, password in `android/keystore.properties`); the output lands in `android/app/build/outputs/apk/release/app-release.apk`. If keytool is missing, the script falls back to a debug APK.
+
+> **Back up `android/ycal.keystore`**: without it you cannot upgrade an installed app — only uninstall & reinstall.
+
+**Build elsewhere:** open the `android/` folder in Android Studio, sync, then `Build > Build APK(s)`.
+
+Minimum Android 8.0 (API 26).
+
+> The Android project bundles its pages from `android/app/src/main/assets/www/` (a copy of `static/`).
+> **After editing `static/`, copy it to `android/app/src/main/assets/www/` before rebuilding.**
+
+<a id="pc"></a>
+
+### PC web app (manual install)
+
+1. Install dependencies (first run): `pip install -r requirements.txt`
+2. Double-click `启动.bat` (or run `python app.py`)
+3. Your browser opens <http://127.0.0.1:5000> automatically
+
+- Fetches once on startup, then auto-refreshes every 30 minutes; manual refresh button top-right.
+- Results are cached in `data/cache.json` and restored instantly on restart.
+- Follows the system light/dark mode automatically.
+
+Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for access away from home see the Tailscale option under [Subscriptions & reminders](#notify).
+
+<a id="notify"></a>
+
+### Subscriptions & reminders
+
+| Feature | Usage |
+|---|---|
+| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar |
+| **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
+| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest of events starting today & tomorrow is pushed |
+| **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |
+
+Example `data/notify.json`:
+
+```json
+{
+  "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
+  "time": "08:30"
+}
+```
+
+- **Feishu/Lark**: group settings → bots → add a "Custom Bot", paste its webhook URL
+- **Bark** (iOS app): use `https://api.day.app/<your-key>`
+- Leave empty to disable; changes take effect on the next cycle
+
+<a id="games"></a>
+
+## Supported games & data sources
+
+| Game | Source |
+|---|---|
+| Honkai: Star Rail / Zenless Zone Zero | **in-game announcement API** (same source as the in-game "Notices" panel) + version update article splitting |
+| Arknights: Endfield | official website news pages (with detail links) + version update article splitting |
+| Wuthering Waves | official website article API + automatic splitting of version notes into events |
+| Ananta | Perfect World official news pages (notices/events/news) |
+| Official Bilibili accounts of all 5 games | public Bilibili post API (categorized as info) |
+
+### Display logic: real events vs. info
+
+Everything fetched falls into two tiers:
+
+| Tier | Content | Where it shows |
+|---|---|---|
+| **Event** | limited-time events, character & weapon banners with **start/end times**, auto-shortened titles, countdown & progress bar | Ongoing / Upcoming |
+| **Info** | fix notices, gameplay guides, shop updates, surveys, official news, Bilibili posts | "All info" tab only |
+
+The top filter bar filters by game and by category (events / characters & weapons / notices / info).
+
+Each game's **version update article** is automatically split into individual events ("new events", "new banners", …); the article itself goes to the info tab.
+
+<a id="why"></a>
+
+## Why the data is accurate: scraper + AI dual engine
 
 The first version of this project was a pure scraper: fetch official APIs, split version-update articles into events, parse time ranges with regex. It worked — sort of.
 
@@ -26,7 +145,7 @@ In practice, the scraped data was riddled with errors: swapped start/end times, 
 
 Then came the idea: **agent apps can search the web — what if an AI agent searched official announcements and verified the schedules every day?**
 
-The result was excellent: the agent's search results were accurate and complete, with times precise to the minute — far beyond what regex parsing could ever achieve. All 67 manually verified events in this repo came from this channel.
+The result was excellent: the agent's search results were accurate and complete, with times precise to the minute — far beyond what regex parsing could ever achieve. Every AI-verified entry in the calendar came from this channel.
 
 So the project settled on a **dual-engine** design:
 
@@ -35,13 +154,19 @@ So the project settled on a **dual-engine** design:
 | Scrapers | every 30 min | auto-fetch official APIs for freshness |
 | AI agent search | once a day | web-search, verify & correct schedules for accuracy |
 
-## The agent automation: reproducible with any agent app
+<a id="appendix"></a>
 
-The data accuracy comes down to a single automation prompt. Send the repo link to your agent as described in "Quick start" — it will read this section and **create the scheduled task itself**, filling in the project path for you. Nothing to copy.
+## Appendix
+
+<a id="automation"></a>
+
+### AI agent daily automation prompt
+
+The data accuracy comes down to a single automation prompt. Send the repo link to your agent as described in [Quick start](#quickstart) — it will read this section and **create the scheduled task itself**, filling in the project path for you. Nothing to copy.
 
 The full prompt is included below for two purposes: ① for agents to consume directly, and ② for anyone who prefers manual setup (create a once-a-day scheduled task in your agent app, e.g. 20:00, paste the prompt, replace `<project-path>` with your local repo path).
 
-Every day the agent will automatically: make sure the server is up → web-search & verify new events → recognize image-only schedules (requires multimodal) → update the calendar → clean up expired ones.
+Every day the agent will automatically: make sure the server is up → web-search & verify new events → recognize image-only schedules (browser-screenshot method) → update the calendar → clean up expired ones.
 
 ```text
 Daily maintenance task for the anime game event calendar. Project directory: <project-path>. Follow the steps below strictly. Do not modify any source code.
@@ -84,83 +209,9 @@ If the server is up, POST to http://127.0.0.1:5000/api/refresh with the header X
 Briefly report: ① server status; ② new events recorded per game; ③ how many expired entries were cleaned; ④ say "no new events" where applicable. Do not record events whose times you are unsure about — state the uncertainty instead.
 ```
 
-## Display logic: real events vs. info
+<a id="timeparse"></a>
 
-Everything fetched falls into two tiers:
-
-| Tier | Content | Where it shows |
-|---|---|---|
-| **Event** | limited-time events, character & weapon banners with **start/end times**, auto-shortened titles, countdown & progress bar | Ongoing / Upcoming |
-| **Info** | fix notices, gameplay guides, shop updates, surveys, official news, Bilibili posts | "All info" tab only |
-
-The top filter bar filters by game and by category (events / characters & weapons / notices / info).
-
-Each game's **version update article** is automatically split into individual events ("new events", "new banners", …); the article itself goes to the info tab.
-
-## Supported games & data sources
-
-| Game | Source |
-|---|---|
-| Honkai: Star Rail / Zenless Zone Zero | **in-game announcement API** (same source as the in-game "Notices" panel) + version update article splitting |
-| Arknights: Endfield | official website news pages (with detail links) + version update article splitting |
-| Wuthering Waves | official website article API + automatic splitting of version notes into events |
-| Ananta | Perfect World official news pages (notices/events/news) |
-| Official Bilibili accounts of all 5 games | public Bilibili post API (categorized as info) |
-
-## PC web app (manual install)
-
-1. Install dependencies (first run): `pip install -r requirements.txt`
-2. Double-click `启动.bat` (or run `python app.py`)
-3. Your browser opens <http://127.0.0.1:5000> automatically
-
-- Fetches once on startup, then auto-refreshes every 30 minutes; manual refresh button top-right.
-- Results are cached in `data/cache.json` and restored instantly on restart.
-- Follows the system light/dark mode automatically.
-
-## Android app
-
-The Android app is a native WebView shell with the pages and scraping logic bundled inside (no PC server needed); data is fetched on-device and cached locally.
-
-**Direct download:** grab the APK from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases), transfer it to your phone and install (allow installing from unknown sources).
-
-The web app's **gear button** (top-right) opens settings: one-tap toggle for the calendar view, and per-game checkboxes for what shows on the monthly calendar (independent of the list filters).
-
-**Build on this machine (SDK installed on D:):**
-
-Double-click `构建APK.bat`. On first run it generates a release signing key (`android/ycal.keystore`, password in `android/keystore.properties`); the output lands in `android/app/build/outputs/apk/release/app-release.apk`. If keytool is missing, the script falls back to a debug APK.
-
-> **Back up `android/ycal.keystore`**: without it you cannot upgrade an installed app — only uninstall & reinstall.
-
-**Build elsewhere:** open the `android/` folder in Android Studio, sync, then `Build > Build APK(s)`.
-
-Minimum Android 8.0 (API 26).
-
-> The Android project bundles its pages from `android/app/src/main/assets/www/` (a copy of `static/`).
-> **After editing `static/`, copy it to `android/app/src/main/assets/www/` before rebuilding.**
-
-## Subscriptions & reminders
-
-| Feature | Usage |
-|---|---|
-| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar |
-| **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
-| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest of events starting today & tomorrow is pushed |
-| **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |
-
-Example `data/notify.json`:
-
-```json
-{
-  "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
-  "time": "08:30"
-}
-```
-
-- **Feishu/Lark**: group settings → bots → add a "Custom Bot", paste its webhook URL
-- **Bark** (iOS app): use `https://api.day.app/<your-key>`
-- Leave empty to disable; changes take effect on the next cycle
-
-## Time parsing kernel
+### Time parsing kernel
 
 Event times are extracted by `timeparse.py` (web/server) and `static/scraper.js` (Android, isomorphic). It covers most real-world announcement formats:
 
@@ -173,7 +224,9 @@ Event times are extracted by `timeparse.py` (web/server) and `static/scraper.js`
 - **Event names**: brackets `「」『』【】[]（）〈〉` and `■/◆/✦` heading lines; generic titles (e.g. "version event") are filtered
 - **Missing end time**: events with a start but no end get a default **2-day** window
 
-## Adding events manually (fallback channel)
+<a id="manual-add"></a>
+
+### Adding events manually (fallback channel)
 
 If the automatic fetch misses an event, there are two ways to add it (this is also the channel the agent automation uses):
 
@@ -200,11 +253,11 @@ If the automatic fetch misses an event, there are two ways to add it (this is al
 
 **Option 2: hand it to an AI** — send the official schedule image (e.g. an event calendar picture) or text to your AI assistant and let it write the entry into `data/manual.json`.
 
+<a id="notes"></a>
+
 ## Notes
 
 > **Data copyright notice: all event schedules and announcement content displayed by this project are entirely copyrighted by the games' official publishers (HoYoverse/miHoYo, Hypergryph, Kuro Games, Perfect World, etc.).** This project is an information-aggregation display for personal learning and exchange only; it contains no official asset files and is not used for any commercial purpose. For official details of each event, refer to the games' official channels. Contact me for removal in case of infringement.
-
-> **Agent software notice: this project was developed and tested entirely with [TRAE](https://www.trae.ai/) (including the daily automation, browser-screenshot image recognition, and all other features).** Other agent apps mentioned (Claude Code, Cursor, …) are theoretically compatible (anything with terminal / file / web-search access should work), but the author has not actually tested them — when in doubt, treat TRAE as the reference environment.
 
 - All data comes from official public pages/APIs and public Bilibili posts; no logins, no exploits. Please keep request rates low.
 - Times are in Beijing time; events with an official start~end range get a countdown and progress bar.
