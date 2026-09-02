@@ -59,11 +59,12 @@ Search for events/banners officially published in the last 1–2 days for:
 Look for: version update notes / event overviews, limited-time events, character & weapon banners with exact start/end times.
 Verification standard: times must be cross-confirmed by official sources (official site news, official Bilibili account, in-game announcements); times are in Beijing time, precise to HH:MM; if a time cannot be verified, do not record it.
 
-[Image-only announcements (self-check routing, no third-party API)]
-Some games (typically Arknights: Endfield) publish event schedules as images — plain text search cannot see them. Handle by priority:
-1. Self-check first: do you have vision capability — a multimodal model that can read images directly, or a vision tool provided by your agent platform (text-only model with an external recognizer)?
-2. If yes: when you encounter image-only schedules on official pages, use vision recognition to extract every event name and start/end time, record them per Step 3, and fill the image field with the original image URL (the frontend shows it as a list thumbnail and in the detail popup)
-3. If no: fall back to text-only search, skip image-only content, and note in the report "image-only announcements not covered — rerun with a multimodal agent"; never guess image contents
+[Image-only schedules (browser-screenshot method, no third-party API)]
+Some games (typically Arknights: Endfield) publish event schedules as images — plain text search cannot see them. Note: WebSearch/WebFetch return text only; even a multimodal model cannot "see" images that never enter its context. The solution: let the agent look at the image with browser tools:
+1. Find the direct URL of the "version calendar / event overview" image (extractable from official Bilibili posts or the official site)
+2. Dispatch a browser subagent to open the image (load it via this project's /api/img proxy to bypass hotlink protection), take a screenshot, and transcribe every event name and start/end date from the screenshot; for tall images, scroll and take multiple screenshots to cover the whole thing
+3. Sanity-check the transcription (dates within the version cycle, no conflicts with existing entries), then record per Step 3 with the schedule image URL in the image field; if the image shows no HH:MM, fill in the game's habitual update time (Endfield: 12:00, ends 11:59 next day) and note it in the report
+4. If the agent platform has no browser/screenshot tools, fall back to text-only search and list the unrecognized image URLs in the report; never guess image contents
 
 [Step 3: update data/manual.json]
 1. Read all existing entries first
