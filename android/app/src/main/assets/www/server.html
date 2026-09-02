@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>连接服务器</title>
+<title>选择数据来源</title>
 <style>
 :root{--bg:#f2f2f7;--card:#ffffff;--label:#000000;--label2:rgba(60,60,67,.62);--label3:rgba(60,60,67,.36);--fill:rgba(120,120,128,.16);--blue:#007AFF;--red:#FF3B30}
 @media (prefers-color-scheme: dark){
@@ -33,19 +33,34 @@ input::placeholder{color:var(--label3)}
 .btn:active{opacity:.75}
 .btn[disabled]{opacity:.5}
 .tips{margin-top:18px; font-size:12px; color:var(--label3); line-height:1.75}
-.offline{display:block; margin-top:16px; font-size:13px; color:var(--blue); text-decoration:none; text-align:center}
+.mode{background:var(--card); border-radius:16px; padding:18px 16px; margin-bottom:14px}
+.mode h2{font-size:16px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px}
+.mode p{font-size:12.5px; color:var(--label2); line-height:1.7; margin-bottom:12px}
+.tag{font-size:10px; font-weight:600; background:rgba(48,209,88,.15); color:#30D158; border-radius:5px; padding:2px 6px; flex:none}
+.badge{font-size:11px; font-weight:600; color:var(--label3); flex:none}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>二游活动日历</h1>
-  <div class="sub">本应用连接电脑上的服务器获取数据。请确保平板/手机与电脑连接同一 WiFi，且电脑服务已启动（双击 启动.bat）。</div>
-  <div id="err" class="err hidden"></div>
-  <label for="url">服务器地址</label>
-  <input id="url" type="url" inputmode="url" placeholder="http://192.168.50.178:5000" autocomplete="off">
-  <button id="go" class="btn">连接</button>
-  <a id="offline" class="offline" href="#">使用离线模式（内置数据）</a>
-  <div class="tips">· 地址为电脑服务窗口打印的局域网地址（如 http://192.168.50.178:5000）<br>· 连不上：确认电脑服务已启动、两台设备在同一 WiFi<br>· 离线模式使用应用内置抓取，活动数据不如服务器版准确</div>
+  <div class="sub">选择数据来源。两种模式可随时在设置里切换。</div>
+
+  <div class="mode">
+    <h2>服务器模式 <span class="tag">推荐</span></h2>
+    <p>连接电脑上的服务器，数据最全最准（含 AI 每日核实活动）。需电脑已启动服务（双击 启动.bat），且与本设备在同一 WiFi。</p>
+    <div id="err" class="err hidden"></div>
+    <label for="url">电脑服务器地址</label>
+    <input id="url" type="url" inputmode="url" placeholder="http://192.168.50.178:5000" autocomplete="off">
+    <button id="go" class="btn">连接</button>
+  </div>
+
+  <div class="mode">
+    <h2>爬虫模式 <span class="badge">无需电脑</span></h2>
+    <p>应用在本机直接抓取各游戏官方接口获取活动数据。开箱即用、不依赖电脑；但无 AI 核实环节，数据完整度和准确性不如服务器模式。</p>
+    <button id="offline" class="btn" style="background:var(--fill); color:var(--label)">进入爬虫模式</button>
+  </div>
+
+  <div class="tips">· 服务器地址为电脑服务窗口打印的局域网地址（如 http://192.168.50.178:5000）<br>· 连不上：确认电脑服务已启动、两台设备在同一 WiFi<br>· 想要最准的活动排期，推荐电脑挂机跑服务器模式</div>
 </div>
 <script>
 const $=s=>document.querySelector(s);

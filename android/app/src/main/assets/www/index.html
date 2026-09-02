@@ -692,9 +692,9 @@ if(!IS_ANDROID){
 }
 setInterval(()=>{if(tab!=='all'&&!document.hidden)renderView()},30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tab!=='all')renderView()});  // 回前台立即刷新倒计时
-/* Android WebView 套壳内置入口:切换服务器(普通浏览器不显示) */
+/* Android WebView 套壳内置入口:切换数据来源(普通浏览器不显示) */
 if(/; wv\)/.test(navigator.userAgent)&&window.YCalNative){
-  document.getElementById('nativeCtl').innerHTML=' · <a href="#" onclick="YCalNative.openSettings();return false" style="color:inherit;text-decoration:underline">切换服务器</a>';
+  document.getElementById('nativeCtl').innerHTML=' · <a href="#" onclick="YCalNative.openSettings();return false" style="color:inherit;text-decoration:underline">切换模式</a>';
 }
 /* PWA:浏览器环境注册 Service Worker(安卓壳/文件协议下跳过) */
 if(!IS_ANDROID&&/^https?:$/.test(location.protocol)&&'serviceWorker' in navigator){
