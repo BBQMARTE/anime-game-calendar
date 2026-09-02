@@ -206,7 +206,7 @@ Some games (typically Arknights: Endfield) publish event schedules as images —
 If the server is up, POST to http://127.0.0.1:5000/api/refresh with the header X-Requested-With: ycal
 
 [Report]
-Briefly report: ① server status; ② new events recorded per game; ③ how many expired entries were cleaned; ④ say "no new events" where applicable. Do not record events whose times you are unsure about — state the uncertainty instead.
+Briefly report: ① server status; ② new events recorded per game; ③ how many expired entries were cleaned; ④ say "no new events" where applicable; ⑤ image-schedule recognition: which schedule images were read, how many entries transcribed, which existing entries corrected. Do not record events whose times you are unsure about — state the uncertainty instead.
 ```
 
 <a id="timeparse"></a>
