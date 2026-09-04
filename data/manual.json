@@ -280,42 +280,6 @@
   },
   {
     "game_id": "ananta",
-    "title": "残虹",
-    "category": "角色与专武",
-    "start": "2026-08-13T11:00",
-    "end": "2026-09-03T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260812/263538.html",
-    "image": ""
-  },
-  {
-    "game_id": "ananta",
-    "title": "噬心诡刃",
-    "category": "角色与专武",
-    "start": "2026-08-13T11:00",
-    "end": "2026-09-03T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260812/263538.html",
-    "image": ""
-  },
-  {
-    "game_id": "ananta",
-    "title": "娜娜莉",
-    "category": "角色与专武",
-    "start": "2026-08-13T11:00",
-    "end": "2026-09-03T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260812/263538.html",
-    "image": ""
-  },
-  {
-    "game_id": "ananta",
-    "title": "预备备",
-    "category": "角色与专武",
-    "start": "2026-08-13T11:00",
-    "end": "2026-09-03T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260812/263538.html",
-    "image": ""
-  },
-  {
-    "game_id": "ananta",
     "title": "灵可 限定角色（1.3下半）",
     "category": "角色与专武",
     "start": "2026-09-03T06:00",
@@ -513,15 +477,6 @@
     "image": ""
   },
   {
-    "game_id": "ananta",
-    "title": "烛天环线（轨外之境）",
-    "category": "活动",
-    "start": "2026-08-21T05:00",
-    "end": "2026-09-04T04:59",
-    "link": "https://m.weibo.cn/detail/5333999920876560",
-    "image": ""
-  },
-  {
     "game_id": "endfield",
     "title": "1.5版本「雪凇幽梦」上线",
     "category": "活动",
@@ -535,7 +490,7 @@
     "title": "提弗洛斯寻访「冬猎」（「雪凇幽梦」上半）",
     "category": "角色与专武",
     "start": "2026-09-02T12:00",
-    "end": "2026-09-24T11:59",
+    "end": "2026-09-30T11:59",
     "link": "https://www.bilibili.com/opus/1242671479897718790",
     "image": "https://i0.hdslb.com/bfs/new_dyn/6011a668d06779f0ef0343170712490c1265652806.png"
   },
@@ -570,8 +525,8 @@
     "game_id": "endfield",
     "title": "集成援助·泡泡出击",
     "category": "活动",
-    "start": "2026-09-09T12:00",
-    "end": "2026-09-24T11:59",
+    "start": "2026-09-16T12:00",
+    "end": "2026-09-30T16:00",
     "link": "https://www.bilibili.com/opus/1242671479897718790",
     "image": "https://i0.hdslb.com/bfs/new_dyn/6011a668d06779f0ef0343170712490c1265652806.png"
   },
@@ -598,7 +553,7 @@
     "title": "雪降深林（新地区引入）",
     "category": "活动",
     "start": "2026-09-02T12:00",
-    "end": "",
+    "end": "2026-09-30T12:00",
     "link": "https://www.taptap.cn/moment/839957152998097191",
     "image": ""
   },
@@ -643,7 +598,7 @@
     "title": "战争回响·虚像（新赛季）",
     "category": "活动",
     "start": "2026-09-02T12:00",
-    "end": "",
+    "end": "2026-09-24T11:59",
     "link": "https://www.taptap.cn/moment/839957152998097191",
     "image": ""
   },
@@ -659,7 +614,7 @@
   {
     "game_id": "endfield",
     "title": "镞砺括羽 签到（7日）",
-    "category": "活动",
+    "category": "签到",
     "start": "2026-09-02T12:00",
     "end": "",
     "link": "https://www.taptap.cn/moment/839957152998097191",
@@ -668,18 +623,18 @@
   {
     "game_id": "endfield",
     "title": "陵水渡秋 签到（7日）",
-    "category": "活动",
-    "start": "2026-09-02T12:00",
+    "category": "签到",
+    "start": "2026-10-01T12:00",
     "end": "",
     "link": "https://www.taptap.cn/moment/839957152998097191",
     "image": ""
   },
   {
     "game_id": "endfield",
-    "title": "理智补给（第二期 9.17~10.8）",
+    "title": "理智补给（第一期）",
     "category": "活动",
     "start": "2026-09-17T04:00",
-    "end": "2026-10-08T04:00",
+    "end": "2026-09-24T04:00",
     "link": "https://www.taptap.cn/moment/839957152998097191",
     "image": ""
   },
@@ -759,8 +714,8 @@
     "game_id": "endfield",
     "title": "物资兑换处",
     "category": "活动",
-    "start": "2026-09-09T12:00",
-    "end": "2026-09-24T11:59",
+    "start": "2026-09-16T12:00",
+    "end": "2026-10-07T04:00",
     "link": "https://www.bilibili.com/opus/1242671479897718790",
     "image": "https://i0.hdslb.com/bfs/new_dyn/6011a668d06779f0ef0343170712490c1265652806.png"
   },
@@ -794,7 +749,7 @@
   {
     "game_id": "hsr",
     "title": "巡星之礼（4.5版本签到）",
-    "category": "活动",
+    "category": "签到",
     "start": "2026-08-26T11:00",
     "end": "",
     "link": "https://www.taptap.cn/moment/841375445998898274",
@@ -832,7 +787,7 @@
     "title": "克拉蕾 角色调频（3.2上半）",
     "category": "角色与专武",
     "start": "2026-09-09T11:00",
-    "end": "",
+    "end": "2026-09-30T11:59",
     "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
     "image": ""
   },
@@ -841,7 +796,7 @@
     "title": "南宫羽 复刻调频（3.2上半）",
     "category": "角色与专武",
     "start": "2026-09-09T11:00",
-    "end": "",
+    "end": "2026-09-30T11:59",
     "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
     "image": ""
   },
@@ -850,7 +805,7 @@
     "title": "洛克茜 角色调频（3.2下半）",
     "category": "角色与专武",
     "start": "2026-09-30T12:00",
-    "end": "",
+    "end": "2026-10-20T14:59",
     "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
     "image": ""
   },
@@ -859,7 +814,7 @@
     "title": "普罗米娅 复刻调频（3.2下半）",
     "category": "角色与专武",
     "start": "2026-09-30T12:00",
-    "end": "",
+    "end": "2026-10-20T14:59",
     "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
     "image": ""
   },
@@ -898,5 +853,95 @@
     "end": "2026-09-07T03:59",
     "link": "https://zzz.mihoyo.com/m/news/165403",
     "image": ""
+  },
+  {
+    "game_id": "endfield",
+    "title": "理智补给（第二期）",
+    "category": "活动",
+    "start": "2026-10-08T04:00",
+    "end": "2026-10-15T04:00",
+    "link": "https://endfield.hypergryph.com/news/2653",
+    "image": ""
+  },
+  {
+    "game_id": "endfield",
+    "title": "丰碑留名·刻影（限时挑战）",
+    "category": "活动",
+    "start": "2026-10-05T12:00",
+    "end": "2026-10-19T04:00",
+    "link": "https://endfield.hypergryph.com/news/2653",
+    "image": ""
+  },
+  {
+    "game_id": "ananta",
+    "title": "轨外回响",
+    "category": "活动",
+    "start": "2026-09-03T06:00",
+    "end": "2026-09-24T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20260902/263843.html",
+    "image": ""
+  },
+  {
+    "game_id": "ananta",
+    "title": "清风骑旅",
+    "category": "活动",
+    "start": "2026-09-11T10:00",
+    "end": "2026-09-24T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20260902/263843.html",
+    "image": ""
+  },
+  {
+    "game_id": "ananta",
+    "title": "像素溢出",
+    "category": "活动",
+    "start": "2026-09-07T05:00",
+    "end": "2026-09-14T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20260902/263843.html",
+    "image": ""
+  },
+  {
+    "game_id": "ananta",
+    "title": "淘方斯记",
+    "category": "活动",
+    "start": "2026-09-14T05:00",
+    "end": "2026-09-21T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20260902/263843.html",
+    "image": ""
+  },
+  {
+    "game_id": "ananta",
+    "title": "「名月特刊」弧盘研募·行进于时间之外（返场）",
+    "category": "角色与专武",
+    "start": "2026-09-03T06:00",
+    "end": "2026-09-24T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20260902/263843.html",
+    "image": ""
+  },
+  {
+    "game_id": "r1999",
+    "title": "3.9版本「重燃！流金之海」上线",
+    "category": "活动",
+    "start": "2026-08-13T10:00",
+    "end": "",
+    "link": "https://re.bluepoch.com/home/detail.html#newsId",
+    "image": ""
+  },
+  {
+    "game_id": "r1999",
+    "title": "《原子之心》×《重返未来：1999》联动开启",
+    "category": "活动",
+    "start": "2026-09-11T11:00",
+    "end": "",
+    "link": "https://space.bilibili.com/1197454103/dynamic",
+    "image": ""
+  },
+  {
+    "game_id": "hsr",
+    "title": "「砂金•戏浪」角色绘画征集：投稿赢星琼、周边奖励！",
+    "category": "公告",
+    "start": "2026-09-04T13:00",
+    "end": "2026-09-14T13:00",
+    "link": "https://sdk.mihoyo.com/hkrpg/announcement/index.html?auth_appid=announcement&authkey_ver=1&bundle_id=hkrpg_cn&channel_id=1&game=hkrpg&game_biz=hkrpg_cn&lang=zh-cn&level=70&platform=pc&region=prod_gf_cn&sign_type=2&uid=100000000",
+    "image": "https://sdk-webstatic.mihoyo.com/upload/ann/2026/08/18/0e93ef8e917afc4f42832f33f3512cff_523467853969305956_transformed.jpg"
   }
 ]

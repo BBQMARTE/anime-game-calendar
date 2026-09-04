@@ -81,6 +81,9 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
     """kind: 'event'=真活动/卡池(上月历,用短标题)  'info'=公告/资讯(仅进资讯列表)
     ext: 可选 {'ann_id','api','params'},前端点击时用它拉取公告正文弹窗展示"""
     title = re.sub(r'\s+', ' ', title).strip()
+    # 每日签到/累计登录类活动单列「签到」分类(不想肝日常的可一键筛选/排除)
+    if category == '活动' and _CHECKIN_RE.search(title):
+        category = '签到'
     if kind == 'event':
         title = _short(title, category)
         # 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub 兜底
@@ -198,6 +201,8 @@ _POOL_RE = re.compile(r'扭蛋|卡池|祈愿|跃迁|调频|补给|概率\s*UP', 
 _WEB_RE = re.compile(r'米游社|网页活动|H5')
 # 标题活动特征(星铁/绝区零的活动常混在"公告"组,靠标题识别)
 _ACT_TITLE_RE = re.compile(r'活动[:：]|活动开启|活动现已|活动进行中|限时双倍|双倍掉落|登录领取|签到')
+# 每日签到/累计登录类活动(单独「签到」分类,方便一键筛选)
+_CHECKIN_RE = re.compile(r'签到|打卡|累计登录|累登|每日登录|登录(?:奖励|领取|福利)', re.I)
 # 版本更新说明文(内含完整活动/卡池排期,需拆全文)
 _VER_NOTE_RE = re.compile(r'版本更新说明|版本内容说明|更新说明')
 
@@ -476,6 +481,71 @@ def _endfield(gid, gname):
     return out
 
 
+# ---------------- 明日方舟 ----------------
+
+def _ak_parse_range(text, ref):
+    """明日方舟详情页专用:逐「活动时间/寻访时间」关键词取 120 字窗口解析。
+    全文直接 extract_range 会被正文里"常驻至【曲谱】"等字样误判为长期活动。"""
+    for m in re.finditer(r'(?:活动|寻访|开启|售卖|兑换|复刻)时间', text):
+        s, e = extract_range(text[m.start():m.start() + 120], ref)
+        if s and e:
+            return s, e
+    return None, None
+
+
+def _arknights(gid, gname):
+    """官网新闻页(Next.js):文章列表嵌在 __next_f 流式数据里,
+    字段顺序固定 cid→title→displayTime(unix秒)。
+    活动/寻访的起止时间在详情页正文,逐条抓取解析。"""
+    html = _get('https://ak.hypergryph.com/news').text
+    unesc = html.replace('\\"', '"')
+    # 列表对象内字段无嵌套,逐字段提取(title 含引号转义时该条跳过,可接受)
+    item_re = re.compile(r'"cid":"(\w+)"[^{}]*?"title":"([^"]*)"[^{}]*?"displayTime":(\d+)')
+    items = []
+    seen_cid = set()
+    for cid, title, ts in item_re.findall(unesc):
+        if cid in seen_cid:
+            continue
+        seen_cid.add(cid)
+        items.append((cid, re.sub(r'\s+', ' ', title).strip(), int(ts)))
+    now = datetime.now()
+    out = []
+    fetched = 0  # 详情页抓取预算(慢接口限量)
+    for cid, title, ts in items:
+        if not title:
+            continue
+        pub = datetime.fromtimestamp(ts) if ts else datetime.now()
+        if (now - pub).days > 60:
+            continue  # 只保留近 60 天
+        link = f'https://ak.hypergryph.com/news/{cid}'
+        cat = _classify(title, '资讯')
+        # 公开招募是常驻系统刷新通知,非限时卡池,降为资讯
+        if '公开招募' in title and '寻访' not in title:
+            cat, kind = '资讯', 'info'
+        else:
+            kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
+        start, end = None, None
+        # 活动/卡池类抓详情页解析起止时间(限近30天+预算12次)
+        if kind == 'event' and (now - pub).days <= 30 and fetched < 12:
+            fetched += 1
+            try:
+                raw = _get(link, timeout=12).text
+                raw = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', raw, flags=re.S)
+                text = re.sub(r'&\w+;', ' ', re.sub(r'<[^>]+>', '\n', raw))
+                start, end = _ak_parse_range(text, pub)
+            except Exception:  # noqa: BLE001
+                pass
+        # 旧活动丢弃:end 优先,无 end 用 start
+        _stop = end or start
+        if _stop and (now - _stop).days > 30:
+            continue
+        # 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底日期不可靠,真实排期由每日核查核实)
+        if kind == 'event' and start is None and (now - pub).days > 14:
+            kind = 'info'
+        out.append(_ev(gid, gname, title, cat, pub, start, end, link, '', kind))
+    return out
+
+
 # ---------------- 鸣潮 ----------------
 
 def _wuthering(gid, gname):
@@ -641,14 +711,51 @@ def _ananta(gid, gname):
     return out
 
 
+# ---------------- 重返未来:1999 ----------------
+
+def _reverse1999(gid, gname):
+    """官网资讯接口(POST JSON,无需登录):返回标题/发布时间/正文HTML/横幅图。
+    版本排期详情多发布在官方B站(图片型),由每日 AI 核实补录。"""
+    r = requests.post('https://re.bluepoch.com/activity/official/websites/information/query',
+                      json={'current': 1, 'pageSize': 14}, headers=dict(UA), timeout=TIMEOUT)
+    r.raise_for_status()
+    r.encoding = 'utf-8'
+    items = (r.json().get('data') or {}).get('pageData') or []
+    out = []
+    now = datetime.now()
+    for it in items:
+        title = re.sub(r'\s+', ' ', it.get('title') or '').strip()
+        if not title:
+            continue
+        try:
+            pub = datetime.strptime((it.get('onlineTime') or '')[:19], '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            pub = datetime.now()
+        if (now - pub).days > 60:
+            continue  # 只保留近 60 天资讯,避免 2023 年旧帖刷屏
+        link = f"https://re.bluepoch.com/home/detail.html#newsId?{it.get('id')}"
+        text = html_to_text(it.get('content') or '')
+        start, end = extract_range(text, pub) if text else (None, None)
+        cat = _classify(title, '资讯')
+        kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
+        # 旧活动丢弃:end 优先,无 end 用 start(_ev 补的 2 天窗口在过滤之后,不能只看 end)
+        _stop = end or start
+        if _stop and (now - _stop).days > 30:
+            continue
+        out.append(_ev(gid, gname, title, cat, pub, start, end, link, it.get('guideUrl') or '', kind))
+    return out
+
+
 # ---------------- 注册表与调度 ----------------
 
 REGISTRY = [
     ('hsr',       '崩坏：星穹铁道', '#b688ff', lambda: _mihoyo_ingame('hsr', '崩坏：星穹铁道')),
     ('zzz',       '绝区零',         '#ff7a45', lambda: _mihoyo_ingame('zzz', '绝区零')),
     ('endfield',  '明日方舟：终末地', '#ff5f8f', lambda: _endfield('endfield', '明日方舟：终末地')),
+    ('arknights', '明日方舟',       '#23c4ff', lambda: _arknights('arknights', '明日方舟')),
     ('wuwa',      '鸣潮',           '#35d0ba', lambda: _wuthering('wuwa', '鸣潮')),
     ('ananta',    '异环',           '#f254c7', lambda: _ananta('ananta', '异环')),
+    ('r1999',     '重返未来：1999',  '#d4a24e', lambda: _reverse1999('r1999', '重返未来：1999')),
 ]
 
 GAMES_META = [{'id': g, 'name': n, 'color': c} for g, n, c, _ in REGISTRY]

@@ -12,7 +12,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 
 | Feature | Description |
 |---|---|
-| 5 games aggregated | Honkai: Star Rail, Zenless Zone Zero, Arknights: Endfield, Wuthering Waves, Ananta + official Bilibili posts |
+| 7 games aggregated | Honkai: Star Rail, Zenless Zone Zero, Arknights: Endfield, Arknights, Wuthering Waves, Ananta, Reverse: 1999 + official Bilibili posts |
 | Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects daily for accuracy |
 | Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
@@ -131,7 +131,7 @@ Everything fetched falls into two tiers:
 | **Event** | limited-time events, character & weapon banners with **start/end times**, auto-shortened titles, countdown & progress bar | Ongoing / Upcoming |
 | **Info** | fix notices, gameplay guides, shop updates, surveys, official news, Bilibili posts | "All info" tab only |
 
-The top filter bar filters by game and by category (events / characters & weapons / notices / info).
+The top filter bar filters by game and by category (events / check-in / characters & weapons / notices / info). **Daily sign-in and cumulative login events are auto-tagged "check-in" (签到)** — filter them out in one click if you don't want the daily grind.
 
 Each game's **version update article** is automatically split into individual events ("new events", "new banners", …); the article itself goes to the info tab.
 
@@ -248,8 +248,8 @@ If the automatic fetch misses an event, there are two ways to add it (this is al
 ]
 ```
 
-- `game_id` optional: `hsr / zzz / endfield / wuwa / ananta`
-- `category` optional: `活动 / 角色与专武 / 公告 / 资讯`
+- `game_id` optional: `hsr / zzz / endfield / arknights / wuwa / ananta / r1999`
+- `category` optional: `活动 / 签到 / 角色与专武 / 公告 / 资讯`
 - Manual entries count as events (kind=event) and appear in Ongoing/Upcoming with a gray "manual" tag.
 - On Android: write the same JSON array to the localStorage key `ycal_manual`.
 

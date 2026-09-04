@@ -273,7 +273,8 @@ def api_ics():
 IMG_HOSTS = ('hdslb.com', 'biliimg.com', 'mihoyo.com', 'hoyoverse.com', 'hoyolab.com',
              'kurogame.com', 'kurobbs.com', 'hypergryph.com', 'gryphline.com',
              'wanmei.com', 'taptap.cn', 'taptap.io', 'weibo.cn', 'weibo.com',
-             'sinaimg.cn', 'bilivideo.com', 'akamaized.net', 'im9.com', 'ipaperclip.net')
+             'sinaimg.cn', 'bilivideo.com', 'akamaized.net', 'im9.com', 'ipaperclip.net',
+             'sl916.com', 'bluepoch.com')
 
 
 @app.route('/api/img')
@@ -287,6 +288,9 @@ def api_img():
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     if 'hdslb' in host or 'biliimg' in host:
         headers['Referer'] = 'https://www.bilibili.com/'  # B站图床防盗链
+    if host.endswith('.sl916.com'):
+        # 重返未来1999图床:https 被 EdgeOne JS 挑战拦(requests 过不了),http 端口直出
+        url = 'http://' + url[len('https://'):]
     try:
         r = requests.get(url, headers=headers, timeout=10)
         ctype = (r.headers.get('Content-Type') or '').lower()

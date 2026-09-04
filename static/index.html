@@ -271,7 +271,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 
 <script src="scraper.js"></script>
 <script>
-const CAT_COLOR={'活动':'#34C759','角色与专武':'#FF2D55','公告':'#FF9500','资讯':'#007AFF'};
+const CAT_COLOR={'活动':'#34C759','签到':'#AF52DE','角色与专武':'#FF2D55','公告':'#FF9500','资讯':'#007AFF'};
 const IS_ANDROID=/[?&]platform=android/.test(location.search);
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
@@ -428,7 +428,7 @@ function cdText(e){
 }
 function descFor(e){
   if(e.desc)return e.desc;
-  const map={'活动':'参与活动可获取限定奖励与养成素材','角色与专武':'限定角色/武器活动祈愿或跃迁','公告':'官方运营公告与维护通知','资讯':'最新游戏资讯与攻略内容'};
+  const map={'活动':'参与活动可获取限定奖励与养成素材','签到':'每日签到/累计登录类活动，记得上线领奖励','角色与专武':'限定角色/武器活动祈愿或跃迁','公告':'官方运营公告与维护通知','资讯':'最新游戏资讯与攻略内容'};
   return map[e.category]||'';
 }
 /* 图片经服务端同源代理加载(绕过 B站等图床的跨域/防盗链拦截);安卓离线模式(file:)直连 */

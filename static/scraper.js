@@ -5,8 +5,10 @@ const Scraper = (() => {
     { id: 'hsr',       name: '崩坏：星穹铁道', color: '#b688ff' },
     { id: 'zzz',       name: '绝区零',         color: '#ff7a45' },
     { id: 'endfield',  name: '明日方舟：终末地', color: '#ff5f8f' },
+    { id: 'arknights', name: '明日方舟',       color: '#23c4ff' },
     { id: 'wuwa',      name: '鸣潮',           color: '#35d0ba' },
     { id: 'ananta',    name: '异环',           color: '#f254c7' },
+    { id: 'r1999',     name: '重返未来：1999',  color: '#d4a24e' },
   ];
 
   async function httpText(url) {
@@ -181,6 +183,8 @@ const Scraper = (() => {
   let _uid = 0;
   function ev(gid, gname, title, category, pub, start, end, link, img, kind, ext) {
     title = (title || '').replace(/\s+/g, ' ').trim();
+    // 每日签到/累计登录类活动单列「签到」分类(与 scrapers.py 一致)
+    if (category === '活动' && CHECKIN_RE.test(title)) category = '签到';
     if ((kind || 'event') === 'event') {
       title = shortTitle(title, category);  // 月历条目用短标题
       // 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub(发布日期)兜底
@@ -213,6 +217,8 @@ const Scraper = (() => {
   const WEB_RE = /米游社|网页活动|H5/;
   // 标题活动特征(星铁/绝区零的活动常混在"公告"组,靠标题识别)
   const ACT_TITLE_RE = /活动[:：]|活动开启|活动现已|活动进行中|限时双倍|双倍掉落|登录领取|签到/;
+  // 每日签到/累计登录类活动(单独「签到」分类,与 scrapers.py 一致)
+  const CHECKIN_RE = /签到|打卡|累计登录|累登|每日登录|登录(?:奖励|领取|福利)/i;
   // 绝区零服务端常把地点/角色/系统介绍标为"活动",以下名词单独过滤
   const ZZZ_NON_EVENT = new Set([
     '详见工作台-合作者档案','罗斯凯利法','布亚斯特','齿轮街','影池独舞',
@@ -616,13 +622,105 @@ const Scraper = (() => {
     return out;
   }
 
+  /* ---------- 重返未来:1999(官网资讯接口,POST JSON,免登录) ---------- */
+  // 版本排期详情多发布在官方B站(图片型),由每日 AI 核实补录,与 Python 端注释一致
+  async function reverse1999(gid, gname) {
+    const r = await fetch('https://re.bluepoch.com/activity/official/websites/information/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': '*/*' },
+      body: JSON.stringify({ current: 1, pageSize: 14 }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const items = (((await r.json()).data) || {}).pageData || [];
+    const out = [], now = Date.now();
+    for (const it of items) {
+      const title = (it.title || '').replace(/\s+/g, ' ').trim();
+      if (!title) continue;
+      // onlineTime: "2026-08-13 10:00:00" → 本地 Date(与 Python strptime 一致)
+      let pub = new Date();
+      const dm = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/.exec((it.onlineTime || '').slice(0, 19));
+      if (dm) pub = new Date(+dm[1], +dm[2] - 1, +dm[3], +dm[4], +dm[5]);
+      if ((now - pub.getTime()) / 864e5 > 60) continue;  // 只保留近 60 天资讯
+      const link = `https://re.bluepoch.com/home/detail.html#newsId?${it.id}`;
+      const text = htmlToText(it.content || '');
+      let start = null, end = null;
+      if (text) [start, end] = extractRange(text, pub);
+      const cat = classify(title, '资讯');
+      const kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
+      // 旧活动丢弃:end 优先,无 end 用 start(与 scrapers.py 一致)
+      const stop = end || start;
+      if (stop && (now - stop.getTime()) / 864e5 > 30) continue;
+      out.push(ev(gid, gname, title, cat, pub, start, end, link, it.guideUrl || '', kind));
+    }
+    return out;
+  }
+
+  /* ---------- 明日方舟(官网新闻页,Next.js __next_f 数据) ---------- */
+  // 列表字段顺序固定 cid→title→displayTime(unix秒);活动起止时间在详情页正文
+  function akParseRange(text, ref) {
+    // 逐「活动时间/寻访时间」关键词取 120 字窗口解析(全文会被正文"常驻至"字样误判为长期)
+    const re = /(?:活动|寻访|开启|售卖|兑换|复刻)时间/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const [s, e] = extractRange(text.slice(m.index, m.index + 120), ref);
+      if (s && e) return [s, e];
+    }
+    return [null, null];
+  }
+  async function arknights(gid, gname) {
+    const html = await httpText('https://ak.hypergryph.com/news');
+    const unesc = html.replace(/\\"/g, '"');
+    const itemRe = /"cid":"(\w+)"[^{}]*?"title":"([^"]*)"[^{}]*?"displayTime":(\d+)/g;
+    const items = [], seen = new Set();
+    let m;
+    while ((m = itemRe.exec(unesc))) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      items.push([m[1], m[2].replace(/\s+/g, ' ').trim(), +m[3]]);
+    }
+    const out = [], now = Date.now();
+    let fetched = 0;  // 详情页抓取预算
+    for (const [cid, title, ts] of items) {
+      if (!title) continue;
+      const pub = ts ? new Date(ts * 1000) : new Date();
+      if ((now - pub.getTime()) / 864e5 > 60) continue;  // 只保留近 60 天
+      const link = `https://ak.hypergryph.com/news/${cid}`;
+      let cat = classify(title, '资讯');
+      let kind;
+      if (title.includes('公开招募') && !title.includes('寻访')) {
+        cat = '资讯'; kind = 'info';  // 公开招募是常驻系统刷新通知,非限时卡池
+      } else {
+        kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
+      }
+      let start = null, end = null;
+      if (kind === 'event' && (now - pub.getTime()) / 864e5 <= 30 && fetched < 12) {
+        fetched++;
+        try {
+          const raw = await httpText(link);
+          const txt = raw.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, ' ')
+                         .replace(/<[^>]+>/g, '\n').replace(/&\w+;/g, ' ');
+          [start, end] = akParseRange(txt, pub);
+        } catch (e) { }
+      }
+      // 旧活动丢弃:end 优先,无 end 用 start(与 scrapers.py 一致)
+      const stop = end || start;
+      if (stop && (now - stop.getTime()) / 864e5 > 30) continue;
+      // 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底不可靠)
+      if (kind === 'event' && !start && (now - pub.getTime()) / 864e5 > 14) kind = 'info';
+      out.push(ev(gid, gname, title, cat, pub, start, end, link, '', kind));
+    }
+    return out;
+  }
+
   /* ---------- 调度 ---------- */
   const RUNNERS = {
     hsr:       () => mihoyo('hsr', '崩坏：星穹铁道'),
     zzz:       () => mihoyo('zzz', '绝区零'),
     endfield:  () => endfield('endfield', '明日方舟：终末地'),
+    arknights: () => arknights('arknights', '明日方舟'),
     wuwa:      () => wuthering('wuwa', '鸣潮'),
     ananta:    () => ananta('ananta', '异环'),
+    r1999:     () => reverse1999('r1999', '重返未来：1999'),
   };
 
   /* ---------- B站官号动态(公开接口,免签名) ---------- */
@@ -630,8 +728,10 @@ const Scraper = (() => {
     ['hsr', '崩坏：星穹铁道', 1340190821],
     ['zzz', '绝区零', 1636034895],
     ['endfield', '明日方舟：终末地', 1265652806],
+    ['arknights', '明日方舟', 161775300],
     ['wuwa', '鸣潮', 1955897084],
     ['ananta', '异环', 3546636978489848],
+    ['r1999', '重返未来：1999', 1197454103],
   ];
   const BILI_NOISE = /生日快乐|生日祝福|早安|晚安/;
   const BILI_HOT = /抽奖|活动|福利|预约|直播|前瞻|征稿|征集|联动|测试|签到|开启|版本|维护|更新/;
