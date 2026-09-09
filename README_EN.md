@@ -16,6 +16,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects daily for accuracy |
 | Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
+| Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails (Endfield: 19 cards) via vision-guided cropping |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline) |
 | Subscriptions & reminders | ICS calendar feed, Feishu/Bark event-start push, Tailscale remote access |
 | Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |
@@ -35,7 +36,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 
 ## Quick start: send the repo link to your AI agent
 
-Installing, configuring and scheduling this project is one message. Open your favorite AI agent app (anything with terminal / file / web-search access — TRAE, Claude Code, Cursor, …) and send:
+Installing, configuring and scheduling this project is one message. Open your favorite AI agent app (anything with terminal / file / web-search access — TRAE, Claude Code, Cursor, … — **ideally a multimodal model with vision**, see why below) and send:
 
 > https://github.com/BBQMARTE/anime-game-calendar Deploy this project for me and set up the daily automation described in the README
 
@@ -44,6 +45,11 @@ The agent will read this document and do everything else: install dependencies �
 Prefer doing it yourself? See [Install & usage](#install) below; the Android app can be downloaded directly from [Releases](https://github.com/BBQMARTE/anime-game-calendar/releases).
 
 > **Agent software notice**: this project has **only been tested with [TRAE Work](https://www.trae.ai/)**; the author has not tested it with other agent apps (Claude Code, Cursor, etc.) — when in doubt, treat TRAE Work as the reference environment.
+>
+> **Model capability recommendation (important)**: this project **strongly recommends a multimodal model with vision** (one that can actually "see" images). Two reasons:
+>
+> 1. **Image-only schedules**: some schedules (Endfield, R1999, …) are published only as images; WebSearch/WebFetch return text — the image never enters the model context, so **no matter how smart the model is, it can't see what it isn't given**. Only a vision-capable model + browser screenshotting can read image-only schedules (see [Image-only schedule recognition](#_图片型排期识别_浏览器截图法_不接任何第三方_api) below).
+> 2. **Event-card cropping**: this project supports cutting official ultra-tall schedule/teaser images into **individual event cards** as list thumbnails (e.g. the 3840px-wide Endfield version-teaser blocks, split into 19+ cards). Cropping requires "look at the image and locate each event's boundaries" — impossible without multimodal vision (see the "Event-card cropping" section below).
 
 <a id="install"></a>
 
@@ -193,6 +199,14 @@ Some games (typically Arknights: Endfield) publish event schedules as images —
 3. Sanity-check the transcription (dates within the version cycle, no conflicts with existing entries), then record per Step 3 with the schedule image URL in the image field; if the image shows no HH:MM, fill in the game's habitual update time (Endfield: 12:00, ends 11:59 next day) and note it in the report
 4. If the agent platform has no browser/screenshot tools, fall back to text-only search and list the unrecognized image URLs in the report; never guess image contents
 
+[Event-card cropping (vision-guided, fully automatic; PC web benefit only)]
+Official teaser/schedule images are often "hundreds of events packed into one ultra-tall image" (e.g. a 39760px Endfield teaser block). Thumbnailing the whole tall image per list row is unreadable — crop it into individual event cards instead:
+1. With multimodal vision, slice the tall image into fixed-height preview segments → inspect each segment to confirm every event's title, type, open time and vertical bounds (best to output the event's percentage/pixel range within the whole image)
+2. Crop the original (full-resolution) image by those bounds with Python/PIL into one card per event; name files in pinyin and save to static/img/<game_id>/
+3. Point the corresponding manual.json entry's image field to that relative path (e.g. /static/img/endfield/endfield_dafeilin.jpg); leave image empty for entries with no card
+4. A single event split across segments (e.g. "check-in card + reward card") may be merged into one crop or kept separate as needed; finally verify the static path is HTTP-accessible
+5. No third-party API needed — just the model's vision + PIL; skip this step and use the whole image as a thumbnail if the model has no vision
+
 [Step 3: update data/manual.json]
 1. Read all existing entries first
 2. Deduplicate by (game_id + title); do not add entries that already exist
@@ -202,7 +216,8 @@ Some games (typically Arknights: Endfield) publish event schedules as images —
    category values: 活动 (event) / 角色与专武 (character & weapon banner) / 公告 (notice) / 资讯 (info)
    Leave end as an empty string for permanent/no-end events; only record events whose end time is in the future
 4. Cleanup: delete entries whose end is a valid date earlier than now; keep entries with an empty end
-5. Save as UTF-8 and keep the JSON valid
+5. Orphan-image cleanup: after removing expired entries, scan all image files under static/img/ and delete any not referenced by the image field of any manual.json or cache.json entry; keep anything referenced or ambiguous — never touch files outside the static directory
+6. Save as UTF-8 and keep the JSON valid
 
 [Step 4: refresh the server]
 If the server is up, POST to http://127.0.0.1:5000/api/refresh with the header X-Requested-With: ycal

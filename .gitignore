@@ -21,3 +21,6 @@ android/ycal.keystore
 # 分发产物
 *.apk
 .ai-handoff/
+
+# 本地切割产物(由多模态模型生成，不入库)
+static/img/
