@@ -272,7 +272,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 <script src="scraper.js"></script>
 <script>
 const CAT_COLOR={'活动':'#34C759','签到':'#AF52DE','角色与专武':'#FF2D55','公告':'#FF9500','资讯':'#007AFF'};
-const IS_ANDROID=/[?&]platform=android/.test(location.search);
+const IS_ANDROID=/[?&]platform=android/.test(location.search)||!!window.YCalNative;
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
 /* 筛选状态记忆(跨会话保留;键升级 v2 以重置旧 tab 记忆,让月历成为默认视图) */
@@ -577,14 +577,18 @@ function showDetail(e){
       ${e.image?`<img src="${esc(imgUrl(e.image))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>
-      ${e.link?`<a class="detail-btn" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原文</a>`:''}
+      ${e.link?`<a class="detail-btn" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
       <div class="detail-src">${e.src==='manual'?'已核实 · AI Agent 搜索录入':e.src==='bilibili'?'来源 · B站官方动态':'来源 · 游戏官方接口'}</div>
     </div>
   </div>`;
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(overlay);
 }
-function openUrl(u){ if(IS_ANDROID)location.href=u; else window.open(u,'_blank'); }
+function openUrl(u){
+  if(IS_ANDROID&&window.YCalNative&&window.YCalNative.openExternal){window.YCalNative.openExternal(u);return}
+  if(IS_ANDROID){const w=window.open();if(w){w.location.href=u;return}}  // 兜底:新窗口打开,不顶掉当前页
+  window.open(u,'_blank');
+}
 /* 米哈游事件:通过内容 API 获取正文并弹窗展示 */
 async function showMihoyoDetail(e){
   const overlay=document.createElement('div');
