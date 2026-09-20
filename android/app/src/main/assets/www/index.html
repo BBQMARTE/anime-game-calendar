@@ -101,10 +101,11 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 
 /* ---------- 分段控件 + 事件列表 ---------- */
 .seg{
-  display:flex; background:var(--seg); border-radius:11px; padding:2px; margin-bottom:12px;
+  display:flex; flex-wrap:wrap; background:var(--seg); border-radius:11px; padding:2px; margin-bottom:12px;
 }
 .seg button{
-  flex:1; padding:7px 0; font-size:13px; font-weight:600; color:var(--label2); border-radius:9px; transition:.18s;
+  flex:1 1 0; min-width:0; padding:7px 4px; font-size:13px; font-weight:600;
+  color:var(--label2); border-radius:9px; transition:.18s; white-space:nowrap;
 }
 .seg button.on{background:var(--card); color:var(--label); box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .sec-title{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:4px 6px 8px}
@@ -220,7 +221,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 .detail-body td, .detail-body th{border:1px solid var(--sep); padding:6px 8px}
 .detail-body p{margin:6px 0}
 .detail-body h3,.detail-body h4{font-size:15px; font-weight:700; margin:14px 0 6px}
-.detail-body a{color:var(--blue)}
+.detail-body a:not(.detail-btn){color:var(--blue)}  /* 排除蓝底按钮,否则蓝字蓝底看不见 */
 .detail-loading{text-align:center; padding:40px; color:var(--label3); font-size:13px}
 .detail-loading svg{width:20px; height:20px; animation:spin 1s linear infinite; fill:var(--blue)}
 .detail-err{text-align:center; padding:40px; color:var(--label3); font-size:13px}
@@ -234,6 +235,50 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 }
 .detail-btn:active{opacity:.7}
 .detail-src{margin-top:14px; font-size:11px; color:var(--label3); text-align:center}
+
+/* ---------- 备忘录(置顶在活动最上面) ---------- */
+.notes{margin:0 0 12px}
+.note-row{display:flex; align-items:center; gap:11px; padding:11px 14px; border-bottom:.5px solid var(--sep); cursor:pointer}
+.note-row:last-child{border-bottom:none}
+.note-row:active{background:var(--fill)}
+.note-box{
+  width:22px; height:22px; border-radius:50%; border:1.5px solid var(--orange); flex:none;
+  display:flex; align-items:center; justify-content:center; transition:.15s;
+}
+.note-box svg{width:13px; height:13px; fill:#fff; opacity:0; transition:.15s}
+.note-row.done .note-box{background:var(--orange); border-color:var(--orange)}
+.note-row.done .note-box svg{opacity:1}
+.note-title{flex:1; font-size:14px; font-weight:600; line-height:1.35}
+.note-row.done .note-title{color:var(--label3); text-decoration:line-through; font-weight:400}
+.note-del{
+  flex:none; width:26px; height:26px; border-radius:50%; color:var(--label3);
+  font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.note-del:active{background:var(--fill)}
+.note-add{
+  width:100%; padding:10px; border:none; background:none; color:var(--blue);
+  font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; text-align:center;
+}
+.note-add:active{opacity:.6}
+.note-input{
+  width:100%; padding:12px; border-radius:12px; border:none; background:var(--fill);
+  color:var(--label); font-size:15px; margin-bottom:14px; font-family:inherit;
+}
+.note-input::placeholder{color:var(--label3)}
+
+/* ---------- 活动打钩 ---------- */
+.done-box{
+  width:24px; height:24px; border-radius:50%; border:1.5px solid var(--label3); flex:none;
+  display:flex; align-items:center; justify-content:center; transition:.15s; cursor:pointer;
+}
+.done-box svg{width:14px; height:14px; fill:transparent; transition:.15s}
+.done-box.on{background:var(--green); border-color:var(--green)}
+.done-box.on svg{fill:#fff}
+.row.doneev .row-title{color:var(--label3); text-decoration:line-through}
+.row.doneev .thumb{opacity:.45}
+.detail-btn.done-btn{background:var(--fill); color:var(--label)}
+.detail-btn.isdone{background:var(--green); color:#fff}
+.detail-btn.blue{background:var(--blue); color:#fff}
 </style>
 </head>
 <body>
@@ -318,6 +363,17 @@ function syncGames(){
 }
 async function load(){
   if(IS_ANDROID){
+    /* 优先后端:页面本身由服务器提供,/api/events 同源无CORS,7游戏全量;
+       仅当不可达(离线模式 file:// 加载)时才退回本地缓存 + 前端直抓 */
+    try{
+      const r=await fetch('/api/events');
+      if(r.ok){
+        DATA=await r.json();DATA._ts=Date.now();
+        syncGames();render();
+        try{localStorage.setItem('ycal_data',JSON.stringify(DATA))}catch(e){}
+        return;
+      }
+    }catch(e){}
     const cached=localStorage.getItem('ycal_data');
     if(cached){try{DATA=JSON.parse(cached)}catch(e){}}
     if(DATA&&DATA.events){
@@ -346,6 +402,32 @@ async function doRefresh(){
   if(IS_ANDROID){
     setLoading(true,'准备抓取…');
     try{
+      /* 优先后端刷新:触发服务器重爬并等 updated 变化(与PC端同流程);
+         服务器不可达(离线模式)才退回前端直抓 */
+      try{
+        const old=(DATA&&DATA.updated)||'';
+        try{await fetch('/api/refresh',{method:'POST',headers:{'X-Requested-With':'ycal'}})}catch(e){}
+        for(let i=0;i<90;i++){
+          await new Promise(r=>setTimeout(r,1000));
+          try{
+            const r=await fetch('/api/events'),d=await r.json();
+            if(d.updated&&d.updated!==old){
+              DATA=d;DATA._ts=Date.now();syncGames();
+              localStorage.setItem('ycal_data',JSON.stringify(DATA));
+              render();return;
+            }
+          }catch(e){}
+        }
+        /* 90秒内 updated 未变(无新数据或在刷新中):至少同步一次现有后端数据 */
+        try{
+          const r=await fetch('/api/events'),d=await r.json();
+          if(d.events&&d.events.length){
+            DATA=d;DATA._ts=Date.now();syncGames();
+            localStorage.setItem('ycal_data',JSON.stringify(DATA));
+            render();return;
+          }
+        }catch(e){}
+      }catch(e){}
       const res=await Scraper.fetchAll(p=>setLoading(true,p));
       DATA={events:res.events,sources:res.sources,games:res.games,updated:res.updated,_ts:Date.now()};
       syncGames();
@@ -440,18 +522,23 @@ function imgUrl(u){
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
   const cd=cdText(e);
+  const initial=esc(gameName(e.game_id).slice(0,1));
+  /* 图片加载失败时回退成游戏色块+首字,避免只剩一块没有文字的空底色 */
   const thumb=e.image
-    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(imgUrl(e.image))}" loading="lazy" onerror="this.remove()"></div>`
-    :`<div class="thumb" style="--c:${c}">${esc(gameName(e.game_id).slice(0,1))}</div>`;
-  return `<div class="row" style="--c:${c}" onclick="openEv('${e.id}')">
+    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(imgUrl(e.image))}" loading="lazy" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${initial}'"></div>`
+    :`<div class="thumb" style="--c:${c}">${initial}</div>`;
+  return `<div class="row${isDone(e)?' doneev':''}" style="--c:${c}" onclick="openEv('${e.id}')">
     ${thumb}
     <div class="row-main">
       <div class="row-title">${esc(e.title)}</div>
       <div class="row-desc">${esc(descFor(e))}</div>
       <div class="row-sub"><span class="tag" style="--tc:${cc}">${e.category}</span>${e.src==='bilibili'?'<span class="tag" style="--tc:#FB7299">B站</span>':''}${e.src==='manual'?'<span class="tag" style="--tc:#8e8e93">手动</span>':''}<span>${esc(e.game)} · ${fmtRange(e)}</span></div>
-      ${cd&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
+      ${cd&&!isDone(e)&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
     </div>
-    <div class="row-side">${cd?`<span class="cd ${cd.urgent?'urgent':''}">${cd.txt}</span>`:''}<span class="chev">›</span></div>
+    <div class="row-side">
+      <span class="done-box${isDone(e)?' on':''}" onclick="toggleDone(event,'${e.id}')" title="标记做完"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
+      ${cd?`<span class="cd ${cd.urgent?'urgent':''}">${cd.txt}</span>`:''}<span class="chev">›</span>
+    </div>
   </div>`;
 }
 function dayLabel(d){
@@ -568,7 +655,7 @@ function showDetail(e){
   overlay.innerHTML=`<div class="detail-sheet">
     <div class="detail-header" style="--c:${c}">
       ${e.image
-        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(imgUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="if(this.parentNode)this.parentNode.textContent='${initial}';this.remove()"></div>`
+        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(imgUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${initial}'"></div>`
         :`<div class="dthumb">${initial}</div>`}
       <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
@@ -577,7 +664,8 @@ function showDetail(e){
       ${e.image?`<img src="${esc(imgUrl(e.image))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>
-      ${e.link?`<a class="detail-btn" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
+      <a class="detail-btn ${isDone(e)?'isdone':'done-btn'}" href="#" onclick="event.preventDefault();toggleDone(event,'${e.id}')">${isDone(e)?'✓ 已标记做完 · 点击取消':'标记这个活动做完 ✓'}</a>
+      ${e.link?`<a class="detail-btn blue" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
       <div class="detail-src">${e.src==='manual'?'已核实 · AI Agent 搜索录入':e.src==='bilibili'?'来源 · B站官方动态':'来源 · 游戏官方接口'}</div>
     </div>
   </div>`;
@@ -636,8 +724,106 @@ async function showMihoyoDetail(e){
   }
 }
 
-function renderView(){tab==='cal'?renderCal():renderList()}
-function render(){renderMeta();applySettings();renderView()}
+function renderView(){
+  tab==='cal'?renderCal():renderList();
+}
+function render(){renderMeta();applySettings();mountNotes();renderView()}
+/* ================= 活动打钩(做完的活动标记完成) ================= */
+/* 以 game_id+title 为键,本地持久化;条目ID(manual-N)会随重排变化,不可用 */
+let DONE={};
+try{DONE=JSON.parse(localStorage.getItem('ycal_done')||'{}')}catch(e){}
+function doneKey(e){return (e.game_id||'')+'|'+(e.title||'')}
+function isDone(e){return !!DONE[doneKey(e)]}
+function toggleDone(ev,id){
+  ev.stopPropagation();            // 不触发行点击(打开详情)
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  const k=doneKey(e);
+  if(DONE[k])delete DONE[k];else DONE[k]=Date.now();
+  try{localStorage.setItem('ycal_done',JSON.stringify(DONE))}catch(err){}
+  renderView();
+}
+/* ================= 备忘录(置顶在活动列表最上面) ================= */
+let NOTES={items:[]}, notesReady=false;
+function loadNotes(){
+  return fetch('/api/todo').then(r=>r.json()).then(d=>{
+    if(Array.isArray(d.items))NOTES=d;
+  }).catch(()=>{
+    try{NOTES=JSON.parse(localStorage.getItem('ycal_todo')||'{}')}catch(e){}
+  }).finally(()=>{
+    if(!Array.isArray(NOTES.items))NOTES.items=[];
+    notesReady=true;
+  });
+}
+function saveNotes(){
+  try{localStorage.setItem('ycal_todo',JSON.stringify(NOTES))}catch(e){}
+  try{
+    fetch('/api/todo',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},
+      body:JSON.stringify({items:NOTES.items})});
+  }catch(e){}
+}
+function noteHtml(){
+  const items=NOTES.items;
+  if(!notesReady)return '';
+  // 已完成的沉到区块底部;全部完成且超过 8 条时只显示未完成
+  const open=items.filter(i=>!i.done), fin=items.filter(i=>i.done);
+  if(!items.length){
+    return `<div class="notes"><div class="group"><button class="note-add" onclick="openNoteAdd()">+ 写个备忘(置顶在这里,做完打勾)</button></div></div>`;
+  }
+  const row=it=>`<div class="note-row${it.done?' done':''}" onclick="toggleNote('${it.id}')">
+    <span class="note-box"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
+    <span class="note-title">${esc(it.title)}</span>
+    <span class="note-del" onclick="event.stopPropagation();delNote('${it.id}')">×</span>
+  </div>`;
+  let h=`<div class="notes"><div class="sec-title">备忘</div><div class="group">`;
+  h+=open.map(row).join('')+(open.length&&fin.length?'':'')+fin.slice(-4).map(row).join('');
+  h+=`<button class="note-add" onclick="openNoteAdd()">+ 写个备忘</button></div></div>`;
+  return h;
+}
+function mountNotes(){
+  const list=$('#list');
+  if(!list)return;
+  let host=document.getElementById('notesHost');
+  if(!host){
+    host=document.createElement('div');host.id='notesHost';
+    list.parentNode.insertBefore(host,list);
+  }
+  host.innerHTML=noteHtml();
+}
+function toggleNote(id){
+  const it=NOTES.items.find(x=>x.id===id);if(!it)return;
+  it.done=!it.done;
+  saveNotes();mountNotes();
+}
+function delNote(id){NOTES.items=NOTES.items.filter(x=>x.id!==id);saveNotes();mountNotes()}
+function openNoteAdd(){
+  const o=document.createElement('div');
+  o.className='detail-overlay';
+  o.innerHTML=`<div class="detail-sheet">
+    <div class="detail-header" style="--c:var(--orange)">
+      <div class="dthumb">忘</div>
+      <div class="dmeta"><div class="dtitle">写个备忘</div></div>
+      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+    </div>
+    <div class="detail-body">
+      <input id="ntTitle" class="note-input" placeholder="比如:记得清完这期剿灭 / 领联动奖励">
+      <a class="detail-btn done-btn" href="#" style="background:var(--orange);color:#fff" onclick="event.preventDefault();submitNoteAdd()">添加 · 置顶在活动最上面</a>
+    </div>
+  </div>`;
+  o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
+  document.body.appendChild(o);
+  setTimeout(()=>{const i=document.getElementById('ntTitle');if(i)i.focus()},120);
+}
+function submitNoteAdd(){
+  const i=document.getElementById('ntTitle');
+  const t=((i&&i.value)||'').trim();
+  if(!t){if(i)i.focus();return}
+  NOTES.items.unshift({id:'n'+Date.now(),title:t,done:false});
+  saveNotes();
+  const o=document.querySelector('.detail-overlay:last-of-type');if(o)o.remove();
+  mountNotes();
+}
 /* ================= 设置面板 ================= */
 function openSettings(){
   const o=document.createElement('div');
@@ -690,6 +876,7 @@ function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历
 }
 
 load();
+loadNotes().then(mountNotes);   // 备忘录数据加载后置顶渲染
 if(!IS_ANDROID){
   setInterval(async()=>{try{const r=await fetch('/api/events');const d=await r.json();
     if(d.updated!==(DATA&&DATA.updated)){DATA=d;render();}}catch(e){}},60000);

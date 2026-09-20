@@ -7,6 +7,7 @@ __pycache__/
 
 # 运行时数据与测试输出
 data/cache.json
+data/todo.json
 tests/_out*.txt
 
 # Android 构建产物与本地配置

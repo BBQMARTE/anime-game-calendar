@@ -210,6 +210,62 @@ def api_refresh():
         return jsonify({'ok': True, 'started': started, 'updated': _state['updated']})
 
 
+# ================= 备忘录(每周待办) =================
+TODO_FILE = os.path.join(DATA_DIR, 'todo.json')
+_todo_lock = threading.Lock()
+
+
+def _load_todo():
+    if os.path.exists(TODO_FILE):
+        try:
+            with open(TODO_FILE, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+            if isinstance(d, dict) and isinstance(d.get('items'), list):
+                return d
+        except Exception as e:  # noqa: BLE001
+            print(f'[备忘录] 读取失败: {e}')
+    return {'items': []}
+
+
+@app.route('/api/todo', methods=['GET', 'POST'])
+def api_todo():
+    """待办清单:GET 读取,POST 整体覆盖保存(前端负责每周重置判定)"""
+    if request.method == 'GET':
+        return jsonify(_load_todo())
+    # 与 /api/refresh 同样的简单 CSRF 防护
+    if request.headers.get('X-Requested-With') != 'ycal':
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    body = request.get_json(silent=True) or {}
+    items = body.get('items')
+    if not isinstance(items, list):
+        return jsonify({'ok': False, 'error': 'items required'}), 400
+    clean = []
+    for it in items[:200]:  # 上限保护,避免异常数据撑爆文件
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get('title') or '').strip()[:60]
+        if not title:
+            continue
+        clean.append({
+            'id': str(it.get('id') or f't{len(clean)}'),
+            'game_id': str(it.get('game_id') or ''),
+            'title': title,
+            'cycle': 'weekly' if it.get('cycle') == 'weekly' else 'once',
+            'done': bool(it.get('done')),
+            'done_week': str(it.get('done_week') or '')[:10],
+        })
+    with _todo_lock:
+        try:
+            with open(TODO_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'items': clean, 'updated': datetime.now().isoformat(timespec='seconds')},
+                          f, ensure_ascii=False, indent=1)
+            ok = True
+        except Exception as e:  # noqa: BLE001
+            print(f'[备忘录] 保存失败: {e}')
+            ok = False
+    return jsonify({'ok': ok, 'count': len(clean)})
+
+
 # ================= ICS 日历订阅 =================
 _CST = timezone(timedelta(hours=8))  # 数据时间为北京时间
 
@@ -271,7 +327,7 @@ def api_ics():
 # ================= 图片代理(绕过图床跨域/防盗链) =================
 # 浏览器直接加载 B站等图床会被 ORB/防盗链拦截,统一走服务端同源转发
 IMG_HOSTS = ('hdslb.com', 'biliimg.com', 'mihoyo.com', 'hoyoverse.com', 'hoyolab.com',
-             'kurogame.com', 'kurobbs.com', 'hypergryph.com', 'gryphline.com',
+             'kurogame.com', 'kurobbs.com', 'hypergryph.com', 'gryphline.com', 'hycdn.cn',
              'wanmei.com', 'taptap.cn', 'taptap.io', 'weibo.cn', 'weibo.com',
              'sinaimg.cn', 'bilivideo.com', 'akamaized.net', 'im9.com', 'ipaperclip.net',
              'sl916.com', 'bluepoch.com')
