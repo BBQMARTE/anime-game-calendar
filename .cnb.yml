@@ -1,20 +1,22 @@
 # 二游活动聚合 · NPC 全自动流水线（连续作业版）
 #
-# 分工与节奏（北京时间，全部跑在 CNB 云端，本地关机也照跑）：
-#   巡检师     每天 09:00       体检项目 → 创建 [巡检] Issue（不重复开单，不改代码）
-#   开发工程师 每天 13:00/21:00 认领一个 Issue → 实现 → 自测 → 提 PR
-#   审查员     每个新 PR         自动审查（只评论，不推代码）
-#   合并官     每天 23:00       审查「通过」的 PR 自动合并；有问题的留言退回
+# 节奏（北京时间，全部跑在 CNB 云端，本地关机也照跑）：
+#   巡检师     每天 09:00 / 21:00   体检项目 → 创建 [巡检] Issue（去重，不改代码）
+#   开发工程师 每 2 小时            先修被打回的 PR，再认领新 Issue → 提 PR
+#   审查员     每个新 PR            自动审查，首行给结论（只评论，不推代码）
+#   合并官     每 2 小时（错峰）     审查通过的 PR 自动合并；被打回的留言退回
 #
+# 闭环：开发提 PR → 审查员审 → 需修改则下一轮开发自动返工 → 审查通过 → 合并官合并
 # 模型：deepseek-v4.1-flash —— ¥0.00/MTok（推广期免费，实测 0.00 credits）
-# 人工介入点：只需要偶尔翻 Issue/PR 记录。
-#             不想让 NPC 自动合并，就删掉「④ 合并官」整段。
+#
+# 人工介入点：只需要偶尔翻 Issue / PR 记录，不用做任何操作。
+#             不想让 NPC 自动合并，删掉「④ 合并官」整段即可。
 #
 # 数据（data/manual.json、static/img/）仍由本地每日任务维护，NPC 一律禁止触碰。
 
 main:
-  # ── ① 巡检师：每天 09:00 例行体检 ──
-  "crontab: 0 9 * * *":
+  # ── ① 巡检师：每天 09:00 / 21:00 体检 ──
+  "crontab: 0 9,21 * * *":
     - name: 巡检师·每日体检
       docker:
         image: cnbcool/default-npc:latest
@@ -31,31 +33,32 @@ main:
               活动配图在 static/img/；自动化指令在仓库根目录的「*指令*.md」。
               你的职责：只发现问题、创建 Issue，绝不修改代码。
             userPrompt: |
-              执行今日巡检：
-              1. 先列出仓库现有 open Issue 的标题，作为「已开单」清单
+              执行本轮巡检：
+              1. 先列出仓库所有 open Issue 的标题，作为「已开单」清单
               2. 阅读 CHANGELOG.md、README.md 与核心源码（app.py、scrapers.py、bilibili.py、
                  timeparse.py、static/index.html、static/scraper.js、tests/）
-              3. 若环境具备 python：运行 python -m py_compile app.py scrapers.py bilibili.py timeparse.py，
-                 以及 tests/ 下可离线跑通的纯函数测试；缺依赖则先 pip install 所需依赖再跑，
-                 仍不可行则跳过实跑、改为静态阅读，并在结论中注明
+              3. 若环境具备 python：pip install 依赖后运行 python -m py_compile app.py scrapers.py
+                 bilibili.py timeparse.py，以及 tests/ 下可离线跑通的纯函数测试；
+                 缺依赖且装不上则改为静态阅读，并在结论中注明
               4. 找出本轮**新**的、真实且可验收的改进点（bug、健壮性、测试缺口、
                  双端逻辑漂移【static/scraper.js 与 Python 端词表需一致】、文档过时等）
-              5. 为每个新改进点创建一个 Issue：标题以 [巡检] 开头；正文写清背景、影响、验收标准、涉及文件、优先级
+              5. 为每个新改进点创建一个 Issue：标题以 [巡检] 开头；正文写清背景、影响、
+                 验收标准、涉及文件、优先级
               6. 输出汇总：本轮结论 + 新开的 Issue 列表
               护栏：
               - 「已开单」清单里已存在的问题（同一处代码 / 同一类问题）**不要重复开单**；
                 本轮没有新问题就直接输出「无新问题」，禁止为凑数开单
               - 不修改任何文件（只读 + 建 Issue）
-              - data/manual.json、static/img/、README_*.md、CHANGELOG.md 禁止改动；其中发现问题只写进 Issue
+              - data/manual.json、static/img/、README_*.md、CHANGELOG.md 禁止改动；发现问题只写进 Issue
               - 不确定的信息标注「存疑」，禁止臆造
 
-  # ── ② 开发工程师：每天 13:00 与 21:00 各认领一单 ──
-  "crontab: 0 13,21 * * *":
-    - name: 开发工程师·每日两轮
+  # ── ② 开发工程师：每 2 小时一轮（先返工被打回的 PR，再认领新 Issue）──
+  "crontab: 0 */2 * * *":
+    - name: 开发工程师·持续作业
       docker:
         image: cnbcool/default-npc:latest
       stages:
-        - name: 认领 Issue 并实现
+        - name: 返工或认领 Issue 并实现
           type: npc:go
           options:
             model: deepseek-v4.1-flash
@@ -64,23 +67,30 @@ main:
               你是「二游活动聚合」项目的开发工程师。
               项目背景：AI 编写的二次元游戏活动日历，PC 网页（static/）+ 安卓 App（android/）；
               后端为 Flask（app.py、scrapers.py、bilibili.py、timeparse.py）；测试在 tests/。
-              你的职责：一次只完成一个 Issue，小步改动，提 PR 交付。
+              你的职责：一次只推进一件事，小步改动，用 PR 交付。
             userPrompt: |
-              执行本轮开发任务：
-              0. 先统计仓库 open 状态的 PR 数量：若已有 3 个及以上未合并的 PR，
-                 本次直接结束并说明「等合并，本轮跳过」，不要改动任何代码
-              1. 读取仓库 open 状态的 Issue，优先挑「标题以 [巡检] 开头、且尚无 PR 引用」的最老一个；
-                 若没有 [巡检] Issue，则挑任意 open、尚无 PR 引用、且与他人 PR 不冲突的 Issue
-              2. 实现该 Issue 的需求，保持与现有代码风格一致，不做额外重构
-              3. 自行验证：python -m py_compile 所有改动的 .py 文件；pip install 依赖后运行
-                 tests/ 下可离线跑通的测试；前端改动检查基本语法；
-                 把「实际执行了哪些验证、结果如何」写进 PR 描述（必须真实，禁止编造）
-              4. 从 main 的最新提交拉分支（命名如 npc/issue-<编号>，避免与已有 PR 冲突），
-                 提交并创建 PR；PR 标题格式：[开发] <简述>；
-                 PR 描述写明：解决的 Issue（写 Fixes #编号）、改动说明、验证方式与结果
-              5. 若 Issue 范围过大无法一次完成：不要硬做，在 Issue 下评论说明拆分建议即可
+              按优先级执行本轮任务（**只做第 1 件，做完就结束**）：
+
+              【第 1 优先：返工被打回的 PR】
+              找出你自己（NPC 身份）提交的、仍 open 的 PR，逐个读评论：
+              若最新审查结论是「需修改 / 要求更改 / request changes / 存在 critical 问题」，
+              挑最老的一个按审查意见改代码，本地跑通验证后推送到**同一个分支**（让审查员自动重审），
+              并在 PR 下评论说明「已按审查意见修改，改动点：…，验证：…」。做完即结束本轮。
+
+              【第 2 优先：认领新 Issue】
+              若没有待返工的 PR：
+              a. 统计 open PR 数量；若已有 3 个及以上未合并 PR，直接输出「等合并，本轮跳过」并结束，不要改代码
+              b. 读 open Issue，优先挑「标题以 [巡检] 开头、尚无 PR 引用」的最老一个；
+                 没有则挑任意 open、尚无 PR 引用、且与现有 PR 改动文件不重叠的 Issue
+              c. 实现需求，保持现有代码风格，不做额外重构
+              d. 自行验证：python -m py_compile 所有改动的 .py；pip install 依赖后跑 tests/ 可离线测试；
+                 前端改动做基本语法检查；把「实际执行了哪些验证、结果如何」写进 PR 描述（必须真实，禁止编造）
+              e. 从 main 最新提交拉分支（命名 npc/issue-<编号>，避免与已有分支冲突），
+                 提交并建 PR；标题 [开发] <简述>；描述写明：Fixes #<编号>、改动说明、验证方式与结果
+              f. 若 Issue 范围过大一次做不完：不要硬做，在 Issue 下评论拆分建议即可
+
               护栏：
-              - 只做 1 个 Issue，不做无关改动
+              - 一轮只推进一件事，不做无关改动
               - 禁止修改 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
                 android 签名相关文件（keystore/keystore.properties）
               - 前端改动若涉及 sw.js 缓存策略，记得递增 CACHE 版本号（项目惯例）
@@ -104,19 +114,22 @@ main:
               - 数据文件 data/manual.json 与配图 static/img/ 由本地任务维护，PR 不应改动
               - Service Worker（static/sw.js）改动必须递增 CACHE 版本号
               - 前端注入风险：内联 onclick 拼接变量需转义
+              审查要动手验证：用 python / node 实际跑边界用例（例如数值区间 1.5-2.2、日期区间
+              9月10日-9月20日 这类容易混淆的输入），用实测结果支撑结论，不要只做静态阅读。
             userPrompt: |
               审查本次 PR 的代码变更：
               1. 查找 bug、边界问题、安全问题（XSS / 注入 / 路径穿越等）
               2. 核对是否违反上述项目关键约束
               3. 核对 PR 描述的验证记录是否真实可信
-              4. 给出明确结论（必须二选一，写在评论第一行）：
-                 「审查结论：通过」 或 「审查结论：需修改」
-                 需修改时逐条列出具体问题与建议改法
+              4. **评论第一行必须**是下面两种之一（一字不差）：
+                 审查结论：通过
+                 审查结论：需修改
+                 若为「需修改」，随后逐条列出：问题、影响、建议改法（给出可直接照做的具体代码建议）
               只发表评论，不要直接修改代码或推送提交。
 
-  # ── ④ 合并官：每天 23:00 收口 PR（不想要自动合并就删掉这一段）──
-  "crontab: 0 23 * * *":
-    - name: 合并官·每日收口
+  # ── ④ 合并官：每 2 小时错峰收口（不想要自动合并就删掉这一段）──
+  "crontab: 30 */2 * * *":
+    - name: 合并官·持续收口
       docker:
         image: cnbcool/default-npc:latest
       stages:
@@ -129,17 +142,17 @@ main:
               你是「二游活动聚合」项目的合并官，负责把审查完毕的 PR 收口。
               你的原则：宁可不合并，也不误合并。
             userPrompt: |
-              执行今日收口：
-              1. 列出仓库所有 open 状态的 PR，逐个读取它的评论（尤其是审查员的首行结论）
-                 与变更内容（changed files）
+              执行本轮收口：
+              1. 列出所有 open PR，逐个读取其评论（尤其审查员评论的第一行结论）与变更文件清单
               2. 对每个 PR 判断：
-                 - 若存在未解决的「审查结论：需修改」评论 → 不合并，评论说明还差什么
-                 - 若最新审查结论为「审查结论：通过」，且 PR 描述有真实验证记录，
-                   且改动未触碰下列禁区 → 合并该 PR 到 main，并评论「已按审查结论合并」
-                 - 拿不准、或评论里结论矛盾/缺失 → 不合并，评论向审查员或开发工程师提问
+                 - 最新审查结论为「需修改 / 要求更改 / request changes / 有 critical 问题」
+                   → 不合并，评论说明还差什么（若已有同类评论则不必重复发）
+                 - 最新审查结论为「审查结论：通过」，且 PR 描述有真实验证记录，
+                   且改动未触碰下列禁区 → 合并到 main，并评论「已按审查结论合并」
+                 - 结论缺失、矛盾、或拿不准 → 不合并，评论向审查员/开发工程师提问
               3. 输出汇总：合并了哪些 PR、退回了哪些、各自原因
               护栏：
               - 只合并「审查结论明确为通过」的 PR；结论缺失或存疑一律不合并
-              - 禁止合并任何改动过 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
+              - 禁止合并改动过 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
                 android 签名相关文件（keystore/keystore.properties）的 PR
               - 不修改任何代码，只做「合并 + 评论」
