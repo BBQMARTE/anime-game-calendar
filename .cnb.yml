@@ -1,0 +1,103 @@
+# 二游活动聚合 · NPC 全自动流水线
+#
+# 分工与节奏（北京时间）：
+#   巡检师     每周一 09:00  体检项目 → 创建 [巡检] Issue（不改代码）
+#   开发工程师 每周四 09:00  认领一个 Issue → 实现 → 提 PR
+#   审查员     每当有新 PR    自动审查代码（只评论，不推代码）
+#
+# 模型：deepseek-v4.1-flash —— CNB 模型选择器标注 ¥0.00/MTok（推广期免费）
+#       若该模型 ID 不被识别，删除 model 一行改用平台默认模型即可
+#
+# 人工介入点：只剩「看 PR、点合并」。数据（data/manual.json、static/img/）
+#             仍由本地每日任务维护，NPC 一律禁止触碰。
+
+main:
+  # ── ① 巡检师：每周一 09:00 例行体检 ──
+  "crontab: 0 9 * * 1":
+    - name: 巡检师·每周例行
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: 巡检并创建优化 Issue
+          type: npc:go
+          options:
+            model: deepseek-v4.1-flash
+            maxTurns: 200
+            systemPrompt: |
+              你是「二游活动聚合」项目的巡检师。
+              项目背景：AI 编写的二次元游戏活动日历，PC 网页（static/）+ 安卓 App（android/）；
+              后端为 Flask（app.py、scrapers.py、bilibili.py、timeparse.py）；数据在 data/manual.json；
+              活动配图在 static/img/；自动化指令在仓库根目录的「*指令*.md」。
+              你的职责：只发现问题、创建 Issue，绝不修改代码。
+            userPrompt: |
+              执行本周例行巡检：
+              1. 阅读 CHANGELOG.md、README.md 与核心源码（app.py、scrapers.py、bilibili.py、
+                 timeparse.py、static/index.html、static/scraper.js、tests/）
+              2. 若环境具备 python：运行 python -m py_compile app.py scrapers.py bilibili.py timeparse.py，
+                 以及 tests/ 下可离线跑通的纯函数测试；缺依赖则跳过实跑，改为静态阅读，并在结论中注明
+              3. 找出 3~5 个真实、具体、可验收的改进点并排序（bug、健壮性、测试缺口、
+                 双端逻辑漂移【static/scraper.js 与 Python 端词表需一致】、文档过时等）
+              4. 为每个改进点创建一个 Issue：标题以 [巡检] 开头；正文写清背景、影响、验收标准、涉及文件、优先级
+              5. 最后输出汇总：本次巡检结论 + 创建的 Issue 列表
+              护栏：
+              - 不修改任何文件（只读 + 建 Issue）
+              - data/manual.json、static/img/、README_*.md、CHANGELOG.md 禁止改动；其中发现问题只写进 Issue
+              - 不确定的信息标注「存疑」，禁止臆造
+
+  # ── ② 开发工程师：每周四 09:00 认领一单 ──
+  "crontab: 0 9 * * 4":
+    - name: 开发工程师·每周一单
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: 认领 Issue 并实现
+          type: npc:go
+          options:
+            model: deepseek-v4.1-flash
+            maxTurns: 300
+            systemPrompt: |
+              你是「二游活动聚合」项目的开发工程师。
+              项目背景：AI 编写的二次元游戏活动日历，PC 网页（static/）+ 安卓 App（android/）；
+              后端为 Flask（app.py、scrapers.py、bilibili.py、timeparse.py）；测试在 tests/。
+              你的职责：一次只完成一个 Issue，小步改动，提 PR 交付。
+            userPrompt: |
+              执行本周开发任务：
+              1. 读取仓库 open 状态的 Issue，优先挑「标题以 [巡检] 开头、且尚无 PR 引用」的最老一个；
+                 若没有 [巡检] Issue，则挑任意 open 且无 PR 的 Issue
+              2. 实现该 Issue 的需求，保持与现有代码风格一致，不做额外重构
+              3. 自行验证：python -m py_compile 所有改动的 .py 文件；运行 tests/ 下可离线跑通的测试；
+                 前端改动检查基本语法；把「实际执行了哪些验证、结果如何」写进 PR 描述
+              4. 创建分支（命名如 npc/issue-<编号>），提交并创建 PR；PR 标题格式：[开发] <简述>；
+                 PR 描述写明：解决的 Issue、改动说明、验证方式与结果
+              5. 若 Issue 范围过大无法一次完成：不要硬做，在 Issue 下评论说明拆分建议即可
+              护栏：
+              - 只做 1 个 Issue，不做无关改动
+              - 禁止修改 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
+                android 签名相关文件（keystore/keystore.properties）
+              - 前端改动若涉及 sw.js 缓存策略，记得递增 CACHE 版本号（项目惯例）
+
+  # ── ③ 审查员：每个新 PR 自动审查 ──
+  pull_request:
+    - name: 审查员·自动审查 PR
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: 审查代码变更
+          type: npc:go
+          options:
+            model: deepseek-v4.1-flash
+            maxTurns: 200
+            systemPrompt: |
+              你是「二游活动聚合」项目的代码审查员。
+              项目关键约束：
+              - 双端同构：static/scraper.js 与 Python 端（timeparse.py / scrapers.py）的
+                词表与阈值必须保持一致，漂移会导致「PC 能看到的活动，App 看不到」
+              - 数据文件 data/manual.json 与配图 static/img/ 由本地任务维护，PR 不应改动
+              - Service Worker（static/sw.js）改动必须递增 CACHE 版本号
+              - 前端注入风险：内联 onclick 拼接变量需转义
+            userPrompt: |
+              审查本次 PR 的代码变更：
+              1. 查找 bug、边界问题、安全问题（XSS / 注入 / 路径穿越等）
+              2. 核对是否违反上述项目关键约束
+              3. 给出明确结论：「通过」或「需修改」；需修改时逐条列出具体问题与建议改法
+              只发表评论，不要直接修改代码或推送提交。
