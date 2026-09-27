@@ -12,6 +12,11 @@
 #
 # 闭环：开发提 PR → 审查员审 → 需修改则下一轮开发自动返工 → 审查通过 → 合并官合并
 # 配额耗尽的表现：定时构建 4~22 秒空转（NPC 阶段 0s），等配额重置自动恢复
+# 省配额关键：runner.cpus 默认 8 核（审查一轮 35 分钟≈4.7 核时），降到 2 核同样的活只烧 1/4——
+#             NPC 的瓶颈是模型 API 网络调用，不是 CPU，降核几乎不影响速度
+# 免费额度分工（社区版，月底清零）：构建-CPU 160 核时/月（本流水线只烧这个池子，2 核下约 4 核时/天，
+#             正好撑一个月）；开发-CPU 1600 核时/月（仅云原生开发空间可用，流水线用不上）；
+#             GPU 节点（cnb:arch:amd64:gpu，16核+L40）面向 AI 训练/推理，对本流水线无用且超额单价 4 倍，禁用
 #
 # 人工介入点：
 #   - PR 停滞（开发已返工但审查员迟迟没复审）→ 在 PR 里评论 @审查员 请复审
@@ -25,6 +30,8 @@ main:
   # ── ① 巡检师：每天 09:00 体检 ──
   "crontab: 0 9 * * *":
     - name: 巡检师·每日体检
+      runner:
+        cpus: 2
       docker:
         image: cnbcool/default-npc:latest
       stages:
@@ -62,6 +69,8 @@ main:
   # ── ② 开发工程师：每天 09:30 / 21:30 一轮（先返工/催审，再认领新 Issue）──
   "crontab: 30 9,21 * * *":
     - name: 开发工程师·持续作业
+      runner:
+        cpus: 2
       docker:
         image: cnbcool/default-npc:latest
       stages:
@@ -111,6 +120,8 @@ main:
   # ── ③ 审查员：每个新 PR / 新提交自动审查 ──
   pull_request:
     - name: 审查员·自动审查 PR
+      runner:
+        cpus: 2
       docker:
         image: cnbcool/default-npc:latest
       stages:
@@ -151,6 +162,8 @@ main:
   # ── ④ 合并官：每天 11:00 / 23:00 收口（不想要自动合并就删掉这一段）──
   "crontab: 0 11,23 * * *":
     - name: 合并官·持续收口
+      runner:
+        cpus: 2
       docker:
         image: cnbcool/default-npc:latest
       stages:
