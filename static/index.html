@@ -677,6 +677,36 @@ function openUrl(u){
   if(IS_ANDROID){const w=window.open();if(w){w.location.href=u;return}}  // 兜底:新窗口打开,不顶掉当前页
   window.open(u,'_blank');
 }
+/* 公告正文清洗:白名单标签+属性,剥离其余标签与事件属性(真 HTML 解析,不用正则打补丁) */
+const ALLOW_TAGS=new Set(['P','DIV','SPAN','BR','HR','H1','H2','H3','H4','H5','H6','UL','OL','LI',
+  'B','STRONG','I','EM','U','S','SUB','SUP','TABLE','THEAD','TBODY','TR','TD','TH','IMG','A','FONT','CENTER','SECTION','BLOCKQUOTE']);
+const ALLOW_ATTR={IMG:['src','alt','width','height'],A:['href','target','rel'],TD:['colspan','rowspan'],TH:['colspan','rowspan']};
+function safeHref(u){
+  let href=u||''; try{href=decodeURI(href)}catch(e){}
+  return /^https?:\/\//i.test(href)?encodeURI(href):null;
+}
+function sanitizeHtml(html){
+  const doc=new DOMParser().parseFromString(String(html||''),'text/html');
+  for(const n of doc.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math')) n.remove();
+  for(const el of [...doc.body.querySelectorAll('*')]){
+    if(!ALLOW_TAGS.has(el.tagName)){el.replaceWith(...el.childNodes);continue}  // 非白名单标签:留文字去标签
+    const ok=ALLOW_ATTR[el.tagName]||[];
+    for(const at of [...el.attributes]){
+      const name=at.name.toLowerCase();
+      if(name.startsWith('on')||ok.indexOf(name)<0){el.removeAttribute(at.name);continue}
+      if(name==='src'||name==='href'){
+        const u=safeHref(at.value);
+        u===null?el.removeAttribute(at.name):el.setAttribute(at.name,u);
+      }
+    }
+    if(el.tagName==='A'){
+      if(el.hasAttribute('href')){el.setAttribute('target','_blank');el.setAttribute('rel','noopener noreferrer')}
+      else el.replaceWith(...el.childNodes);
+    }
+    if(el.tagName==='IMG'&&!el.hasAttribute('src')) el.remove();
+  }
+  return doc.body.innerHTML;
+}
 /* 米哈游事件:通过内容 API 获取正文并弹窗展示 */
 async function showMihoyoDetail(e){
   const overlay=document.createElement('div');
@@ -702,19 +732,9 @@ async function showMihoyoDetail(e){
     if(content){
       // 清洗:先解码实体(还原出的 on* 属性也会被后续规则去掉),再去脚本/内联事件;
       // 链接仅放行 http/https(阻断 javascript: 与畸形编码导致的整页渲染失败)
-      body.innerHTML=content
-        .replace(/&#x([0-9a-fA-F]+);/g,(_,h)=>String.fromCodePoint(parseInt(h,16)))
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi,'')
-        .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi,'')
-        .replace(/<\/?(?:iframe|object|embed|form)[^>]*>/gi,'')
-        .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,'')
-        .replace(/style="[^"]*"/gi,'')
-        .replace(/javascript:/gi,'')
-        .replace(/<a\s+href="([^"]*)"/gi,(_,u)=>{
-          let href=u; try{href=decodeURI(u)}catch(e){}
-          return /^https?:\/\//i.test(href)?`<a href="${encodeURI(href)}"`:'<a href="#"';
-        });
+      // 清洗:改用 DOMParser + 标签/属性白名单遍历（纯正则的“删 on* 属性”会被
+      // <svg/onload=…> 这类属性前无空格的写法绕过）;链接仅保留 http/https
+      body.innerHTML=sanitizeHtml(content);
     }else{
       body.innerHTML='<div class="detail-err">公告内容为空</div>';
     }
