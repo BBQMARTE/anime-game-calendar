@@ -931,5 +931,5 @@ const Scraper = (() => {
     return { events: list, sources, games: GAMES, updated: iso(now) };
   }
 
-  return { GAMES, fetchAll };
+  return { GAMES, fetchAll, extractEvents, isNoiseName };
 })();
