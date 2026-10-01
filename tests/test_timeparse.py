@@ -111,7 +111,17 @@ evs = extract_events("【版本活动】「夏日大作战」活动时间：2026
 names = [e[0] for e in evs]
 all_ok &= check("噪音名过滤", ("版本活动" not in names and "夏日大作战" in names), True)
 
-# 22. 两天默认值
+# 22. 泛称活动名过滤（与 scraper.js isNoiseName 同表：NOISE_NAME + BAD_SHORT）
+for _bad in ("签到", "福利", "奖励", "登录", "菲林", "母带", "活动", "版本活动", "前瞻"):
+    evs = extract_events("【%s】活动时间：2026年7月10日 ~ 2026年7月20日" % _bad, REF)
+    all_ok &= check("泛称名过滤 %s" % _bad, evs, [])
+# 真活动名（含「签到/登录」字样但不是纯泛称）不被误杀
+for _good in ("应门者·签到活动", "累计登录有礼", "每日签到福利", "盛夏嘉年华"):
+    evs = extract_events("【%s】活动时间：2026年7月10日 ~ 2026年7月20日" % _good, REF)
+    all_ok &= check("活动名保留 %s" % _good, [e[0] for e in evs], [_good])
+
+
+# 23. 两天默认值
 s, e = with_two_day_default(REF, None)
 all_ok &= check("两天默认", e, REF + __import__('datetime').timedelta(days=2))
 

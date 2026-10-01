@@ -258,15 +258,23 @@ def extract_range(text: str, ref_date: datetime = None):
 
 
 # 活动名噪声（泛称，不是具体活动）
+# 短泛称集合与 scrapers._BAD_SHORT / scraper.js BAD_SHORT 逐字一致（双端同表）
+_BAD_SHORT = {'活动', '菲林', '奖励', '登录', '签到', '福利', '母带'}
 _NOISE_NAME = re.compile(
     r'^(?:版本活动|限时活动|活动|公告|注意|温馨提示?|说明|维护公告?|更新说明|'
     r'全新版本|版本前瞻|前瞻|直播|特别节目|活动详情|活动一览|版本活动一览|'
-    r'活动预告|新版本|版本更新|版本内容|活动玩法|玩法)$'
+    r'活动预告|新版本|版本更新|版本内容|活动玩法|玩法|'
+    r'登录|签到|福利|奖励|菲林|母带)$'
 )
 
 
-def _is_noise_name(name: str) -> bool:
-    return bool(_NOISE_NAME.match(name.strip()))
+def is_noise_name(name: str) -> bool:
+    name = (name or '').strip()
+    return name in _BAD_SHORT or bool(_NOISE_NAME.match(name))
+
+
+# 向后兼容旧私有名
+_is_noise_name = is_noise_name
 
 
 # 多括号活动名（支持 「」『』【】[]（）〈〉 等任意配对）
@@ -288,7 +296,7 @@ def extract_events(text: str, ref_date: datetime = None):
     # 1) 括号活动名
     for m in _BRACKET.finditer(norm):
         name = m.group('name').strip()
-        if not name or name in seen or _is_noise_name(name):
+        if not name or name in seen or is_noise_name(name):
             continue
         seg = norm[m.end():m.end() + 220]
         s, e = _range_in_segment(seg, ref_date)
@@ -299,7 +307,7 @@ def extract_events(text: str, ref_date: datetime = None):
     # 2) 标题行：■/◆/✦ 开头的一行，其后 220 字符内有活动时间
     for m in re.finditer(r'[■◆✦★]\s*([^\n■◆✦★]{2,30})', norm):
         name = m.group(1).strip()
-        if not name or name in seen or _is_noise_name(name):
+        if not name or name in seen or is_noise_name(name):
             continue
         seg = norm[m.end():m.end() + 220]
         if not re.search(r'活动时间|活动期间|开放时间|开启时间|挑战时间', seg[:120]):
