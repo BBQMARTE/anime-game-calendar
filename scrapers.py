@@ -772,6 +772,27 @@ def _run_one(entry):
         return [], {'ok': False, 'count': 0, 'error': str(e)[:120], 'took': round(time.time() - t0, 1)}
 
 
+def validate_events(events):
+    """后置校验:对每个 event 做质量检查,不通过→降级为 info(不进月历)。
+    幂等,可对合并后的全部来源(抓取/手动)统一调用,与 static/scraper.js::fetchAll 的时机一致。"""
+    dropped = 0
+    for e in events:
+        if e.get('kind') != 'event':
+            continue
+        try:
+            valid, reason = _validate_event(e)
+        except (TypeError, KeyError, AttributeError):
+            # 单条脏数据(如 title 非字符串)跳过校验,不拖垮整轮刷新
+            continue
+        if not valid:
+            e['kind'] = 'info'
+            e['_reject'] = reason
+            dropped += 1
+    if dropped:
+        print(f'[validateEvent] {dropped} 个条目降级(非真活动)')
+    return dropped
+
+
 def fetch_all():
     """并发抓取全部游戏。返回 (events, sources_status)"""
     events, sources = [], {}
@@ -789,16 +810,7 @@ def fetch_all():
             seen[key] = e
 
     # 后置校验:对每个 event 做质量检查,不通过→降级为 info(不进月历)
-    dropped = 0
-    for e in seen.values():
-        if e['kind'] == 'event':
-            valid, reason = _validate_event(e)
-            if not valid:
-                e['kind'] = 'info'
-                e['_reject'] = reason
-                dropped += 1
-    if dropped:
-        print(f'[validateEvent] {dropped} 个条目降级(非真活动)')
+    validate_events(seen.values())
 
     events = sorted(seen.values(), key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
     return events, sources
