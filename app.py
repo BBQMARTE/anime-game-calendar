@@ -121,6 +121,8 @@ def do_refresh():
             if old is None or (e.get('src') == 'manual' and old.get('src') != 'manual'):
                 seen[key] = e
         events = list(seen.values())
+        # 合并全部来源(抓取/手动)后统一校验,与 App 端 scraper.js::fetchAll 的时机一致
+        scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
         with _lock:
             _state['events'] = events
