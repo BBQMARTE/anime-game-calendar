@@ -24,16 +24,24 @@ const S = new Function(src + '\nreturn Scraper;')();
 global.localStorage = { getItem: (k) => (k === 'ycal_manual' ? process.argv[3] : null) };
 const arr = JSON.parse(process.argv[3]);
 const evs = S.manualEvents();
-console.log(JSON.stringify(evs.map((e) => {
+let dropped = 0;
+// 与 fetchAll 的赋值语义一致：只有 kind==='event' 且校验不通过才降级
+const rows = evs.map((e) => {
   const r = S.validateEvent(e);
-  return [e.game_id, e.title, r.valid ? 'event' : 'info', r.reason || ''];
-})));
+  if (e.kind === 'event' && !r.valid) { e.kind = 'info'; e._reject = r.reason; dropped++; }
+  return [e.game_id, e.title, e.kind, e._reject || ''];
+});
+console.log(JSON.stringify({ rows, dropped }));
 """
 
 
-def py_manual_events():
+def _manual_source():
+    return json.load(open(MANUAL, encoding='utf-8'))
+
+
+def py_manual_events(arr=None):
     """按 app.py::_manual_events 的映射构造，并走统一的 validate_events。"""
-    arr = json.load(open(MANUAL, encoding='utf-8'))
+    arr = _manual_source() if arr is None else arr
     names = {g['id']: g['name'] for g in scrapers.GAMES_META}
     out = []
     for i, e in enumerate(arr):
@@ -49,26 +57,40 @@ def py_manual_events():
             'link': e.get('link', ''), 'image': e.get('image', ''),
             'src': 'manual', 'kind': e.get('kind', 'event'),
         })
-    scrapers.validate_events(out)
-    return [[e['game_id'], e['title'], e['kind'], e.get('_reject', '')] for e in out]
+    dropped = scrapers.validate_events(out)
+    rows = [[e['game_id'], e['title'], e['kind'], e.get('_reject', '')] for e in out]
+    return rows, dropped
 
 
-def js_manual_events():
-    arr = open(MANUAL, encoding='utf-8').read()
+def js_manual_events(arr=None):
+    text = open(MANUAL, encoding='utf-8').read() if arr is None else json.dumps(arr, ensure_ascii=False)
     p = subprocess.run(['node', '-e', NODE_LOADER, 'node',
-                        os.path.join(ROOT, 'static', 'scraper.js'), arr],
+                        os.path.join(ROOT, 'static', 'scraper.js'), text],
                        capture_output=True, text=True)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.strip() or 'node 退出码 %d' % p.returncode)
-    return json.loads(p.stdout.strip().splitlines()[-1])
+    data = json.loads(p.stdout.strip().splitlines()[-1])
+    return data['rows'], data['dropped']
+
+
+def app_side_kinds():
+    """真正覆盖 app.py::do_refresh 的调用时机（离线：抓取与 B 站均返回空）。"""
+    import app
+    app.scrapers.fetch_all = lambda: ([], {})
+    app.bilibili.fetch_all = lambda per_game=6: ([], {'name': 'B站动态', 'ok': True, 'count': 0})
+    app._save_cache = lambda: None
+    assert app.do_refresh() is True
+    return {e['id']: (e['kind'], e.get('_reject', ''))
+            for e in app._state['events'] if e.get('src') == 'manual'}
 
 
 def main():
     if not shutil.which('node'):
         print('SKIP: 未找到 node，跳过手动条目双端一致性测试')
         return 0
-    py, js = py_manual_events(), js_manual_events()
     bad = 0
+    py, py_dropped = py_manual_events()
+    js, js_dropped = js_manual_events()
     if len(py) != len(js):
         print('MISMATCH 条数: py=%d js=%d' % (len(py), len(js)))
         bad += 1
@@ -76,8 +98,30 @@ def main():
         if a != b:
             bad += 1
             print('MISMATCH %s\n  py = %s\n  js = %s' % (a[1], a, b))
-    dropped = [r for r in py if r[2] != 'event']
-    print('手动条目 %d 条，双端 mismatch %d，校验降级 %d 条' % (len(py), bad, len(dropped)))
+    if py_dropped != js_dropped:
+        bad += 1
+        print('MISMATCH 降级条数: py=%d js=%d' % (py_dropped, js_dropped))
+    print('手动条目 %d 条，双端 mismatch %d，校验降级 %d 条'
+          % (len(py), bad, py_dropped))
+
+    # 数据里本就写死 kind:'info' 的条目，JS 侧不得被反推成 event
+    with_kind, _ = py_manual_events(_manual_source() + [
+        {'title': '人工确认的资讯条目', 'kind': 'info',
+         'start': '2026-10-01T12:00', 'end': '2026-10-10T12:00'}])
+    if with_kind[-1][2] != 'info':
+        bad += 1
+        print('MISMATCH 显式 kind=info 的条目被改写: %s' % (with_kind[-1],))
+
+    # app.py::do_refresh 的调用时机回归保护（删掉那条调用即失败）
+    kinds = app_side_kinds()
+    for mid, want in (('manual-83', 'info'), ('manual-139', 'info'),
+                      ('manual-140', 'info'), ('manual-141', 'info')):
+        got = kinds.get(mid)
+        if got != (want, '商城/网页活动不排期'):
+            bad += 1
+            print('MISMATCH do_refresh %s: got=%s want=%s' % (mid, got, (want, '商城/网页活动不排期')))
+    print('do_refresh 手动条目 %d 条，降级 %d 条'
+          % (len(kinds), sum(1 for v in kinds.values() if v[0] != 'event')))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')
     return 1 if bad else 0
 

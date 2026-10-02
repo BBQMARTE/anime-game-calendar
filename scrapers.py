@@ -777,12 +777,17 @@ def validate_events(events):
     幂等,可对合并后的全部来源(抓取/手动)统一调用,与 static/scraper.js::fetchAll 的时机一致。"""
     dropped = 0
     for e in events:
-        if e.get('kind') == 'event':
+        if e.get('kind') != 'event':
+            continue
+        try:
             valid, reason = _validate_event(e)
-            if not valid:
-                e['kind'] = 'info'
-                e['_reject'] = reason
-                dropped += 1
+        except (TypeError, KeyError, AttributeError):
+            # 单条脏数据(如 title 非字符串)跳过校验,不拖垮整轮刷新
+            continue
+        if not valid:
+            e['kind'] = 'info'
+            e['_reject'] = reason
+            dropped += 1
     if dropped:
         print(f'[validateEvent] {dropped} 个条目降级(非真活动)')
     return dropped
