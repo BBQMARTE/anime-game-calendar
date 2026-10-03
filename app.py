@@ -276,6 +276,30 @@ def _ics_escape(s):
     return str(s or '').replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', ' ')
 
 
+def _ics_fold(line, limit=75):
+    """ICS 行折叠(RFC5545 §3.1):按 UTF-8 octet 计数,超 75 折行,续行以单空格开头。
+
+    中文标题按 UTF-8 每字 3 字节,很易越线;折行时不得把多字节字符劈成两半。
+    """
+    data = str(line).encode('utf-8')
+    if len(data) <= limit:
+        return line
+    chunks, i, size = [], 0, limit
+    while i < len(data):
+        chunk = data[i:i + size]
+        # 回退到字符边界:截断处可能落在多字节字符中间,逐字节回退直到能解码
+        while chunk:
+            try:
+                chunk.decode('utf-8')
+                break
+            except UnicodeDecodeError:
+                chunk = chunk[:-1]
+        chunks.append(chunk.decode('utf-8'))
+        i += len(chunk)
+        size = limit - 1  # 续行首字符是被折叠出来的空格
+    return '\r\n '.join(chunks)
+
+
 def _ics_utc(iso, day_end=False):
     """本地 ISO 时间串 → ICS UTC 时间;day_end=True 且无时分则取当天 23:59"""
     try:
@@ -323,7 +347,8 @@ def api_ics():
         n += 1
     lines.append('END:VCALENDAR')
     print(f'[订阅] 生成 ICS: {n} 个事件')
-    return Response('\r\n'.join(lines) + '\r\n', mimetype='text/calendar; charset=utf-8')
+    body = '\r\n'.join(_ics_fold(l) for l in lines)
+    return Response(body + '\r\n', mimetype='text/calendar; charset=utf-8')
 
 
 # ================= 图片代理(绕过图床跨域/防盗链) =================
