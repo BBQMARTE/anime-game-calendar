@@ -117,8 +117,29 @@ main:
                 android 签名相关文件（keystore/keystore.properties）
               - 前端改动若涉及 sw.js 缓存策略，记得递增 CACHE 版本号（项目惯例）
 
-  # ── ③ 审查员：每个新 PR / 新提交自动审查 ──
+  # ── ③ 测试 + 审查：每个新 PR / 新提交自动执行 ──
+  # 测试环节为 Issue #5 所加：先前 tests/ 无 CI、_verify_dir.py 失败也不返回非零码，
+  # 解析内核回归只能靠人工发现。此流水线与审查并行跑，失败即构建失败。
   pull_request:
+    - name: 测试·双端一致性
+      runner:
+        cpus: 2
+      docker:
+        image: cnbcool/default-npc:latest   # 与 NPC 任务同镜像，自带 python3 + node
+      stages:
+        - name: 语法检查 + 离线测试
+          script: |
+            set -e
+            python3 -m pip install -q flask requests
+            python3 -m py_compile app.py scrapers.py bilibili.py timeparse.py \
+              tests/_verify_dir.py tests/test_timeparse.py tests/test_dual_side.py \
+              tests/test_manual_parity.py tests/test_parity.py
+            python3 tests/_verify_dir.py
+            python3 tests/test_timeparse.py
+            python3 tests/test_dual_side.py
+            python3 tests/test_manual_parity.py
+            python3 tests/test_parity.py
+            node tests/test_sanitize_html.js
     - name: 审查员·自动审查 PR
       runner:
         cpus: 2

@@ -26,3 +26,4 @@ for text, desc, expect in tests:
     print(f"{status} {desc}: got=({sf}, {ef}) expect=({sexp}, {eexp})")
 
 print('\nALL PASS' if all_ok else '\nSOME FAILED')
+sys.exit(0 if all_ok else 1)
