@@ -424,14 +424,20 @@ def _send_notify(title, body):
         return False
 
 
-def _daily_notify():
-    """今明两天开始的活动汇总推送"""
+def _bj_now():
+    """当前北京时间:数据(manual.json / 抓取结果)与提醒均为该口径,不随服务器时区变化"""
+    return datetime.now(_CST)
+
+
+def _daily_notify(now=None):
+    """今明两天开始的活动汇总推送(now 可注入,便于测试)"""
     if not (_notify_config().get('webhook') or '').strip():
         return
     with _lock:
         events = list(_state['events'])
-    today = datetime.now().strftime('%Y-%m-%d')
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    now = now or _bj_now()
+    today = now.strftime('%Y-%m-%d')
+    tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
     starting = []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
@@ -450,18 +456,23 @@ def _daily_notify():
     _send_notify(f'二游活动提醒:今明两天 {len(starting)} 个活动开始', '\n'.join(lines))
 
 
+def _notify_due(now, cfg_time):
+    """到点判定:返回当前应记的北京日期(未到点返回 None),口径同 data/notify.json 的 time"""
+    try:
+        hh, mm = map(int, (cfg_time or '08:30').split(':'))
+    except ValueError:
+        hh, mm = 8, 30
+    return now.strftime('%Y-%m-%d') if (now.hour, now.minute) >= (hh, mm) else None
+
+
 def _notify_loop():
     """每天到点推送一次(配置在 data/notify.json,改完下一轮生效)"""
     sent_day = None
     while True:
-        try:
-            hh, mm = map(int, (_notify_config().get('time') or '08:30').split(':'))
-        except ValueError:
-            hh, mm = 8, 30
-        now = datetime.now()
-        key = now.strftime('%Y-%m-%d')
-        if (now.hour, now.minute) >= (hh, mm) and sent_day != key:
-            _daily_notify()
+        now = _bj_now()
+        key = _notify_due(now, _notify_config().get('time'))
+        if key and sent_day != key:
+            _daily_notify(now)
             sent_day = key
         time.sleep(60)
 
