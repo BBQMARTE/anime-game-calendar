@@ -349,7 +349,7 @@ function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200)}  // é
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
 function evStart(e){return e.start?new Date(e.start):(e.date?new Date(e.date):null)}
-function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59):null}
+function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59,59):null}
 function gameColor(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.color:'#007AFF'}
 function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.name:id}
 function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}

@@ -64,7 +64,12 @@ def _save_cache():
 
 
 def _manual_events():
-    """读取 data/manual.json 中的手动添加事件"""
+    """读取 data/manual.json 中的手动添加事件
+
+    无结束时间的条目在此**不补** end:补出来的合成值会进入 validate_events 的时长校验,
+    起点晚于 22:00 的条目必然被判「时长过短」降级。默认窗口只由消费点负责
+    (api_ics() 与前端 evEnd() 同一口径:起点当天 23:59:59)。
+    """
     path = os.path.join(DATA_DIR, 'manual.json')
     if not os.path.exists(path):
         return []
@@ -300,6 +305,19 @@ def _ics_fold(line, limit=75):
     return '\r\n '.join(chunks)
 
 
+def _default_end(start_iso):
+    """无结束时间时的默认窗口:起点当天 23:59:59(仅消费点兜底)。
+
+    前端 evEnd() 与 ICS DTEND 统一用这个口径。不在 _manual_events() 里补:
+    合成 end 会进 validate_events 的时长校验,起点晚于 22:00 的条目会被降级。
+    """
+    try:
+        s = datetime.fromisoformat(str(start_iso))
+    except (ValueError, TypeError):
+        return None
+    return s.replace(hour=23, minute=59, second=59).isoformat(timespec='seconds')
+
+
 def _ics_utc(iso, day_end=False):
     """本地 ISO 时间串 → ICS UTC 时间;day_end=True 且无时分则取当天 23:59"""
     try:
@@ -332,7 +350,8 @@ def api_ics():
         if not s_iso:
             continue
         ds = _ics_utc(s_iso)
-        de = _ics_utc(e.get('end'), day_end=True) if e.get('end') else _ics_utc(s_iso, day_end=True)
+        # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
+        de = _ics_utc(e.get('end') or _default_end(s_iso), day_end=True)
         if not ds or not de:
             continue
         lines += ['BEGIN:VEVENT',

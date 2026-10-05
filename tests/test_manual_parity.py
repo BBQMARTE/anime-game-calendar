@@ -5,18 +5,23 @@
 同一份手动数据「服务器模式保留、App 爬虫模式降级」。
 
 运行：python3 tests/test_manual_parity.py
-      （需要 node；node 缺失则 SKIP 并退出码 0）
+      （需要 flask + node；任一缺失则 SKIP 并退出码 0）
 """
-import json, os, shutil, subprocess, sys
+import json, os, shutil, subprocess, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from datetime import datetime
 
 import scrapers
+
+try:
+    import app
+except ImportError as e:  # pragma: no cover - 缺依赖时不算失败
+    print('SKIP: 无法导入 app（%s）' % e)
+    sys.exit(0)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANUAL = os.path.join(ROOT, 'data', 'manual.json')
 
-# 与 app.py::_manual_events 相同的字段映射（手动条目统一读入后再校验）
+# JS 侧按 scraper.js::manualEvents 同样的映射构造（手动条目统一读入后再校验）
 NODE_LOADER = r"""
 const fs = require('fs');
 let src = fs.readFileSync(process.argv[2], 'utf8');
@@ -40,23 +45,18 @@ def _manual_source():
 
 
 def py_manual_events(arr=None):
-    """按 app.py::_manual_events 的映射构造，并走统一的 validate_events。"""
-    arr = _manual_source() if arr is None else arr
-    names = {g['id']: g['name'] for g in scrapers.GAMES_META}
-    out = []
-    for i, e in enumerate(arr):
-        if not isinstance(e, dict) or 'title' not in e:
-            continue
-        gid = e.get('game_id', '')
-        start = e.get('start') or None
-        out.append({
-            'id': f'manual-{i}', 'game_id': gid, 'game': names.get(gid, e.get('game') or gid or '自定义'),
-            'title': e.get('title', '未命名事件'), 'category': e.get('category', '活动'),
-            'start': start, 'end': e.get('end') or None,
-            'date': start or datetime.now().isoformat(timespec='seconds'),
-            'link': e.get('link', ''), 'image': e.get('image', ''),
-            'src': 'manual', 'kind': e.get('kind', 'event'),
-        })
+    """直接调 app.py::_manual_events()（不手抄字段映射，避免与实现漂移），再走统一校验。"""
+    if arr is None:
+        out = app._manual_events()
+    else:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, 'manual.json'), 'w', encoding='utf-8') as f:
+                json.dump(arr, f, ensure_ascii=False)
+            real, app.DATA_DIR = app.DATA_DIR, d
+            try:
+                out = app._manual_events()
+            finally:
+                app.DATA_DIR = real
     dropped = scrapers.validate_events(out)
     rows = [[e['game_id'], e['title'], e['kind'], e.get('_reject', '')] for e in out]
     return rows, dropped
@@ -75,7 +75,6 @@ def js_manual_events(arr=None):
 
 def app_side_kinds():
     """真正覆盖 app.py::do_refresh 的调用时机（离线：抓取与 B 站均返回空）。"""
-    import app
     app.scrapers.fetch_all = lambda: ([], {})
     app.bilibili.fetch_all = lambda per_game=6: ([], {'name': 'B站动态', 'ok': True, 'count': 0})
     app._save_cache = lambda: None
