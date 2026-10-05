@@ -47,11 +47,15 @@ const Scraper = (() => {
     mo = +mo; d = +d;
     const hh = (h != null && h !== '') ? +h : 0;
     const mm = (mi != null && mi !== '') ? +mi : 0;
-    // 时分越界丢弃整个 token(与 Python datetime 抛 ValueError 一致;
-    // new Date 会自动进位,如 25:00 变次日 1 点,导致双端解析分叉)
-    if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return null;
-    const dt = new Date(Y, mo - 1, d, hh, mm, 0);
-    return isNaN(dt) ? null : dt;
+    // 越界或「不存在的日期」一律丢弃整个 token,与 Python _make_dt 的 ValueError→None 同口径;
+    // new Date 会自动进位(2月30日→3月2日、25:00→次日1点、两位年当 19xx),导致双端分叉
+    if (Y < 1 || Y > 9999 || mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return null;
+    const dt = new Date(0);
+    dt.setFullYear(Y, mo - 1, d);      // 不能用 new Date(Y,...):两位年会被当成 19xx
+    dt.setHours(hh, mm, 0, 0);
+    // 回读校验:被自动进位的日期(2月30日 / 4月31日 / 平年2月29日)在此丢弃
+    if (dt.getFullYear() !== Y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return dt;
   }
   function parseTime(s, pos) {
     TIME_RE.lastIndex = pos;
@@ -94,8 +98,18 @@ const Scraper = (() => {
     if (isEnd && !tok.hasTime) dt.setHours(23, 59, 59, 0);
     return dt;
   }
+  // 滚到下一年;2月29日 落到平年时取该月最后一天(与 Python roll_year 同口径);
+  // 9999 年滚不动返回 null,由调用方放弃该日期(否则 Date 会产出 10000 年)
+  function rollYear(d) {
+    const y = d.getFullYear() + 1;
+    if (y > 9999) return null;
+    const last = new Date(y, d.getMonth() + 1, 0).getDate();      // 该月最后一天
+    const t = new Date(d.getTime());
+    t.setFullYear(y, d.getMonth(), Math.min(d.getDate(), last));
+    return t;
+  }
   function fixOrder(s, e) {
-    if (e < s) e = new Date(e.getFullYear() + 1, e.getMonth(), e.getDate(), e.getHours(), e.getMinutes(), e.getSeconds());
+    if (e < s) e = rollYear(e);      // 滚不动(null)时放弃结束时间
     return [s, e];
   }
   // 判断区间分隔符在 token 的前面还是后面;返回 'before','after','both',null
@@ -532,13 +546,20 @@ const Scraper = (() => {
     const dates = seg => {
       const out = []; let m; AN_DATE.lastIndex = 0;
       while ((m = AN_DATE.exec(seg))) {
-        const d = new Date(pub.getFullYear(), +m[1] - 1, +m[2], m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
-        if ((d - pub) / 864e5 < -10) d.setFullYear(d.getFullYear() + 1);  // 早于公告发布日 = 跨年
+        let d = new Date(pub.getFullYear(), +m[1] - 1, +m[2], m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
+        if ((d - pub) / 864e5 < -10) {
+          d = rollYear(d);                                     // 早于公告发布日 = 跨年
+          if (!d) continue;                                    // 9999 年无法再滚
+        }
         out.push(d);
       }
       // 兜底:识别「x年x月x日」等其它写法
       for (const t of findDateTokens(seg, pub)) {
-        if ((t.dt - pub) / 864e5 < -10) t.dt.setFullYear(t.dt.getFullYear() + 1);
+        if ((t.dt - pub) / 864e5 < -10) {
+          const r = rollYear(t.dt);
+          if (!r) continue;                                    // 9999 年无法再滚
+          t.dt = r;
+        }
         if (!out.some(o => Math.abs(o - t.dt) < 36e5)) out.push(t.dt);
       }
       out.sort((a, b) => a - b);
@@ -558,7 +579,7 @@ const Scraper = (() => {
       } else if (ds.length) {
         start = ds[0]; end = ds.length > 1 ? ds[1] : null;
       } else continue;
-      if (end && end < start) end = new Date(end.getFullYear() + 1, end.getMonth(), end.getDate(), end.getHours(), end.getMinutes());
+      if (end && end < start) end = rollYear(end);
       if (!end || end < now) continue;
       // 名字: 时间关键字前最近的一个「」/【】(不跨句号/条目符)
       const ctx0 = Math.max(text.lastIndexOf('。', tm.index), text.lastIndexOf('●', tm.index)) + 1;
