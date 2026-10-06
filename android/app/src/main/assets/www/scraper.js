@@ -32,11 +32,12 @@ const Scraper = (() => {
   // 时间:12:00 / 12:00:00 / 12点(30分) / 12时(30分)
   // /y(sticky):必须锚定在日期紧跟的位置,与 Python _TIME.match(text,pos) 一致
   // (若用 /g 会从 pos 向后搜索,把远处的"12:00"偷给当前日期,污染 token.end/hasTime)
-  const TIME_RE = /\s*(?:(?<h1>\d{1,2})\s*[:：]\s*(?<mi1>\d{1,2})(?:\s*[:：]\s*(?<s1>\d{1,2}))?|(?<h2>\d{1,2})\s*点\s*(?<mi2>\d{1,2})?\s*分?|(?<h3>\d{1,2})\s*时\s*(?<mi3>\d{1,2})?\s*分?)/y;
+  const TIME_RE = /\s*(?:(?<h1>[0-2]?\d)\s*[:：]\s*(?<mi1>[0-5]?\d)(?:\s*[:：]\s*(?<s1>[0-5]?\d))?|(?<h2>[0-2]?\d)\s*点\s*(?<mi2>[0-5]?\d)?\s*分?|(?<h3>[0-2]?\d)\s*时\s*(?<mi3>[0-5]?\d)?\s*分?)/y;
   const LONG_RE = /(?:长期|常驻|永久|持续开放|常开|长期开放|不限时|无期限)\s*(?:开放|开启|活动|进行|存在)?/;
   const KW_RE = /(活动时间|活动期间|活动开放时间|开放时间|开启时间|上线时间|开始时间|祈愿时间|跃迁时间|寻访时间|招募时间|唤取时间|卡池时间|上架时间|售卖时间|维护时间|更新时间|兑换时间|领取时间|投稿时间|征集时间|挑战时间|接力时间|直播时间|前瞻时间|演出时间|预约时间|开放预约时间|报名|截止|结束时间)[:：]?\s*/g;
   const VER_AFTER = /(版本更新后|更新完成后|维护后|开服后|开启后|更新后|维护结束)/;
   const RANGE_SEP = /(?:~|～|—|–|至|到|\s[-\u2010\u2011]\s)/;
+  const MAX_YEAR = 9999;   // Python datetime.max.year:区间起点到此年时不能再补 2 天窗口
 
   function htmlToText(html) {
     if (!html) return '';
@@ -193,7 +194,9 @@ const Scraper = (() => {
     if (!name || BAD_SHORT.has(name)) return (title || '').slice(0, 24);
     return name.slice(0, 18);
   }
-  const iso = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00` : null;
+  // 与 Python datetime.isoformat(timespec='seconds') 同口径:年份补足 4 位(0026 年不能写成 26,
+  // 否则前端 new Date 得 Invalid Date)、秒位照实输出(区间末端无时分时为 23:59:59,不能截成 :00)
+  const iso = d => d ? `${String(d.getFullYear()).padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}` : null;
   let _uid = 0;
   function ev(gid, gname, title, category, pub, start, end, link, img, kind, ext) {
     title = (title || '').replace(/\s+/g, ' ').trim();
@@ -204,9 +207,8 @@ const Scraper = (() => {
       // 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub(发布日期)兜底
       const s = start || pub;
       if (s) {
-        const ps = s.getTime();
         const pe = end ? end.getTime() : 0;
-        if (!end || pe < ps) end = new Date(ps + 2 * 864e5);
+        if (!end || pe < s.getTime()) [start, end] = withTwoDayDefault(s, null);
         if (!start) start = s;  // pub 兜底时也填 start
       }
     }
@@ -952,5 +954,16 @@ const Scraper = (() => {
     return { events: list, sources, games: GAMES, updated: iso(now) };
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent };
+  // 结束时间为空时补 2 天窗口;起点在 9999 年时补窗会产出 10000 年,此时放弃结束时间
+  // (与 Python timeparse.with_two_day_default 的 OverflowError 兜底同口径)
+  function withTwoDayDefault(s, e) {
+    if (s && !e) {
+      const t = new Date(s.getTime() + 2 * 864e5);
+      return [s, t.getFullYear() > MAX_YEAR ? null : t];
+    }
+    return [s, e];
+  }
+
+  return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent,
+           extractRange, withTwoDayDefault, iso };
 })();

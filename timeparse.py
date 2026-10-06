@@ -11,6 +11,8 @@
           即使「没有」活动时间之类的关键词，只要出现紧挨的两个日期也识别
   * 跨年：12月30日 ~ 1月5日 自动把结束日滚到下一年（滚年越界则放弃结束时间，不抛异常）
   * 不存在的日期：2月30日 / 4月31日 / 平年 2月29日 一律丢弃该 token（与 scraper.js mkDate 同口径）
+  * 序列化：年份补足 4 位（datetime.isoformat），与 scraper.js iso() 一致
+  * 补窗：缺结束时间时补 2 天；起点在 9999 年越界则放弃结束时间、不抛异常
   * 长期：含「长期/常驻/永久/持续开放」视为无结束的常驻活动
   * 活动名：支持 「」『』【】[]（）〈〉 等多种括号，以及 ■/◆/✦ 标题行
 """
@@ -346,9 +348,16 @@ TWO_DAYS = timedelta(days=2)
 
 
 def with_two_day_default(start, end):
-    """结束时间为空时，默认补 2 天。"""
+    """结束时间为空时，默认补 2 天。
+
+    start 落在 datetime.max 附近时补窗会越界，此时放弃结束时间（返回 None），
+    不抛异常 —— 调用方（scrapers._ev）会让整个游戏源判失败、0 条活动。
+    """
     if start and end is None:
-        return start, start + TWO_DAYS
+        try:
+            return start, start + TWO_DAYS
+        except OverflowError:
+            return start, None
     return start, end
 
 

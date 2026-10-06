@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from timeparse import extract_events, extract_range, html_to_text, roll_year
+from timeparse import extract_events, extract_range, html_to_text, roll_year, with_two_day_default
 
 UA = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -88,12 +88,12 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
     if kind == 'event':
         title = _short(title, category)
         # 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub 兜底
+        # (走 with_two_day_default:起点在 9999 年时它不抛 OverflowError,与 scraper.js 同口径)
         s = start or pub
         if s is not None:
-            if end is None:
-                end = s + timedelta(days=2)
-            elif end < s:
-                end = s + timedelta(days=2)
+            if end is None or end < s:
+                _s2, end = with_two_day_default(s, None)
+                start = _s2
             if start is None:
                 start = s  # pub 兜底时也填 start
     ev = {

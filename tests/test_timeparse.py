@@ -3,6 +3,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datetime import datetime
+import scrapers
 from timeparse import extract_range, extract_events, with_two_day_default, find_date_tokens, is_long_term
 
 REF = datetime(2026, 8, 3, 12, 0, 0)  # 参考时间：2026-08-03
@@ -127,6 +128,23 @@ all_ok &= check("两天默认", e, REF + __import__('datetime').timedelta(days=2
 
 
 # 24. 不存在日期 / 跨年越界（Issue #9）：_make_dt 丢弃 token、_fix_order 不抛异常
+def _safe_win(start):
+    """补 2 天窗口不得越界（返工前 9999 年起点会抛 OverflowError，经 _ev 吞成单源 0 条）"""
+    try:
+        return with_two_day_default(start, None)[1]
+    except Exception as ex:                                  # noqa: BLE001
+        return 'EXC %s' % type(ex).__name__
+
+
+def _safe_ev(title, pub, start, end):
+    """scrapers._ev 不得抛异常（未捕获异常会让 scrapers._run_one 判单源 0 条）"""
+    try:
+        ev = scrapers._ev('g1', '测试', title, '活动', pub, start, end, '')
+        return ev['start'], ev['end']
+    except Exception as ex:                                  # noqa: BLE001
+        return 'EXC %s' % type(ex).__name__
+
+
 def _safe_range(text, ref=REF):
     """extract_range 不得抛异常（未捕获异常会让 scrapers._run_one 判单源 0 条）"""
     try:
@@ -158,6 +176,22 @@ all_ok &= check("闰年2月29日保留", _safe_range("活动时间：2028年2月
 # 正常跨年不回归
 all_ok &= check("正常跨年不回归", _safe_range("活动时间：2026年12月31日 ~ 2026年1月5日"),
                 ("2026-12-31 00:00", "2027-01-05 23:59"))
+
+# 25. 补 2 天窗口不得越界（Issue #9 返工：9999 年起点 + 无结束时间 → scrapers._ev 曾抛 OverflowError）
+all_ok &= check("9999 起点补窗不越界（不抛异常、放弃结束时间）",
+                _safe_win(datetime(9999, 12, 30)), None)
+all_ok &= check("9999 起点 _ev 不抛异常",
+                _safe_ev("限时活动", datetime(9999, 1, 10), datetime(9999, 12, 30), None),
+                ("9999-12-30T00:00:00", None))
+all_ok &= check("9999 起点仍可补窗上月内（9999-12-29）", str(_safe_win(datetime(9999, 12, 29))),
+                "9999-12-31 00:00:00")
+all_ok &= check("非边界起点照常补窗", str(_safe_win(datetime(2026, 1, 1))), "2026-01-03 00:00:00")
+all_ok &= check("12:60 与 Python _TIME 同口径",
+                rng("活动时间：9月10日 12:60 ~ 9月20日 12:00"),
+                ("2026-09-10 12:06", "2026-09-20 12:00"))
+all_ok &= check("95:00 与 Python _TIME 同口径（不匹配为时分）",
+                rng("活动时间：9月10日 95:00 ~ 9月20日 12:00"),
+                ("2026-09-10 00:00", "2026-09-20 12:00"))
 
 print("\n====", "ALL PASS" if all_ok else "SOME FAILED", "====")
 sys.exit(0 if all_ok else 1)

@@ -24,6 +24,7 @@ from datetime import datetime
 
 import scrapers
 import timeparse as tp
+from timeparse import with_two_day_default
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRAPERS = [os.path.join(ROOT, 'static', 'scraper.js'),
@@ -60,7 +61,17 @@ RANGE_CASES = [
     '活动时间：0000-09-10 ~ 0000-09-20',
     '活动时间：2028年2月29日 ~ 2028年3月5日',
     '活动时间：2026年12月31日 ~ 2026年1月5日',
+    # Issue #9 返工：TIME_RE 字符类与 Python _TIME 对齐（12:60 / 95:00 不再两端漂移）
+    '活动时间：9月10日 12:60 ~ 9月20日 12:00',
+    '活动时间：9月10日 95:00 ~ 9月20日 12:00',
+    '活动时间：2026年7月10日 12:00 ~ 2026年8月10日 12:00',
 ]
+
+# 序列化层（Issue #9 返工：iso() 年份补 4 位须与 Python isoformat 同口径）
+ISO_DATES = ['0026-09-10', '9999-12-30', '2026-09-10', '1970-01-01']
+
+# 补 2 天窗口（Issue #9 返工：9999 年起点 + 无结束时间时不得补出 10000 年）
+WINDOW_DATES = ['9998-12-30', '9999-12-28', '9999-12-29', '9999-12-30', '9999-12-31', '2026-01-01']
 
 # 泛称名过滤（Issue #3 类：双端 BAD_SHORT / NOISE_NAME 必须同表）
 NAME_CASES = [
@@ -91,11 +102,12 @@ const fs = require('fs');
 let src = fs.readFileSync(process.argv[2], 'utf8');
 const anchor = 'return { GAMES, fetchAll,';
 if (!src.includes(anchor)) throw new Error('scraper.js 导出锚点未找到: ' + anchor);
-src = src.replace(anchor, 'return { extractRange, GAMES, fetchAll,');
+src = src.replace(anchor, 'return { extractRange, withTwoDayDefault, iso, GAMES, fetchAll,');
 const S = new Function(src + '\nreturn Scraper;')();
 const inp = JSON.parse(process.argv[3]);
 const ref = new Date(2026, 7, 3, 12, 0, 0);   // 本地时区，与 Python naive datetime 对齐
 const p = (n) => String(n).padStart(2, '0');
+const _day = (s) => { const [y, mo, d] = s.split('-').map(Number); const dt = new Date(0); dt.setFullYear(y, mo - 1, d); dt.setHours(0, 0, 0, 0); return dt; };
 const fmt = (d) => d ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
   + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` : null;
 const out = {
@@ -103,6 +115,8 @@ const out = {
   events: inp.ranges.map((t) => S.extractEvents(t, ref).map(([n, s, e]) => [n, fmt(s), fmt(e)])),
   names: inp.names.map((n) => S.isNoiseName(n)),
   valids: inp.valids.map((e) => { const r = S.validateEvent(e); return [r.valid, r.reason]; }),
+  dates: inp.dates.map((s) => S.iso(_day(s))),
+  windows: inp.windows.map((s) => S.withTwoDayDefault(_day(s), null).map(S.iso)),
 };
 process.stdout.write(JSON.stringify(out));
 """
@@ -112,8 +126,13 @@ def _fmt(d):
     return d.strftime('%Y-%m-%dT%H:%M:%S') if d else None
 
 
+def _iso(d):
+    """与 scraper.js iso() 同口径：年份补 4 位（datetime.isoformat 天然如此）"""
+    return d.isoformat(timespec='seconds') if d else None
+
+
 def py_side(inp):
-    out = {'ranges': [], 'events': [], 'names': [], 'valids': []}
+    out = {'ranges': [], 'events': [], 'names': [], 'valids': [], 'dates': [], 'windows': []}
     for t in inp['ranges']:
         s, e = tp.extract_range(t, REF)
         out['ranges'].append([_fmt(s), _fmt(e)])
@@ -124,15 +143,29 @@ def py_side(inp):
             out['valids'].append(list(scrapers._validate_event(e)))
         except (TypeError, KeyError, AttributeError) as ex:   # 与 validateEvents 的容错口径一致
             out['valids'].append(['EXC', type(ex).__name__])
+
+    def _day(s):
+        y, mo, d = (int(x) for x in s.split('-'))
+        return datetime(y, mo, d)
+    out['dates'] = [_iso(_day(s)) for s in inp['dates']]
+    def _win(s):
+        try:
+            return [_iso(x) for x in with_two_day_default(_day(s), None)]
+        except OverflowError as ex:   # 返工前 9999 年起点会抛；报 MISMATCH 而不是中断整个测试
+            return ['EXC', type(ex).__name__]
+    out['windows'] = [_win(s) for s in inp['windows']]
     return out
 
 
 def js_side(script, inp):
+    """返回 JS 端结果；脚本本身加载不了（旧内核缺新导出）时返回 None 并打印原因。"""
     p = subprocess.run(['node', '-e', NODE_LOADER, 'node', script,
                         json.dumps(inp, ensure_ascii=False)],
                        capture_output=True, text=True)
     if p.returncode != 0:
-        raise RuntimeError(p.stderr.strip() or 'node 退出码 %d' % p.returncode)
+        err = (p.stderr.strip().splitlines() or [''])[-1]
+        print('MISMATCH js 侧无法加载 %s: %s' % (os.path.basename(script), err))
+        return None
     return json.loads(p.stdout.strip(), strict=False)
 
 
@@ -154,19 +187,24 @@ def main():
     else:
         print('scraper.js ×2 md5 一致: %s' % h[0])
 
-    inp = {'ranges': RANGE_CASES, 'names': NAME_CASES, 'valids': VALIDATE_CASES}
+    inp = {'ranges': RANGE_CASES, 'names': NAME_CASES, 'valids': VALIDATE_CASES,
+           'dates': ISO_DATES, 'windows': WINDOW_DATES}
     mine = py_side(inp)
     for script in SCRAPERS:
         theirs = js_side(script, inp)
-        for key in ('ranges', 'events', 'names', 'valids'):
+        if theirs is None:          # 旧内核缺新导出(如 withTwoDayDefault/iso)，本组整体不可比
+            bad += 1
+            continue
+        for key in ('ranges', 'events', 'names', 'valids', 'dates', 'windows'):
             for i, (a, b) in enumerate(zip(mine[key], theirs[key])):
                 if a != b:
                     bad += 1
                     label = RANGE_CASES[i] if key in ('ranges', 'events') else i
                     print('MISMATCH %s[%s] %s\n  py = %s\n  js = %s'
                           % (key, label, os.path.basename(script), a, b))
-    print('用例 range %d / name %d / validate %d，mismatch %d'
-          % (len(RANGE_CASES), len(NAME_CASES), len(VALIDATE_CASES), bad))
+    print('用例 range %d / name %d / validate %d / dates %d / windows %d，mismatch %d'
+          % (len(RANGE_CASES), len(NAME_CASES), len(VALIDATE_CASES), len(ISO_DATES),
+             len(WINDOW_DATES), bad))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')
     return 1 if bad else 0
 
