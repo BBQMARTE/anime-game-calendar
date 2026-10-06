@@ -419,15 +419,15 @@ const Scraper = (() => {
     let verStart = pub;  // 版本开服时间 = 维护时段的结束时间
     const vm = /(\d{4})\/(\d{2})\/(\d{2}) \d{2}:\d{2}\s*-\s*(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})\s*（UTC\+8）/.exec(text);
     if (vm) verStart = new Date(+vm[4], +vm[5] - 1, +vm[6], +vm[7], +vm[8]);
+    // 只认「yyyy/mm/dd hh:mm」定长写法,与 scrapers.py::_ef_extract_version 同口径
+    // (不再用 findDateTokens 兜底:取样窗口是按行/定长截的,截断串会被误当日期)
     const dates = seg => {
       const out = []; let m; EF_T_RE.lastIndex = 0;
-      while ((m = EF_T_RE.exec(seg))) out.push(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
-      // 兜底:识别「月日」「月日 点」等其它写法,并修正跨年区间
-      for (const t of findDateTokens(seg, pub)) {
-        if (!out.some(o => Math.abs(o - t.dt) < 36e5)) out.push(t.dt);
+      while ((m = EF_T_RE.exec(seg))) {
+        const d = mkDate(m[1], m[2], m[3], m[4], m[5], pub);  // 不存在的日期直接丢弃(同 Python datetime)
+        if (d) out.push(d);
       }
-      out.sort((a, b) => a - b);
-      return out;
+      return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
     };
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const out = [];
@@ -545,27 +545,20 @@ const Scraper = (() => {
     let verStart = pub;  // 版本开服时间 = 维护时段的结束时间
     const vm = /(\d{1,2})月(\d{1,2})日(\d{1,2})[:：](\d{2})\s*[–—\-~]\s*(\d{1,2})[:：](\d{2})\s*进行(?:停服|版本更新)?维护/.exec(text);
     if (vm) verStart = new Date(pub.getFullYear(), +vm[1] - 1, +vm[2], +vm[5], +vm[6]);
+    // 只认「x月x日」严格写法,与 scrapers.py::_ananta_extract_version 同口径
+    // (不再用 findDateTokens 兜底:取样窗口 [^。●]{0,60} 会把下一行日期截断成假日期)
     const dates = seg => {
       const out = []; let m; AN_DATE.lastIndex = 0;
       while ((m = AN_DATE.exec(seg))) {
-        let d = new Date(pub.getFullYear(), +m[1] - 1, +m[2], m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
+        let d = mkDate(null, m[1], m[2], m[3], m[4], pub);   // 不存在的日期直接丢弃(同 Python datetime)
+        if (!d) continue;
         if ((d - pub) / 864e5 < -10) {
           d = rollYear(d);                                     // 早于公告发布日 = 跨年
           if (!d) continue;                                    // 9999 年无法再滚
         }
         out.push(d);
       }
-      // 兜底:识别「x年x月x日」等其它写法
-      for (const t of findDateTokens(seg, pub)) {
-        if ((t.dt - pub) / 864e5 < -10) {
-          const r = rollYear(t.dt);
-          if (!r) continue;                                    // 9999 年无法再滚
-          t.dt = r;
-        }
-        if (!out.some(o => Math.abs(o - t.dt) < 36e5)) out.push(t.dt);
-      }
-      out.sort((a, b) => a - b);
-      return out;
+      return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
     };
     const now = new Date(), out = [], seen = new Set();
     let tm; AN_TIME_KW.lastIndex = 0;
