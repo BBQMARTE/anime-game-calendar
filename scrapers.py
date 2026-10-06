@@ -382,7 +382,11 @@ def _mihoyo_ingame(gid, gname):
 
 def _ef_extract_version(text, pub):
     """终末地版本更新说明:按「■ 全新寻访及申领 / ■ 全新活动」章节拆排期
-    返回 [(name, category, start, end)]"""
+    返回 [(name, category, start, end)]
+
+    日期只认严格写法 yyyy/mm/dd hh:mm,保持文档顺序(不排序);
+    JS 端 efExtractVersion 必须同口径,不得再加 findDateTokens 兜底或升序重排
+    ——取样窗口是按行截取的,截断串会被兜底误当日期(见 Issue #10)。"""
     ver_start = pub  # 版本开服时间 = 维护时段的结束时间
     m = re.search(r'(\d{4})/(\d{2})/(\d{2}) \d{2}:\d{2}\s*-\s*(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2})\s*（UTC\+8）', text)
     if m:
@@ -598,7 +602,11 @@ _AN_VER_RE = re.compile(r'更新公告|维护公告')
 
 def _ananta_extract_version(text, pub):
     """异环版本更新/停服维护公告:找全部时间规格,名字取前面最近的「」/【】
-    返回 [(name, cat, start, end)]"""
+    返回 [(name, cat, start, end)]
+
+    日期只认「x月x日」严格写法,保持文档顺序(不排序);JS 端 anantaExtractVersion
+    必须同口径,不得再加 findDateTokens 兜底或升序重排——取样窗口
+    [^。●]{0,60} 会把下一行日期截断成假日期(见 Issue #10)。"""
     ver_start = pub  # 版本开服时间 = 维护时段的结束时间
     m = re.search(r'(\d{1,2})月(\d{1,2})日(\d{1,2})[:：](\d{2})\s*[–—\-~]\s*(\d{1,2})[:：](\d{2})\s*进行(?:停服|版本更新)?维护', text)
     if m:
