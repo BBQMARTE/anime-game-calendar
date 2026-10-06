@@ -32,11 +32,12 @@ const Scraper = (() => {
   // 时间:12:00 / 12:00:00 / 12点(30分) / 12时(30分)
   // /y(sticky):必须锚定在日期紧跟的位置,与 Python _TIME.match(text,pos) 一致
   // (若用 /g 会从 pos 向后搜索,把远处的"12:00"偷给当前日期,污染 token.end/hasTime)
-  const TIME_RE = /\s*(?:(?<h1>\d{1,2})\s*[:：]\s*(?<mi1>\d{1,2})(?:\s*[:：]\s*(?<s1>\d{1,2}))?|(?<h2>\d{1,2})\s*点\s*(?<mi2>\d{1,2})?\s*分?|(?<h3>\d{1,2})\s*时\s*(?<mi3>\d{1,2})?\s*分?)/y;
+  const TIME_RE = /\s*(?:(?<h1>[0-2]?\d)\s*[:：]\s*(?<mi1>[0-5]?\d)(?:\s*[:：]\s*(?<s1>[0-5]?\d))?|(?<h2>[0-2]?\d)\s*点\s*(?<mi2>[0-5]?\d)?\s*分?|(?<h3>[0-2]?\d)\s*时\s*(?<mi3>[0-5]?\d)?\s*分?)/y;
   const LONG_RE = /(?:长期|常驻|永久|持续开放|常开|长期开放|不限时|无期限)\s*(?:开放|开启|活动|进行|存在)?/;
   const KW_RE = /(活动时间|活动期间|活动开放时间|开放时间|开启时间|上线时间|开始时间|祈愿时间|跃迁时间|寻访时间|招募时间|唤取时间|卡池时间|上架时间|售卖时间|维护时间|更新时间|兑换时间|领取时间|投稿时间|征集时间|挑战时间|接力时间|直播时间|前瞻时间|演出时间|预约时间|开放预约时间|报名|截止|结束时间)[:：]?\s*/g;
   const VER_AFTER = /(版本更新后|更新完成后|维护后|开服后|开启后|更新后|维护结束)/;
   const RANGE_SEP = /(?:~|～|—|–|至|到|\s[-\u2010\u2011]\s)/;
+  const MAX_YEAR = 9999;   // Python datetime.max.year:区间起点到此年时不能再补 2 天窗口
 
   function htmlToText(html) {
     if (!html) return '';
@@ -47,11 +48,15 @@ const Scraper = (() => {
     mo = +mo; d = +d;
     const hh = (h != null && h !== '') ? +h : 0;
     const mm = (mi != null && mi !== '') ? +mi : 0;
-    // 时分越界丢弃整个 token(与 Python datetime 抛 ValueError 一致;
-    // new Date 会自动进位,如 25:00 变次日 1 点,导致双端解析分叉)
-    if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return null;
-    const dt = new Date(Y, mo - 1, d, hh, mm, 0);
-    return isNaN(dt) ? null : dt;
+    // 越界或「不存在的日期」一律丢弃整个 token,与 Python _make_dt 的 ValueError→None 同口径;
+    // new Date 会自动进位(2月30日→3月2日、25:00→次日1点、两位年当 19xx),导致双端分叉
+    if (Y < 1 || Y > 9999 || mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return null;
+    const dt = new Date(0);
+    dt.setFullYear(Y, mo - 1, d);      // 不能用 new Date(Y,...):两位年会被当成 19xx
+    dt.setHours(hh, mm, 0, 0);
+    // 回读校验:被自动进位的日期(2月30日 / 4月31日 / 平年2月29日)在此丢弃
+    if (dt.getFullYear() !== Y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return dt;
   }
   function parseTime(s, pos) {
     TIME_RE.lastIndex = pos;
@@ -94,8 +99,18 @@ const Scraper = (() => {
     if (isEnd && !tok.hasTime) dt.setHours(23, 59, 59, 0);
     return dt;
   }
+  // 滚到下一年;2月29日 落到平年时取该月最后一天(与 Python roll_year 同口径);
+  // 9999 年滚不动返回 null,由调用方放弃该日期(否则 Date 会产出 10000 年)
+  function rollYear(d) {
+    const y = d.getFullYear() + 1;
+    if (y > 9999) return null;
+    const last = new Date(y, d.getMonth() + 1, 0).getDate();      // 该月最后一天
+    const t = new Date(d.getTime());
+    t.setFullYear(y, d.getMonth(), Math.min(d.getDate(), last));
+    return t;
+  }
   function fixOrder(s, e) {
-    if (e < s) e = new Date(e.getFullYear() + 1, e.getMonth(), e.getDate(), e.getHours(), e.getMinutes(), e.getSeconds());
+    if (e < s) e = rollYear(e);      // 滚不动(null)时放弃结束时间
     return [s, e];
   }
   // 判断区间分隔符在 token 的前面还是后面;返回 'before','after','both',null
@@ -179,7 +194,9 @@ const Scraper = (() => {
     if (!name || BAD_SHORT.has(name)) return (title || '').slice(0, 24);
     return name.slice(0, 18);
   }
-  const iso = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00` : null;
+  // 与 Python datetime.isoformat(timespec='seconds') 同口径:年份补足 4 位(0026 年不能写成 26,
+  // 否则前端 new Date 得 Invalid Date)、秒位照实输出(区间末端无时分时为 23:59:59,不能截成 :00)
+  const iso = d => d ? `${String(d.getFullYear()).padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}` : null;
   let _uid = 0;
   function ev(gid, gname, title, category, pub, start, end, link, img, kind, ext) {
     title = (title || '').replace(/\s+/g, ' ').trim();
@@ -190,9 +207,8 @@ const Scraper = (() => {
       // 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub(发布日期)兜底
       const s = start || pub;
       if (s) {
-        const ps = s.getTime();
         const pe = end ? end.getTime() : 0;
-        if (!end || pe < ps) end = new Date(ps + 2 * 864e5);
+        if (!end || pe < s.getTime()) [start, end] = withTwoDayDefault(s, null);
         if (!start) start = s;  // pub 兜底时也填 start
       }
     }
@@ -532,13 +548,20 @@ const Scraper = (() => {
     const dates = seg => {
       const out = []; let m; AN_DATE.lastIndex = 0;
       while ((m = AN_DATE.exec(seg))) {
-        const d = new Date(pub.getFullYear(), +m[1] - 1, +m[2], m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
-        if ((d - pub) / 864e5 < -10) d.setFullYear(d.getFullYear() + 1);  // 早于公告发布日 = 跨年
+        let d = new Date(pub.getFullYear(), +m[1] - 1, +m[2], m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
+        if ((d - pub) / 864e5 < -10) {
+          d = rollYear(d);                                     // 早于公告发布日 = 跨年
+          if (!d) continue;                                    // 9999 年无法再滚
+        }
         out.push(d);
       }
       // 兜底:识别「x年x月x日」等其它写法
       for (const t of findDateTokens(seg, pub)) {
-        if ((t.dt - pub) / 864e5 < -10) t.dt.setFullYear(t.dt.getFullYear() + 1);
+        if ((t.dt - pub) / 864e5 < -10) {
+          const r = rollYear(t.dt);
+          if (!r) continue;                                    // 9999 年无法再滚
+          t.dt = r;
+        }
         if (!out.some(o => Math.abs(o - t.dt) < 36e5)) out.push(t.dt);
       }
       out.sort((a, b) => a - b);
@@ -558,7 +581,7 @@ const Scraper = (() => {
       } else if (ds.length) {
         start = ds[0]; end = ds.length > 1 ? ds[1] : null;
       } else continue;
-      if (end && end < start) end = new Date(end.getFullYear() + 1, end.getMonth(), end.getDate(), end.getHours(), end.getMinutes());
+      if (end && end < start) end = rollYear(end);
       if (!end || end < now) continue;
       // 名字: 时间关键字前最近的一个「」/【】(不跨句号/条目符)
       const ctx0 = Math.max(text.lastIndexOf('。', tm.index), text.lastIndexOf('●', tm.index)) + 1;
@@ -931,5 +954,16 @@ const Scraper = (() => {
     return { events: list, sources, games: GAMES, updated: iso(now) };
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent };
+  // 结束时间为空时补 2 天窗口;起点在 9999 年时补窗会产出 10000 年,此时放弃结束时间
+  // (与 Python timeparse.with_two_day_default 的 OverflowError 兜底同口径)
+  function withTwoDayDefault(s, e) {
+    if (s && !e) {
+      const t = new Date(s.getTime() + 2 * 864e5);
+      return [s, t.getFullYear() > MAX_YEAR ? null : t];
+    }
+    return [s, e];
+  }
+
+  return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent,
+           extractRange, withTwoDayDefault, iso };
 })();
