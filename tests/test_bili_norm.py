@@ -12,6 +12,10 @@ App 端已折叠并落到「签到」。打钩 key(doneKey = game_id|title)、�
           → scrapers.normalize_title_cat
   JS    : scraper.js::biliTitle → classify → ev()（ev() 内部做归一化）
 
+另外单独对拍 bilibili._title_of() 与 scraper.js::biliTitle()：
+边界 trim 字符集（全角逗号）、长度计数（UTF-16 码元 vs 码点）、
+38 字截断（不切开代理对）必须逐字一致。
+
 Python 侧直接调用真实的 fetch_all()，因此「bilibili 是否真的复用了归一化」也在覆盖内；
 把 bilibili.py 里那行 normalize_title_cat 调用删掉，本测试即失败（可反向验证）。
 
@@ -27,7 +31,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import bilibili
-from scrapers import _classify, normalize_title_cat
+from bilibili import _title_of
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRAPERS = [os.path.join(ROOT, 'static', 'scraper.js'),
@@ -50,6 +54,28 @@ FIXTURES = [
     ('4.0版本「应门者」  特别前瞻节目（直播）',
      '4.0版本「应门者」 特别前瞻节目（直播）', '活动'),
     ('【维护公告】  9月10日停服更新', '【维护公告】 9月10日停服更新', '公告'),
+    # Issue #14 现象 3：标题进入归一化之前就分叉（trim 字符集 / 长度口径 / 38 字截断）
+    ('当鼓点与低音交织，\n第二行说明', '当鼓点与低音交织', '资讯'),
+    ('，,。\n限时签到活动开启，每日登录领取奖励', '限时签到活动开启，每日登录领取奖励', '签到'),
+    # 非 BMP 首行：码点长度 4、UTF-16 码元长度 8，两端都按码元 -> 不再补行（口径一致）
+    ('😀😀😀😀\n限时签到活动开启，登录领取奖励', '😀😀😀😀', '活动'),
+    ('短\n😀😀😀😀😀😀😀😀😀😀限时签到活动', '短 😀😀😀😀😀😀😀😀😀😀限时签到活动', '签到'),
+]
+
+# 标题归一化（bilibili._title_of vs scraper.js::biliTitle）对拍语料：
+# trim 字符集、补行阈值（< 8）、38 字截断（按 UTF-16 码元，且不切开代理对）
+TITLE_CORPUS = [
+    '当鼓点与低音交织，\n第二行',
+    '，,。\n正文',
+    '，。 \n正文',
+    ' 空格 开头\n第二行',
+    '😀' * 20,
+    '😀' * 19,
+    '😀' * 19 + 'x',
+    '😀' * 19 + 'x' * 5,
+    '汉字' * 19,
+    '短\n' + '😀' * 10 + '限时签到活动开启',
+    'x' * 40,
 ]
 
 # 在 scraper.js 自执行闭包内追加所需导出（其余导出保持原样）
@@ -64,15 +90,28 @@ const S = new Function(src + '\nreturn Scraper;')();
 const inp = JSON.parse(process.argv[3]);
 const ref = new Date(2026, 7, 3, 12, 0, 0);
 // 复刻 bilibiliAll() 里对单条动态的处理顺序（HOT/NOISE 用 scraper.js 自己的词表）
-const out = inp.map((clean) => {
+const out = [];
+for (const clean of inp) {
   const title = S.biliTitle(clean);
+  if (!title) continue;  // 与 bilibili.py 的 `if not title: continue` 对齐
   const hot = S.BILI_HOT.test(clean);
-  if (S.BILI_NOISE.test(title) && !hot) return null;
+  if (S.BILI_NOISE.test(title) && !hot) continue;
   const e = S.ev('r1999', '重返未来：1999', title, S.classify(title, hot ? '活动' : '资讯'),
                  ref, null, null, '', '', 'info');
-  return [e.title, e.category];
-}).filter(Boolean);
+  out.push([e.title, e.category]);
+}
 process.stdout.write(JSON.stringify(out));
+"""
+
+NODE_TITLE_LOADER = r"""
+const fs = require('fs');
+let src = fs.readFileSync(process.argv[2], 'utf8');
+const anchor = 'return { GAMES, fetchAll,';
+if (!src.includes(anchor)) throw new Error('scraper.js 导出锚点未找到: ' + anchor);
+src = src.replace(anchor, 'return { biliTitle, GAMES, fetchAll,');
+const S = new Function(src + '\nreturn Scraper;')();
+const inp = JSON.parse(process.argv[3]);
+process.stdout.write(JSON.stringify(inp.map((s) => S.biliTitle(s))));
 """
 
 
@@ -124,24 +163,57 @@ def main():
             print('FAIL py[%d] %r\n  期望 = (%r, %r)\n  实际 = (%r, %r)'
                   % (i, FIXTURES[i][0], exp_t, exp_c, title, cat))
 
+    exp_titles = [_title_of(c) for c in TITLE_CORPUS]
+
     for script in SCRAPERS:
+        rel = os.path.relpath(script, ROOT)
+
         p = subprocess.run(['node', '-e', NODE_LOADER, 'node', script,
                             json.dumps(inp, ensure_ascii=False)],
                            capture_output=True, text=True)
         if p.returncode != 0:
             bad += 1
             print('FAIL js 侧无法加载 %s: %s'
-                  % (os.path.basename(script), (p.stderr.strip().splitlines() or [''])[-1]))
-            continue
-        theirs = json.loads(p.stdout.strip(), strict=False)
-        for i, (a, b) in enumerate(zip(mine, theirs)):
-            if a != b:
+                  % (rel, (p.stderr.strip().splitlines() or [''])[-1]))
+        else:
+            theirs = json.loads(p.stdout.strip(), strict=False)
+            # 先断言条目数：zip() 会静默吞掉条目数差
+            if len(mine) != len(theirs):
                 bad += 1
-                print('MISMATCH[%d] %r\n  py = %s\n  js = %s'
-                      % (i, FIXTURES[i][0], a, b))
-        print('%s 对比 %d 条，mismatch %d'
-              % (os.path.relpath(script, ROOT), len(FIXTURES),
-                 sum(1 for a, b in zip(mine, theirs) if a != b)))
+                print('FAIL %s 条目数不一致: py %d / js %d' % (rel, len(mine), len(theirs)))
+            else:
+                n = 0
+                for i, (a, b) in enumerate(zip(mine, theirs)):
+                    if a != b:
+                        bad += 1
+                        n += 1
+                        print('MISMATCH[%d] %r\n  py = %s\n  js = %s'
+                              % (i, FIXTURES[i][0], a, b))
+                print('%s 归一化对比 %d 条，mismatch %d' % (rel, len(mine), n))
+
+        # 标题归一化（trim 字符集 / UTF-16 长度口径 / 38 字截断）逐条对拍
+        q = subprocess.run(['node', '-e', NODE_TITLE_LOADER, 'node', script,
+                            json.dumps(TITLE_CORPUS, ensure_ascii=False)],
+                           capture_output=True, text=True)
+        if q.returncode != 0:
+            bad += 1
+            print('FAIL js 侧 biliTitle 无法加载 %s: %s'
+                  % (rel, (q.stderr.strip().splitlines() or [''])[-1]))
+            continue
+        js_titles = json.loads(q.stdout.strip())
+        if len(js_titles) != len(exp_titles):
+            bad += 1
+            print('FAIL %s biliTitle 条数不一致: py %d / js %d'
+                  % (rel, len(exp_titles), len(js_titles)))
+            continue
+        n = 0
+        for i in range(len(exp_titles)):
+            if exp_titles[i] != js_titles[i]:
+                bad += 1
+                n += 1
+                print('TITLE MISMATCH[%d] %r\n  py = %r\n  js = %r'
+                      % (i, TITLE_CORPUS[i], exp_titles[i], js_titles[i]))
+        print('%s biliTitle 对比 %d 条，mismatch %d' % (rel, len(exp_titles), n))
 
     print('用例 %d 条，mismatch %d' % (len(FIXTURES), bad))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')

@@ -69,14 +69,36 @@ class _Client:
         return out
 
 
+_TRIM = ' ,，。.'          # 与 static/scraper.js::biliTitle 的边界字符集逐字一致(含全角逗号)
+
+
+def _u16len(s):
+    """UTF-16 码元数:与 JS String.length 同口径(非 BMP 字符记 2)"""
+    return len(s.encode('utf-16-le')) // 2
+
+
+def _u16cut(s, n):
+    """按 UTF-16 码元数截断(不切开代理对,避免产生孤立代理)"""
+    if _u16len(s) <= n:
+        return s
+    out, used = [], 0
+    for ch in s:
+        w = 2 if ord(ch) > 0xFFFF else 1
+        if used + w > n:
+            break
+        out.append(ch)
+        used += w
+    return ''.join(out)
+
+
 def _title_of(clean):
-    lines = [l.strip(' ,,。.') for l in clean.split('\n') if l.strip(' ,,。.')]
+    lines = [l.strip(_TRIM) for l in clean.split('\n') if l.strip(_TRIM)]
     if not lines:
         return ''
     title = lines[0]
-    if len(title) < 8 and len(lines) > 1:  # 「互动抽奖」之类太短,补一行
+    if _u16len(title) < 8 and len(lines) > 1:  # 「互动抽奖」之类太短,补一行
         title = f'{title} {lines[1]}'
-    return title[:38] + ('…' if len(title) > 38 else '')
+    return _u16cut(title, 38) + ('…' if _u16len(title) > 38 else '')
 
 
 def fetch_all(per_game=6):
