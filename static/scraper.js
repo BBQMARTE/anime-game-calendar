@@ -766,12 +766,22 @@ const Scraper = (() => {
     }
     return null;
   }
+  // 按码点截断:与 Python bilibili._u16cut 同口径,不切开代理对(非 BMP 字符记 2 码元)
+  function u16cut(s, n) {
+    if (s.length <= n) return s;
+    let out = '';
+    for (const ch of s) {
+      if (out.length + ch.length > n) break;
+      out += ch;
+    }
+    return out;
+  }
   function biliTitle(clean) {
     const lines = clean.split('\n').map(s => s.trim().replace(/^[,，。. ]+|[,，。. ]+$/g, '')).filter(Boolean);
     if (!lines.length) return '';
     let t = lines[0];
     if (t.length < 8 && lines.length > 1) t = t + ' ' + lines[1];
-    return t.length > 38 ? t.slice(0, 38) + '…' : t;
+    return t.length > 38 ? u16cut(t, 38) + '…' : t;
   }
   async function bilibiliAll(perGame) {
     const events = [], errs = [];
