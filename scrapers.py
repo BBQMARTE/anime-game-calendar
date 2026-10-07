@@ -78,13 +78,24 @@ def _short(title, cat):
     return name[:18]
 
 
-def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='event', ext=None):
-    """kind: 'event'=真活动/卡池(上月历,用短标题)  'info'=公告/资讯(仅进资讯列表)
-    ext: 可选 {'ann_id','api','params'},前端点击时用它拉取公告正文弹窗展示"""
-    title = re.sub(r'\s+', ' ', title).strip()
+def normalize_title_cat(title, category):
+    """标题/分类归一化:折叠连续空白 + 签到类分流为「签到」。
+
+    不走 _ev() 的抓取链路(B站动态)也必须复用,否则同一条动态两端的标题与分类不同,
+    打钩 key(doneKey=game_id|title)、去重 key、筛选器全部分叉(Issue #14)。
+    与 static/scraper.js::ev() 逐字同口径。返回 (title, category)。
+    """
+    title = re.sub(r'\s+', ' ', title or '').strip()
     # 每日签到/累计登录类活动单列「签到」分类(不想肝日常的可一键筛选/排除)
     if category == '活动' and _CHECKIN_RE.search(title):
         category = '签到'
+    return title, category
+
+
+def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='event', ext=None):
+    """kind: 'event'=真活动/卡池(上月历,用短标题)  'info'=公告/资讯(仅进资讯列表)
+    ext: 可选 {'ann_id','api','params'},前端点击时用它拉取公告正文弹窗展示"""
+    title, category = normalize_title_cat(title, category)
     if kind == 'event':
         title = _short(title, category)
         # 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub 兜底

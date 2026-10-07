@@ -8,7 +8,7 @@ from datetime import datetime
 
 import requests
 
-from scrapers import _classify
+from scrapers import _classify, normalize_title_cat
 from timeparse import extract_range
 
 UA = {
@@ -102,6 +102,8 @@ def fetch_all(per_game=6):
                 # 发布时间:动态流映射 > 正文解析出的开始时间 > 现在
                 pub = datetime.fromtimestamp(ts) if ts else (start or datetime.now())
                 cat = _classify(title, '活动' if _HOT.search(clean) else '资讯')
+                # 复用统一归一化:折叠空白 + 签到分流(与 static/scraper.js::ev() 同口径, Issue #14)
+                title, cat = normalize_title_cat(title, cat)
                 img = (it.get('cover') or {}).get('url') or ''
                 if img.startswith('http://'):
                     img = 'https://' + img[7:]
