@@ -3,6 +3,7 @@
 自动抓取各二游官方活动/公告,聚合成日历展示。
 运行后自动打开浏览器 http://127.0.0.1:5000
 """
+import ipaddress
 import json
 import os
 import socket
@@ -13,7 +14,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
-from urllib.parse import urlparse
+from urllib.parse import urljoin
+from urllib3.util import parse_url
 
 import bilibili
 import scrapers
@@ -377,6 +379,100 @@ IMG_HOSTS = ('hdslb.com', 'biliimg.com', 'mihoyo.com', 'hoyoverse.com', 'hoyolab
              'wanmei.com', 'taptap.cn', 'taptap.io', 'weibo.cn', 'weibo.com',
              'sinaimg.cn', 'bilivideo.com', 'akamaized.net', 'im9.com', 'ipaperclip.net',
              'sl916.com', 'bluepoch.com')
+IMG_MAX_BYTES = 10 * 1024 * 1024  # 单张图片体积上限,超过即中断(避免并发请求吃满内存)
+IMG_MAX_REDIRECTS = 5
+
+
+class _ImgTooLarge(Exception):
+    """图片响应超过体积上限"""
+
+
+def _url_host(url):
+    """取 requests 实际连接用的 host(与 urllib3 口径一致)。
+
+    urlparse 与 urllib3 对 URL 中 `\\` 的处理不同:
+    `http://127.0.0.1:8899\\@i0.hdslb.com/x.png` 前者给 i0.hdslb.com(白名单域),
+    后者给 127.0.0.1(实际连接目标)。校验必须按后者, 否则可借 `\\@` 绕过白名单打内网。
+    解析失败返回空串(交由白名单判定拒绝)。
+    """
+    try:
+        return (parse_url(url).host or '').lower()
+    except ValueError:
+        return ''
+
+
+def _img_host_allowed(host):
+    """host 是否命中图床白名单(子域放行)"""
+    host = (host or '').lower()
+    return bool(host) and any(host == h or host.endswith('.' + h) for h in IMG_HOSTS)
+
+
+def _is_private_host(host):
+    """内网/本机地址判定(纯函数,不做 DNS 解析)"""
+    host = (host or '').strip().strip('[]').lower()
+    if not host or host == 'localhost' or host.endswith('.localhost'):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+
+
+def _resolves_to_private(host):
+    """域名解析落在内网地址时视为不可信(DNS 重绑定);解析失败不拦,交由请求层报错"""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (OSError, UnicodeError):  # 非法 IDNA label(如 'x..hdslb.com')抛 UnicodeError
+        return False
+    return any(_is_private_host(info[4][0]) for info in infos)
+
+
+def _img_host_blocked(host):
+    """直连或跳转的目标 host 是否应拒绝:非白名单域,或指向内网/本机"""
+    return not _img_host_allowed(host) or _is_private_host(host) or _resolves_to_private(host)
+
+
+def _fetch_image(url, headers, max_redirects=IMG_MAX_REDIRECTS, max_bytes=IMG_MAX_BYTES):
+    """取图:手动跟随跳转并逐跳校验 host,响应流式读取并限制体积。
+
+    返回 (status_code, content_type, content);跳转目标不合规抛 ValueError,
+    体积超限抛 _ImgTooLarge。非 200 或非 image/* 时 content 为 None。
+    """
+    redirects = 0
+    while True:
+        r = requests.get(url, headers=headers, timeout=10, allow_redirects=False, stream=True)
+        loc = r.headers.get('Location')
+        if r.status_code in (301, 302, 303, 307, 308) and loc:
+            r.close()
+            redirects += 1
+            if redirects > max_redirects:
+                raise ValueError('too many redirects')
+            nxt = urljoin(url, loc)
+            if not nxt.startswith(('http://', 'https://')):
+                raise ValueError('redirect bad scheme')
+            host = _url_host(nxt)
+            if _img_host_blocked(host):
+                raise ValueError('redirect host not allowed: %s' % host)
+            url = nxt
+            continue
+        break
+
+    try:
+        ctype = (r.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+        if r.status_code != 200 or not ctype.startswith('image/'):
+            return r.status_code, ctype, None
+        clen = r.headers.get('Content-Length') or ''
+        if clen.isdigit() and int(clen) > max_bytes:
+            raise _ImgTooLarge('content-length %s' % clen)
+        buf = bytearray()
+        for chunk in r.iter_content(64 * 1024):
+            buf += chunk
+            if len(buf) > max_bytes:
+                raise _ImgTooLarge('body over %d bytes' % max_bytes)
+        return r.status_code, ctype, bytes(buf)
+    finally:
+        r.close()
 
 
 @app.route('/api/img')
@@ -384,8 +480,8 @@ def api_img():
     url = (request.args.get('url') or '').strip()
     if not url.startswith(('http://', 'https://')):
         return jsonify({'error': 'bad url'}), 400
-    host = urlparse(url).hostname or ''
-    if not any(host == h or host.endswith('.' + h) for h in IMG_HOSTS):
+    host = _url_host(url)
+    if _img_host_blocked(host):
         return jsonify({'error': 'host not allowed'}), 403
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     if 'hdslb' in host or 'biliimg' in host:
@@ -394,16 +490,22 @@ def api_img():
         # 重返未来1999图床:https 被 EdgeOne JS 挑战拦(requests 过不了),http 端口直出
         url = 'http://' + url[len('https://'):]
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        ctype = (r.headers.get('Content-Type') or '').lower()
-        if r.status_code != 200 or not ctype.startswith('image/'):
-            return jsonify({'error': 'fetch failed'}), 502
-        resp = Response(r.content, mimetype=ctype)
-        resp.headers['Cache-Control'] = 'public, max-age=86400'  # 图片缓存 1 天
-        return resp
+        status, ctype, content = _fetch_image(url, headers)
+    except _ImgTooLarge as e:
+        print(f'[图片代理] 体积超限 {host}: {e}')
+        return jsonify({'error': 'image too large'}), 502
     except Exception as e:  # noqa: BLE001
         print(f'[图片代理] 失败 {host}: {e}')
         return jsonify({'error': 'proxy error'}), 502
+    if status != 200 or content is None:
+        return jsonify({'error': 'fetch failed'}), 502
+    if ctype == 'image/svg+xml':
+        # SVG 内嵌脚本会在同源上下文执行,不放行
+        return jsonify({'error': 'svg not allowed'}), 502
+    resp = Response(content, mimetype=ctype)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Cache-Control'] = 'public, max-age=86400'  # 图片缓存 1 天
+    return resp
 
 
 # ================= 活动开始提醒 =================
