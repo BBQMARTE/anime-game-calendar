@@ -14,7 +14,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
+from urllib3.util import parse_url
 
 import bilibili
 import scrapers
@@ -386,6 +387,20 @@ class _ImgTooLarge(Exception):
     """图片响应超过体积上限"""
 
 
+def _url_host(url):
+    """取 requests 实际连接用的 host(与 urllib3 口径一致)。
+
+    urlparse 与 urllib3 对 URL 中 `\\` 的处理不同:
+    `http://127.0.0.1:8899\\@i0.hdslb.com/x.png` 前者给 i0.hdslb.com(白名单域),
+    后者给 127.0.0.1(实际连接目标)。校验必须按后者, 否则可借 `\\@` 绕过白名单打内网。
+    解析失败返回空串(交由白名单判定拒绝)。
+    """
+    try:
+        return (parse_url(url).host or '').lower()
+    except ValueError:
+        return ''
+
+
 def _img_host_allowed(host):
     """host 是否命中图床白名单(子域放行)"""
     host = (host or '').lower()
@@ -408,7 +423,7 @@ def _resolves_to_private(host):
     """域名解析落在内网地址时视为不可信(DNS 重绑定);解析失败不拦,交由请求层报错"""
     try:
         infos = socket.getaddrinfo(host, None)
-    except OSError:
+    except (OSError, UnicodeError):  # 非法 IDNA label(如 'x..hdslb.com')抛 UnicodeError
         return False
     return any(_is_private_host(info[4][0]) for info in infos)
 
@@ -436,7 +451,7 @@ def _fetch_image(url, headers, max_redirects=IMG_MAX_REDIRECTS, max_bytes=IMG_MA
             nxt = urljoin(url, loc)
             if not nxt.startswith(('http://', 'https://')):
                 raise ValueError('redirect bad scheme')
-            host = urlparse(nxt).hostname or ''
+            host = _url_host(nxt)
             if _img_host_blocked(host):
                 raise ValueError('redirect host not allowed: %s' % host)
             url = nxt
@@ -465,7 +480,7 @@ def api_img():
     url = (request.args.get('url') or '').strip()
     if not url.startswith(('http://', 'https://')):
         return jsonify({'error': 'bad url'}), 400
-    host = urlparse(url).hostname or ''
+    host = _url_host(url)
     if _img_host_blocked(host):
         return jsonify({'error': 'host not allowed'}), 403
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}

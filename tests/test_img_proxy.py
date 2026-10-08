@@ -209,6 +209,39 @@ try:
               'https://ak.hycdn.cn/x.png'):
         check_true('真实图床放行 %s' % u, not app._img_host_blocked(
             __import__('urllib.parse', fromlist=['urlparse']).urlparse(u).hostname))
+    # ---- 11. 校验 host 必须等于 requests 实际连接 host（`\\@` userinfo 绕过）----
+    # urlparse 会把 `\\@` 当用户名分隔符、给出白名单域，urllib3/requests 实际连的是前半段主机
+    check('_url_host 反斜杠 userinfo → 实际主机',
+          app._url_host('http://127.0.0.1:8899\\@i0.hdslb.com/x.png'), '127.0.0.1')
+    check('_url_host 云元数据地址',
+          app._url_host('http://169.254.169.254\\@i0.hdslb.com/latest/meta-data/'),
+          '169.254.169.254')
+    check('_url_host 大小写归一', app._url_host('http://I0.HDSLB.COM/x.png'), 'i0.hdslb.com')
+    check('_url_host 非法 URL 返回空串', app._url_host('not a url'), '')
+    check('_url_host 常规域名不变',
+          app._url_host('https://gamecms-res.sl916.com/obj/x.png'), 'gamecms-res.sl916.com')
+
+    set_fake({})
+    for u in ('http://127.0.0.1:8899\\@i0.hdslb.com/x.png',
+              'http://169.254.169.254\\@i0.hdslb.com/latest/meta-data/'):
+        r = get_img(u)
+        check('userinfo 伪装内网 → 403 %s' % u, r.status_code, 403)
+    check('userinfo 伪装未发起请求', _fake.calls, [])
+
+    # 跳转分支同口径：302 → `\\@` 伪装内网
+    set_fake({'http://i0.hdslb.com/redir2.png':
+              FakeResp(302, {'Location': 'http://127.0.0.1:8899\\@i0.hdslb.com/x.png'})})
+    r = get_img('http://i0.hdslb.com/redir2.png')
+    check('302 → userinfo 伪装内网 502', r.status_code, 502)
+    check('302 → userinfo 伪装未跟随', _fake.calls, ['http://i0.hdslb.com/redir2.png'])
+
+    # ---- 12. 非法 IDNA label 不产生 500 ----
+    app._resolves_to_private = _real_resolve
+    check('非法 IDNA label 不抛异常', app._resolves_to_private('x..hdslb.com'), False)
+    app._resolves_to_private = lambda host: False
+    set_fake({'http://x..hdslb.com/x.png': FakeResp(404, {'Content-Type': 'image/png'}, b'')})
+    check('非法 IDNA label 不 500', get_img('http://x..hdslb.com/x.png').status_code, 502)
+
 finally:
     app.requests.get = _real_get
     app._resolves_to_private = _real_resolve
