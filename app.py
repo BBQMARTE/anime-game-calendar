@@ -3,9 +3,11 @@
 自动抓取各二游官方活动/公告,聚合成日历展示。
 运行后自动打开浏览器 http://127.0.0.1:5000
 """
+import hashlib
 import ipaddress
 import json
 import os
+import re
 import socket
 import threading
 import time
@@ -65,6 +67,22 @@ def _save_cache():
         print(f'[缓存] 保存失败: {e}')
 
 
+def _manual_id(e):
+    """手动条目的稳定 ID(同时是 ICS 的 UID 主键):按内容派生,不依赖数组下标。
+
+    data/manual.json 是每日补录/重排的文件,旧写法 manual-<下标> 会把同一 UID
+    复用给另一条活动(RFC5545 §3.8.4.7 要求 UID 在事件生命周期内持久稳定)。
+    数据侧显式给出 id 且为安全字符集([A-Za-z0-9_.:-])时优先用它;该值会进
+    前端内联 onclick 与 ICS 属性,不收其它字符。
+    """
+    raw = str(e.get('id') or '')
+    # 显式 id 只收安全字符集:该值会进前端内联 onclick 与 ICS 属性
+    if re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}', raw):
+        return raw
+    key = f"{e.get('game_id', '')}|{e.get('title', '')}|{e.get('start') or ''}"
+    return 'manual-' + hashlib.md5(key.encode('utf-8')).hexdigest()[:8]
+
+
 def _manual_events():
     """读取 data/manual.json 中的手动添加事件
 
@@ -80,13 +98,13 @@ def _manual_events():
             arr = json.load(f)
         names = {g['id']: g['name'] for g in scrapers.GAMES_META}
         out = []
-        for i, e in enumerate(arr):
+        for e in arr:
             if not isinstance(e, dict) or 'title' not in e:
                 continue  # 跳过说明性条目
             gid = e.get('game_id', '')
             start = e.get('start') or None
             out.append({
-                'id': f'manual-{i}',
+                'id': _manual_id(e),
                 'game_id': gid,
                 'game': names.get(gid, e.get('game') or gid or '自定义'),
                 'title': e.get('title', '未命名事件'),
