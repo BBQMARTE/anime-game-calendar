@@ -60,6 +60,16 @@ _NOISE_NAME_RE = re.compile(
     r'登录|签到|福利|奖励|菲林|母带)$')
 
 
+def _day_diff(a, b):
+    """精确天数差(a - b),浮点,不截断。
+
+    双端统一口径(Issue #16):Python 的 timedelta.days 朝负无穷截断,而 scraper.js 用
+    `/864e5` 是浮点,导致「恰好 N 天 + 数小时」的条目一端保留、一端丢弃。所有「N 天」
+    阈值判定统一走本函数(total_seconds 保留小数),并与 scraper.js 的 dayDiff() 同口径。
+    """
+    return (a - b).total_seconds() / 86400
+
+
 def is_noise_name(name):
     """判断标题是否属于无意义通用名(如"活动"/"登录"/"福利"/"版本前瞻")"""
     name = (name or '').strip()
@@ -336,9 +346,9 @@ def _mihoyo_ingame(gid, gname):
             start = _ann_dt(a.get('start_time'))
             end = _ann_dt(a.get('end_time'))
             # 过滤:常驻(>400天)、结束超过30天的旧条目
-            if start and end and (end - start).days > 400:
+            if start and end and _day_diff(end, start) > 400:
                 continue
-            if end and (now - end).days > 30:
+            if end and _day_diff(now, end) > 30:
                 continue
             # 版本更新说明:拆全文提取活动/角色与专武排期,文章本身不进日历
             if not ver_done and _VER_NOTE_RE.search(title) and a.get('ann_id'):
@@ -531,7 +541,7 @@ def _arknights(gid, gname):
         if not title:
             continue
         pub = datetime.fromtimestamp(ts) if ts else datetime.now()
-        if (now - pub).days > 60:
+        if _day_diff(now, pub) > 60:
             continue  # 只保留近 60 天
         link = f'https://ak.hypergryph.com/news/{cid}'
         cat = _classify(title, '资讯')
@@ -542,7 +552,7 @@ def _arknights(gid, gname):
             kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
         start, end = None, None
         # 活动/卡池类抓详情页解析起止时间(限近30天+预算12次)
-        if kind == 'event' and (now - pub).days <= 30 and fetched < 12:
+        if kind == 'event' and _day_diff(now, pub) <= 30 and fetched < 12:
             fetched += 1
             try:
                 raw = _get(link, timeout=12).text
@@ -553,10 +563,10 @@ def _arknights(gid, gname):
                 pass
         # 旧活动丢弃:end 优先,无 end 用 start
         _stop = end or start
-        if _stop and (now - _stop).days > 30:
+        if _stop and _day_diff(now, _stop) > 30:
             continue
         # 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底日期不可靠,真实排期由每日核查核实)
-        if kind == 'event' and start is None and (now - pub).days > 14:
+        if kind == 'event' and start is None and _day_diff(now, pub) > 14:
             kind = 'info'
         out.append(_ev(gid, gname, title, cat, pub, start, end, link, '', kind))
     return out
@@ -636,7 +646,7 @@ def _ananta_extract_version(text, pub):
                              int(mm.group(4)) if mm.group(4) else 0)
             except ValueError:
                 continue
-            if (d - pub).days < -10:  # 早于公告发布日 = 跨年,补一年
+            if _day_diff(d, pub) < -10:  # 早于公告发布日 = 跨年,补一年
                 d = roll_year(d)
                 if d is None:       # 9999 年无法再滚
                     continue
@@ -727,7 +737,7 @@ def _ananta(gid, gname):
                     out.append(_ev(gid, gname, name, c2, pub, s, e, link, '', 'event'))
         cat = _classify(title, default)
         kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
-        if end and (datetime.now() - end).days > 30:
+        if end and _day_diff(datetime.now(), end) > 30:
             continue  # 结束超30天的旧活动丢弃
         out.append(_ev(gid, gname, title, cat, pub, start, end, link, kind=kind))
     return out
@@ -753,7 +763,7 @@ def _reverse1999(gid, gname):
             pub = datetime.strptime((it.get('onlineTime') or '')[:19], '%Y-%m-%d %H:%M:%S')
         except ValueError:
             pub = datetime.now()
-        if (now - pub).days > 60:
+        if _day_diff(now, pub) > 60:
             continue  # 只保留近 60 天资讯,避免 2023 年旧帖刷屏
         link = f"https://re.bluepoch.com/home/detail.html#newsId?{it.get('id')}"
         text = html_to_text(it.get('content') or '')
@@ -762,7 +772,7 @@ def _reverse1999(gid, gname):
         kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
         # 旧活动丢弃:end 优先,无 end 用 start(_ev 补的 2 天窗口在过滤之后,不能只看 end)
         _stop = end or start
-        if _stop and (now - _stop).days > 30:
+        if _stop and _day_diff(now, _stop) > 30:
             continue
         out.append(_ev(gid, gname, title, cat, pub, start, end, link, it.get('guideUrl') or '', kind))
     return out

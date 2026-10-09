@@ -197,6 +197,11 @@ const Scraper = (() => {
   // 与 Python datetime.isoformat(timespec='seconds') 同口径:年份补足 4 位(0026 年不能写成 26,
   // 否则前端 new Date 得 Invalid Date)、秒位照实输出(区间末端无时分时为 23:59:59,不能截成 :00)
   const iso = d => d ? `${String(d.getFullYear()).padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}` : null;
+  // 精确天数差(a - b),浮点,不截断 —— 与 Python scrapers.py::_day_diff 同口径(Issue #16)。
+  // Python 的 timedelta.days 朝负无穷截断,JS 的 /864e5 是浮点,曾在「恰好 N 天 + 数小时」的
+  // 边界条目上分叉(一端保留、一端丢弃)。所有「N 天」阈值统一走本函数。
+  const dayDiff = (a, b) => (a - b) / 864e5;
+
   let _uid = 0;
   function ev(gid, gname, title, category, pub, start, end, link, img, kind, ext) {
     title = (title || '').replace(/\s+/g, ' ').trim();
@@ -366,8 +371,8 @@ const Scraper = (() => {
         title = title.replace(/\s+/g, ' ').trim();
         if (!title) continue;
         const start = annDt(a.start_time), end = annDt(a.end_time);
-        if (start && end && (end - start) / 864e5 > 400) continue;      // 常驻
-        if (end && (now - end) / 864e5 > 30) continue;                  // 旧条目
+        if (start && end && dayDiff(end, start) > 400) continue;      // 常驻
+        if (end && dayDiff(now, end) > 30) continue;                  // 旧条目
         // 版本更新说明:拆全文提取活动/角色与专武排期,文章本身不进日历
         if (!verDone && VER_NOTE_RE.test(title) && a.ann_id) {
           const raw = await mihoyoContent(api, params, a.ann_id);
@@ -552,7 +557,7 @@ const Scraper = (() => {
       while ((m = AN_DATE.exec(seg))) {
         let d = mkDate(null, m[1], m[2], m[3], m[4], pub);   // 不存在的日期直接丢弃(同 Python datetime)
         if (!d) continue;
-        if ((d - pub) / 864e5 < -10) {
+        if (dayDiff(d, pub) < -10) {
           d = rollYear(d);                                     // 早于公告发布日 = 跨年
           if (!d) continue;                                    // 9999 年无法再滚
         }
@@ -632,7 +637,7 @@ const Scraper = (() => {
       }
       const cat = classify(title, dft);
       const kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
-      if (end && (Date.now() - end) / 864e5 > 30) continue;  // 结束超30天的旧活动丢弃
+      if (end && dayDiff(Date.now(), end) > 30) continue;  // 结束超30天的旧活动丢弃
       out.push(ev(gid, gname, title, cat, pub, start, end, link, '', kind));
     }
     return out;
@@ -656,7 +661,7 @@ const Scraper = (() => {
       let pub = new Date();
       const dm = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/.exec((it.onlineTime || '').slice(0, 19));
       if (dm) pub = new Date(+dm[1], +dm[2] - 1, +dm[3], +dm[4], +dm[5]);
-      if ((now - pub.getTime()) / 864e5 > 60) continue;  // 只保留近 60 天资讯
+      if (dayDiff(now, pub.getTime()) > 60) continue;  // 只保留近 60 天资讯
       const link = `https://re.bluepoch.com/home/detail.html#newsId?${it.id}`;
       const text = htmlToText(it.content || '');
       let start = null, end = null;
@@ -665,7 +670,7 @@ const Scraper = (() => {
       const kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
       // 旧活动丢弃:end 优先,无 end 用 start(与 scrapers.py 一致)
       const stop = end || start;
-      if (stop && (now - stop.getTime()) / 864e5 > 30) continue;
+      if (stop && dayDiff(now, stop.getTime()) > 30) continue;
       out.push(ev(gid, gname, title, cat, pub, start, end, link, it.guideUrl || '', kind));
     }
     return out;
@@ -699,7 +704,7 @@ const Scraper = (() => {
     for (const [cid, title, ts] of items) {
       if (!title) continue;
       const pub = ts ? new Date(ts * 1000) : new Date();
-      if ((now - pub.getTime()) / 864e5 > 60) continue;  // 只保留近 60 天
+      if (dayDiff(now, pub.getTime()) > 60) continue;  // 只保留近 60 天
       const link = `https://ak.hypergryph.com/news/${cid}`;
       let cat = classify(title, '资讯');
       let kind;
@@ -709,7 +714,7 @@ const Scraper = (() => {
         kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
       }
       let start = null, end = null;
-      if (kind === 'event' && (now - pub.getTime()) / 864e5 <= 30 && fetched < 12) {
+      if (kind === 'event' && dayDiff(now, pub.getTime()) <= 30 && fetched < 12) {
         fetched++;
         try {
           const raw = await httpText(link);
@@ -720,9 +725,9 @@ const Scraper = (() => {
       }
       // 旧活动丢弃:end 优先,无 end 用 start(与 scrapers.py 一致)
       const stop = end || start;
-      if (stop && (now - stop.getTime()) / 864e5 > 30) continue;
+      if (stop && dayDiff(now, stop.getTime()) > 30) continue;
       // 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底不可靠)
-      if (kind === 'event' && !start && (now - pub.getTime()) / 864e5 > 14) kind = 'info';
+      if (kind === 'event' && !start && dayDiff(now, pub.getTime()) > 14) kind = 'info';
       out.push(ev(gid, gname, title, cat, pub, start, end, link, '', kind));
     }
     return out;
@@ -968,5 +973,5 @@ const Scraper = (() => {
   }
 
   return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent,
-           extractRange, withTwoDayDefault, iso };
+           extractRange, withTwoDayDefault, dayDiff, iso };
 })();
