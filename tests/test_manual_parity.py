@@ -112,13 +112,18 @@ def main():
         print('MISMATCH 显式 kind=info 的条目被改写: %s' % (with_kind[-1],))
 
     # app.py::do_refresh 的调用时机回归保护（删掉那条调用即失败）
+    # 条目 ID 自 #17 起由内容派生，按 title 取 ID，避免与下标绑定
     kinds = app_side_kinds()
-    for mid, want in (('manual-83', 'info'), ('manual-139', 'info'),
-                      ('manual-140', 'info'), ('manual-141', 'info')):
-        got = kinds.get(mid)
-        if got != (want, '商城/网页活动不排期'):
+    ids_by_title = {e['title']: e['id'] for e in app._manual_events()}
+    for title in ('「维尔乌姆假日相册」网页活动',
+                  '衣着上新「当宇宙潮涌」（远旅·不夜乌托邦系列）',
+                  '衣着上新「释命运以弦音」（贝丽尔·不夜乌托邦系列）',
+                  '衣着上新「虹色冠冕」（狩勋女巫红弩箭·二十一又一系列）'):
+        got = kinds.get(ids_by_title.get(title, ''))
+        if got != ('info', '商城/网页活动不排期'):
             bad += 1
-            print('MISMATCH do_refresh %s: got=%s want=%s' % (mid, got, (want, '商城/网页活动不排期')))
+            print('MISMATCH do_refresh %s: got=%s want=%s'
+                  % (title, got, ('info', '商城/网页活动不排期')))
     print('do_refresh 手动条目 %d 条，降级 %d 条'
           % (len(kinds), sum(1 for v in kinds.values() if v[0] != 'event')))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')

@@ -749,7 +749,7 @@ function renderView(){
 }
 function render(){renderMeta();applySettings();mountNotes();renderView()}
 /* ================= 活动打钩(做完的活动标记完成) ================= */
-/* 以 game_id+title 为键,本地持久化;条目ID(manual-N)会随重排变化,不可用 */
+/* 以 game_id+title 为键,本地持久化;不用条目 ID(#17 起由内容派生,内容变化即换 ID) */
 let DONE={};
 try{DONE=JSON.parse(localStorage.getItem('ycal_done')||'{}')}catch(e){}
 function doneKey(e){return (e.game_id||'')+'|'+(e.title||'')}
