@@ -122,6 +122,8 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
   overflow:hidden;
 }
 .thumb img{width:100%; height:100%; object-fit:cover}
+/* 无图占位:游戏品牌色渐变底+短名,让爬虫源的缺图行看起来是刻意的样式而非坏图 */
+.thumb.ph{background:linear-gradient(150deg,rgba(255,255,255,.28),rgba(0,0,0,.26)),var(--c); text-shadow:0 1px 2px rgba(0,0,0,.28); line-height:1.1; text-align:center}
 .row-main{flex:1; min-width:0}
 .row-title{font-size:14px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
 .row-sub{font-size:11.5px; color:var(--label2); margin-top:3px; display:flex; align-items:center; gap:6px}
@@ -352,12 +354,15 @@ function evStart(e){return e.start?new Date(e.start):(e.date?new Date(e.date):nu
 function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59,59):null}
 function gameColor(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.color:'#007AFF'}
 function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.name:id}
+/* 游戏短名(缺图占位用):优先映射表,未知游戏取全名前两字 */
+const GAME_SHORT={hsr:'崩铁',zzz:'绝区零',endfield:'终末地',arknights:'方舟',wuwa:'鸣潮',ananta:'异环',r1999:'1999'};
+function gameShort(id){if(id&&GAME_SHORT[id])return GAME_SHORT[id];const n=gameName(id);return (typeof n==='string'&&n)?n.slice(0,2):'活动'}
 function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 /* ================= 数据加载(双模式) ================= */
 /* 游戏勾选与当前列表对齐:剔除已下架的游戏id,空则全选 */
 function syncGames(){
-  const ids=(DATA.games||[]).map(g=>g.id);
+  const ids=(DATA.games||[]).map(g=>g.id).filter(id=>calGamesSet().has(id));  // 只同步设置里未勾掉的游戏
   if(activeGames.size)activeGames=new Set([...activeGames].filter(id=>ids.includes(id)));
   if(!activeGames.size)ids.forEach(id=>activeGames.add(id));
 }
@@ -454,6 +459,7 @@ function filtered(){
   const k=q.trim().toLowerCase();
   return (DATA.events||[]).filter(e=>
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
+    &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
     &&activeCats.has(e.category)
     &&(!k||((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k)));
 }
@@ -469,7 +475,7 @@ function renderMeta(){
     const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`:('抓取失败: '+(s.error||'未知'));
     return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
   }).join('');
-  const gs=DATA.games||[];
+  const gs=(DATA.games||[]).filter(g=>calGamesSet().has(g.id));  // 设置里勾掉的游戏不出现在顶部筛选器
   const allOn=gs.length>0&&gs.every(g=>activeGames.has(g.id));
   let h=`<span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleAll()">全部</span>`;
   h+=gs.map(g=>
@@ -484,7 +490,7 @@ function renderMeta(){
 function toggleGame(id){activeGames.has(id)?activeGames.delete(id):activeGames.add(id);saveFilters();render()}
 function toggleCat(c){activeCats.has(c)?activeCats.delete(c):activeCats.add(c);saveFilters();render()}
 function toggleAll(){
-  const ids=(DATA.games||[]).map(g=>g.id);
+  const ids=(DATA.games||[]).map(g=>g.id).filter(id=>calGamesSet().has(id));  // 只操作筛选器里可见的游戏
   const allOn=ids.length>0&&ids.every(id=>activeGames.has(id));
   activeGames=allOn?new Set():new Set(ids);
   saveFilters();render();
@@ -522,11 +528,12 @@ function imgUrl(u){
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
   const cd=cdText(e);
-  const initial=esc(gameName(e.game_id).slice(0,1));
-  /* 图片加载失败时回退成游戏色块+首字,避免只剩一块没有文字的空底色 */
+  const short=gameShort(e.game_id);
+  const fs=short.length>3?'9.5px':short.length>2?'11px':'12.5px';
+  /* 图片加载失败时回退成游戏色块+短名,避免只剩一块没有文字的空底色 */
   const thumb=e.image
-    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(imgUrl(e.image))}" loading="lazy" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${initial}'"></div>`
-    :`<div class="thumb" style="--c:${c}">${initial}</div>`;
+    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(imgUrl(e.image))}" loading="lazy" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${esc(short)}'"></div>`
+    :`<div class="thumb ph" style="--c:${c};font-size:${fs}">${esc(short)}</div>`;
   return `<div class="row${isDone(e)?' doneev':''}" style="--c:${c}" onclick="openEv('${e.id}')">
     ${thumb}
     <div class="row-main">
@@ -651,12 +658,13 @@ function showDetail(e){
   const overlay=document.createElement('div');
   overlay.className='detail-overlay';
   const c=gameColor(e.game_id), cd=cdText(e);
-  const initial=esc(gameName(e.game_id).slice(0,1));
+  const short=gameShort(e.game_id);
+  const fsD=short.length>3?'8.5px':short.length>2?'10px':'12px';
   overlay.innerHTML=`<div class="detail-sheet">
     <div class="detail-header" style="--c:${c}">
       ${e.image
-        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(imgUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${initial}'"></div>`
-        :`<div class="dthumb">${initial}</div>`}
+        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(imgUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.style.fontSize='${fsD}';p.textContent='${esc(short)}'"></div>`
+        :`<div class="dthumb" style="font-size:${fsD}">${esc(short)}</div>`}
       <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
@@ -866,7 +874,7 @@ function openSettings(){
         <label class="switch"><input type="checkbox" ${settings.calOn?'checked':''} onchange="toggleCalOn(this.checked)"><span class="tr"></span></label>
       </div>
       <div style="padding:11px 0 2px">
-        <div class="lbl" style="font-size:14px">日历上显示的游戏<span class="sub">只影响月历,列表页签仍用顶部筛选器</span></div>
+        <div class="lbl" style="font-size:14px">显示的游戏<span class="sub">同时控制月历与顶部筛选器,勾掉的游戏整体隐藏</span></div>
         <div class="set-games" style="margin-top:10px">
           <span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleCalAllGames()">全部</span>${games}
         </div>
@@ -890,9 +898,9 @@ function toggleCalAllGames(){
   settings.calGames=allOn?[]:null;  // 全选↔全不选;全选态回退默认(新增游戏自动纳入)
   saveSettings();openSettingsRefresh();
 }
-function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历
+function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历+顶部筛选器
   const o=document.querySelector('.detail-overlay:last-of-type'); if(o)o.remove();
-  renderView();openSettings();
+  render();openSettings();
 }
 
 load();
