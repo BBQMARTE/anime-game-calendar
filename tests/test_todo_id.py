@@ -86,6 +86,25 @@ with tempfile.TemporaryDirectory() as d:
                     headers={'X-Requested-With': 'ycal'})
         got3 = client.get('/api/todo').get_json()['items']
         check('缺 id 回退序号', [x['id'] for x in got3], ['t0', 't1'])
+
+        # 同批 id 必须唯一：归一化会把「唯一但脏」的历史 id 折成同一个兜底值
+        with open(app.TODO_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'items': [{'id': 't1', 'title': '重要备忘A'},
+                                 {'id': PAYLOAD, 'title': '备忘B'}]}, f,
+                      ensure_ascii=False)
+        got4 = [x['id'] for x in client.get('/api/todo').get_json()['items']]
+        check('读取侧两条不同条目不共用 id', len(set(got4)), 2)
+        check('合法 id 优先保留', got4[0], 't1')
+
+        client.post('/api/todo', json={'items': [{'title': 'A'}, {'id': 't0', 'title': 'B'}]},
+                    headers={'X-Requested-With': 'ycal'})
+        got5 = [x['id'] for x in client.get('/api/todo').get_json()['items']]
+        check('写入侧缺 id 条目不与显式 t0 撞车', got5, ['t0', 't1'])
+        client.post('/api/todo', json={'items': [{'id': 't0', 'title': 'A'},
+                                                 {'id': 't0', 'title': 'B'}]},
+                    headers={'X-Requested-With': 'ycal'})
+        got6 = [x['id'] for x in client.get('/api/todo').get_json()['items']]
+        check('重复 id 被补号', len(set(got6)), 2)
     finally:
         app.DATA_DIR, app.TODO_FILE = real_dir, real_file
 
@@ -100,19 +119,26 @@ check_true('存在事件委托绑定', "host.addEventListener('click'" in html)
 if not shutil.which('node'):
     print('SKIP: 未找到 node，跳过前端行为断言')
 else:
-    # 用 jsdom 不可得，改为直接 eval 行模板 + 委托逻辑的最小复刻：
-    # 断言渲染出的 HTML 中注入 payload 不产生任何可执行片段
+    # 用 jsdom 不可得，改为从 index.html 抽出真实 esc()/noteHtml() 源码求值，
+    # 断言渲染结果本身（此前断言的是脚本里另写的一份模板，不随被测文件变化）
     node_src = r"""
 const fs = require('fs');
 const src = fs.readFileSync(process.argv[2], 'utf8');
-const escSrc = /function esc\(s\)\{[^\n]*\}/.exec(src)[0];
-const esc = new Function('s', escSrc.slice(escSrc.indexOf('{') + 1, escSrc.lastIndexOf('}')));
+const take = (name) => {
+  const m = new RegExp('function ' + name + '\\(').exec(src);
+  if (!m) throw new Error('not found: ' + name);
+  let i = src.indexOf('{', m.index), depth = 0;
+  for (let j = i; j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}') { depth--; if (!depth) return src.slice(i + 1, j); }
+  }
+  throw new Error('unbalanced: ' + name);
+};
+const esc = new Function('s', take('esc'));
+const noteHtml = new Function('NOTES', 'notesReady', 'esc', take('noteHtml'));
 const payload = "x');document.title='pwned';//";
-const item = { id: payload, title: '<img src=x onerror=alert(1)>', done: false };
-const row = `<div class="note-row" data-id="${esc(item.id)}">`
-  + `<span class="note-title">${esc(item.title)}</span>`
-  + `<span class="note-del" data-del="1">×</span></div>`;
-console.log(JSON.stringify({ row }));
+const NOTES = { items: [{ id: payload, title: '<img src=x onerror=alert(1)>', done: false }] };
+console.log(JSON.stringify({ html: noteHtml(NOTES, true, esc) }));
 """
     p = subprocess.run(['node', '-e', node_src, 'node',
                         os.path.join(ROOT, 'static', 'index.html')],
@@ -121,8 +147,9 @@ console.log(JSON.stringify({ row }));
         print('FAIL: node 退出码 %d: %s' % (p.returncode, p.stderr.strip()))
         bad += 1
     else:
-        row = json.loads(p.stdout.strip().splitlines()[-1])['row']
-        check_true('渲染结果无 onclick 内联处理器', 'onclick=' not in row)
+        row = json.loads(p.stdout.strip().splitlines()[-1])['html']
+        check_true('渲染结果无 toggleNote 内联处理器', 'onclick="toggleNote' not in row)
+        check_true('id 经 HTML 实体化后落在 data-id', 'data-id="x&#39;);document.title=&#39;pwned&#39;;//"' in row)
         check_true('渲染结果无未转义单引号', "x');" not in row)
         check_true('标题中的 <img> 已转义', '<img' not in row and '&lt;img' in row)
 

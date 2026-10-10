@@ -245,7 +245,7 @@ _todo_lock = threading.Lock()
 _TODO_ID_RE = re.compile(r'[A-Za-z0-9_-]{1,40}')
 
 
-def _todo_id(raw, fallback):
+def _todo_id(raw, fallback=''):
     """备忘录 id 归一化:只放行 [A-Za-z0-9_-] 且不超 40 字符。
 
     id 会作为属性值渲染到前端(见 index.html::noteHtml),引号/括号/分号等非法字符
@@ -255,6 +255,22 @@ def _todo_id(raw, fallback):
     return s if _TODO_ID_RE.fullmatch(s) else fallback
 
 
+def _todo_used_id(raw, used):
+    """归一化 id 并保证同批唯一:非法值与已被占用的值都补一个空闲的 t<序号>。
+
+    归一化会把「原本唯一但脏」的历史 id 折成同一个兜底值,若不比对 used,
+    两条不同条目会共用 id,前端按 id 定位的删除/打钩就会误伤相邻条目。
+    """
+    _id = _todo_id(raw)
+    if not _id or _id in used:
+        n = len(used)
+        while f't{n}' in used:
+            n += 1
+        _id = f't{n}'
+    used.add(_id)
+    return _id
+
+
 def _load_todo():
     if os.path.exists(TODO_FILE):
         try:
@@ -262,9 +278,10 @@ def _load_todo():
                 d = json.load(f)
             if isinstance(d, dict) and isinstance(d.get('items'), list):
                 # 读取侧同样归一化:历史脏数据(旧版本原样保存)不得带病回流到前端
-                for i, it in enumerate(d['items']):
+                used = set()
+                for it in d['items']:
                     if isinstance(it, dict):
-                        it['id'] = _todo_id(it.get('id'), f't{i}')
+                        it['id'] = _todo_used_id(it.get('id'), used)
                 return d
         except Exception as e:  # noqa: BLE001
             print(f'[备忘录] 读取失败: {e}')
@@ -284,6 +301,7 @@ def api_todo():
     if not isinstance(items, list):
         return jsonify({'ok': False, 'error': 'items required'}), 400
     clean = []
+    used = set()
     for it in items[:200]:  # 上限保护,避免异常数据撑爆文件
         if not isinstance(it, dict):
             continue
@@ -291,7 +309,7 @@ def api_todo():
         if not title:
             continue
         clean.append({
-            'id': _todo_id(it.get('id'), f't{len(clean)}'),
+            'id': _todo_used_id(it.get('id'), used),
             'game_id': str(it.get('game_id') or ''),
             'title': title,
             'cycle': 'weekly' if it.get('cycle') == 'weekly' else 'once',
