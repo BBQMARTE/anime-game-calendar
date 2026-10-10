@@ -791,10 +791,11 @@ function noteHtml(){
   if(!items.length){
     return `<div class="notes"><div class="group"><button class="note-add" onclick="openNoteAdd()">+ 写个备忘(置顶在这里,做完打勾)</button></div></div>`;
   }
-  const row=it=>`<div class="note-row${it.done?' done':''}" onclick="toggleNote('${it.id}')">
+  // id 只经 data-id 传递,不再拼进内联 onclick(引号/反斜杠会逃出 JS 字面量)
+  const row=it=>`<div class="note-row${it.done?' done':''}" data-id="${esc(it.id)}">
     <span class="note-box"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
     <span class="note-title">${esc(it.title)}</span>
-    <span class="note-del" onclick="event.stopPropagation();delNote('${it.id}')">×</span>
+    <span class="note-del" data-del="1">×</span>
   </div>`;
   let h=`<div class="notes"><div class="sec-title">备忘</div><div class="group">`;
   h+=open.map(row).join('')+(open.length&&fin.length?'':'')+fin.slice(-4).map(row).join('');
@@ -810,6 +811,14 @@ function mountNotes(){
     list.parentNode.insertBefore(host,list);
   }
   host.innerHTML=noteHtml();
+  if(host.dataset.bound!=='1'){   // 事件委托:一次性绑定,行内容重渲染后仍生效
+    host.dataset.bound='1';
+    host.addEventListener('click',ev=>{
+      const row=ev.target.closest('.note-row');if(!row)return;
+      const id=row.dataset.id||'';
+      if(ev.target.closest('.note-del'))delNote(id);else toggleNote(id);
+    });
+  }
 }
 function toggleNote(id){
   const it=NOTES.items.find(x=>x.id===id);if(!it)return;

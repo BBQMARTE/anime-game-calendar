@@ -242,12 +242,29 @@ TODO_FILE = os.path.join(DATA_DIR, 'todo.json')
 _todo_lock = threading.Lock()
 
 
+_TODO_ID_RE = re.compile(r'[A-Za-z0-9_-]{1,40}')
+
+
+def _todo_id(raw, fallback):
+    """备忘录 id 归一化:只放行 [A-Za-z0-9_-] 且不超 40 字符。
+
+    id 会作为属性值渲染到前端(见 index.html::noteHtml),引号/括号/分号等非法字符
+    与超长值一律回退为 fallback(f't<序号>'),避免脏数据逃出属性进入可执行上下文。
+    """
+    s = str(raw or '')
+    return s if _TODO_ID_RE.fullmatch(s) else fallback
+
+
 def _load_todo():
     if os.path.exists(TODO_FILE):
         try:
             with open(TODO_FILE, 'r', encoding='utf-8') as f:
                 d = json.load(f)
             if isinstance(d, dict) and isinstance(d.get('items'), list):
+                # 读取侧同样归一化:历史脏数据(旧版本原样保存)不得带病回流到前端
+                for i, it in enumerate(d['items']):
+                    if isinstance(it, dict):
+                        it['id'] = _todo_id(it.get('id'), f't{i}')
                 return d
         except Exception as e:  # noqa: BLE001
             print(f'[备忘录] 读取失败: {e}')
@@ -274,7 +291,7 @@ def api_todo():
         if not title:
             continue
         clean.append({
-            'id': str(it.get('id') or f't{len(clean)}'),
+            'id': _todo_id(it.get('id'), f't{len(clean)}'),
             'game_id': str(it.get('game_id') or ''),
             'title': title,
             'cycle': 'weekly' if it.get('cycle') == 'weekly' else 'once',
