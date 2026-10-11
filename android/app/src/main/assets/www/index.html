@@ -180,6 +180,16 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
   background:var(--fill); color:var(--label); border-radius:12px; padding:9px 14px;
 }
 .searchbar input::placeholder{color:var(--label3)}
+/* 搜索历史下拉 */
+#qhist{
+  position:absolute; left:20px; right:20px; top:calc(100% - 4px); z-index:30;
+  background:var(--card); border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.28);
+  overflow:hidden; border:.5px solid var(--sep);
+}
+.qh-head{display:flex; justify-content:space-between; align-items:center; padding:8px 14px 4px; font-size:11px; color:var(--label3)}
+.qh-clear{cursor:pointer; color:var(--blue)}
+.qh-item{padding:9px 14px; font-size:13.5px; color:var(--label); cursor:pointer; border-top:.5px solid var(--sep)}
+.qh-item:active{background:var(--fill)}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -310,7 +320,10 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 
 <div class="sources" id="sources"></div>
 <div class="filters" id="filters"></div>
-<div class="searchbar"><input type="search" id="q" placeholder="搜索活动或资讯…" oninput="onSearch(this.value)"></div>
+<div class="searchbar" style="position:relative">
+  <input type="search" id="q" placeholder="搜索活动或资讯…" oninput="onSearch(this.value)" onfocus="showQHist()" autocomplete="off">
+  <div id="qhist" style="display:none"></div>
+</div>
 
 <main>
   <div class="seg" id="seg">
@@ -354,7 +367,44 @@ function applySettings(){
   if(!settings.calOn&&tab==='cal')setTab('ongoing');
 }
 let _qT=null;
-function onSearch(v){q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200)}  // 防抖,避免每击键全量重绘
+function onSearch(v){
+  q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200);  // 防抖,避免每击键全量重绘
+  clearTimeout(_qH);
+  if(v.trim())_qH=setTimeout(()=>pushQHist(v.trim()),1200);  // 停止输入 1.2s 记为一次搜索
+  else hideQHist();
+}
+/* ── 搜索历史(localStorage,最多 8 条,聚焦空输入时下拉) ── */
+let _qH=null;
+function qHist(){try{return JSON.parse(localStorage.getItem('ycal_qhist')||'[]')}catch(e){return []}}
+function pushQHist(v){
+  if(!v)return;
+  let a=qHist().filter(x=>x!==v);
+  a.unshift(v);
+  try{localStorage.setItem('ycal_qhist',JSON.stringify(a.slice(0,8)))}catch(e){}
+}
+function showQHist(){
+  const box=document.getElementById('qhist'), inp=document.getElementById('q');
+  if(!box||!inp)return;
+  const a=qHist();
+  if(!a.length||inp.value.trim()){box.style.display='none';return}
+  box.innerHTML=`<div class="qh-head"><span>最近搜索</span><span class="qh-clear" role="button" aria-label="清除搜索历史" onmousedown="event.preventDefault();localStorage.removeItem('ycal_qhist');hideQHist()">清除</span></div>`
+    +a.map(t=>`<div class="qh-item" role="button" onmousedown="event.preventDefault();pickQHist('${esc(t).replace(/'/g,"\\'")}')">⌕ ${esc(t)}</div>`).join('');
+  box.style.display='block';
+}
+function hideQHist(){const b=document.getElementById('qhist');if(b)b.style.display='none'}
+function pickQHist(t){
+  const inp=document.getElementById('q');
+  if(inp){inp.value=t}
+  pushQHist(t);
+  hideQHist();
+  onSearch(t);
+}
+document.addEventListener('click',e=>{  // 点搜索框外收起历史
+  if(!e.target.closest('.searchbar'))hideQHist();
+});
+document.addEventListener('keydown',e=>{  // Esc 收起
+  if(e.key==='Escape')hideQHist();
+});
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
