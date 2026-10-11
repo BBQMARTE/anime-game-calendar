@@ -41,6 +41,18 @@ _state = {
 }
 
 
+def _drop_expired(events):
+    """丢弃已结束的真活动(info/公告保留):do_refresh 与缓存载入共用同一口径"""
+    today = _bj_now().strftime('%Y-%m-%d')
+    kept = [e for e in events
+            if (e.get('kind') or 'event') != 'event'
+            or not e.get('end') or str(e['end'])[:10] >= today]
+    n = len(events) - len(kept)
+    if n:
+        print(f'[过滤] 丢弃 {n} 条已过期活动')
+    return kept
+
+
 def _load_cache():
     if os.path.exists(CACHE_FILE):
         try:
@@ -48,8 +60,9 @@ def _load_cache():
                 data = json.load(f)
             # 过滤已从注册表移除的游戏(旧缓存残留)
             valid = {g['id'] for g in scrapers.GAMES_META}
-            _state['events'] = [e for e in data.get('events', [])
-                                if e.get('game_id') in valid or e.get('src') == 'manual']
+            evs = [e for e in data.get('events', [])
+                   if e.get('game_id') in valid or e.get('src') == 'manual']
+            _state['events'] = _drop_expired(evs)   # 缓存可能落后于现实(隔天启动),过期活动不放行
             _state['sources'] = {k: v for k, v in (data.get('sources') or {}).items()
                                  if k in valid or k == 'bilibili'}
             _state['updated'] = data.get('updated')
@@ -146,6 +159,8 @@ def do_refresh():
             if old is None or (e.get('src') == 'manual' and old.get('src') != 'manual'):
                 seen[key] = e
         events = list(seen.values())
+        # 过滤已结束的真活动(info/公告类保留,历史资讯仍有参考价值)
+        events = _drop_expired(events)
         # 合并全部来源(抓取/手动)后统一校验,与 App 端 scraper.js::fetchAll 的时机一致
         scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
