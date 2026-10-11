@@ -240,13 +240,20 @@ def _ann_dt(s):
 
 
 def _mihoyo_content(api, params, ann_id):
-    """取公告正文(getAnnContent),失败返回''"""
+    """取公告正文(getAnnContent),失败返回空串
+
+    上游会忽略 ann_id、把整个公告列表(每条自带 content)一起返回,固定取 list[0]
+    会让所有详情弹窗显示同一篇无关公告,故按 ann_id 精确匹配;多条列表里匹配不到时
+    返回空(宁缺勿错),仅当列表真的只有一条时才回退该条。"""
     try:
         r = _get(f"{api.replace('getAnnList', 'getAnnContent')}?{params}&ann_id={ann_id}")
         d = r.json().get('data') or {}
         lst = d.get('list') or []
         if lst:
-            return lst[0].get('content') or ''
+            for x in lst:
+                if str(x.get('ann_id')) == str(ann_id):
+                    return x.get('content') or ''
+            return lst[0].get('content') or '' if len(lst) == 1 else ''
         return d.get('content') or ''
     except Exception:
         return ''
