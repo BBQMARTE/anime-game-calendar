@@ -17,10 +17,11 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
 | Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails via vision-guided cropping |
-| Memo & check-off | weekly to-do memo pinned on top of the list; mark events as "done" — strikethrough, persisted locally |
-| Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards |
-| Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline) |
-| Subscriptions & reminders | ICS calendar feed (RFC5545 folding), Feishu/Bark event-start push, Tailscale remote access |
+| Memo & check-off | weekly to-do memo pinned on top (weekly templates one-tap import, auto-reset each Monday); mark events as "done" or "★ favorite to top" — persisted locally |
+| Search & stats | search history dropdown; data stats in settings (per-game density / category mix) |
+| Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days) |
+| Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline); sheets support swipe-down to close |
+| Subscriptions & reminders | ICS calendar feed (RFC5545 folding), Feishu/Bark event-start push (adjustable lead days), Tailscale remote access |
 | Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |
 | NPC automation | cloud NPCs on CNB work in shifts (patrol → dev → review → merge) to iterate the code autonomously, driven by a free model |
 
