@@ -865,7 +865,10 @@ async function showMihoyoDetail(e){
     const url=`${api}?${e._content_params}&ann_id=${e.ann_id}`;
     const r=await fetch(url); const d=await r.json();
     const lst=((d.data||{}).list)||[];
-    const content=lst.length?(lst[0].content||''):(((d.data||{}).content)||'');
+    // 上游忽略 ann_id 并返回整个列表:必须按 ann_id 精确匹配(复用 scraper.js 的 annPick),
+    // 否则所有详情弹窗都显示同一篇无关公告
+    const hit=Scraper.annPick(lst,e.ann_id);
+    const content=hit?(hit.content||''):(lst.length===1?(lst[0].content||''):(((d.data||{}).content)||''));
     const body=overlay.querySelector('.detail-body');
     if(content){
       // 清洗:先解码实体(还原出的 on* 属性也会被后续规则去掉),再去脚本/内联事件;

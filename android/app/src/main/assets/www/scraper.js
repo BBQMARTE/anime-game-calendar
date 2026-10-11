@@ -348,11 +348,21 @@ const Scraper = (() => {
     const m = /(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(s || '');
     return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
   }
+  // 上游 getAnnContent 会把整个公告列表(每条自带 content)一起返回,并忽略 ann_id 参数:
+  // 固定取 list[0] 会让所有详情弹窗显示同一篇无关公告。按 ann_id 精确匹配;
+  // 列表只有一条时才回退该条,否则不匹配就返回空(宁缺勿错,不显示别人的正文)。
+  function annPick(lst, annId) {
+    for (const x of (lst || [])) if (String(x.ann_id) === String(annId)) return x;
+    return null;
+  }
   async function mihoyoContent(api, params, annId) {
     try {
       const d = await httpJson(`${api.replace('getAnnList', 'getAnnContent')}?${params}&ann_id=${annId}`);
       const lst = ((d.data || {}).list) || [];
-      return lst.length ? (lst[0].content || '') : (((d.data || {}).content) || '');
+      if (!lst.length) return ((d.data || {}).content) || '';
+      if (lst.length === 1) return lst[0].content || '';
+      const hit = annPick(lst, annId);
+      return hit ? (hit.content || '') : '';
     } catch (e) { return ''; }
   }
   async function mihoyo(gid, gname) {
@@ -973,5 +983,5 @@ const Scraper = (() => {
   }
 
   return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent,
-           extractRange, withTwoDayDefault, dayDiff, iso };
+           extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();
