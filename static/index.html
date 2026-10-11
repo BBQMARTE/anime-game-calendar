@@ -190,6 +190,17 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .qh-clear{cursor:pointer; color:var(--blue)}
 .qh-item{padding:9px 14px; font-size:13.5px; color:var(--label); cursor:pointer; border-top:.5px solid var(--sep)}
 .qh-item:active{background:var(--fill)}
+/* 数据统计弹窗 */
+.stat-total{display:flex; gap:8px; margin-bottom:16px}
+.stat-total>div{flex:1; background:var(--fill); border-radius:12px; padding:10px 0; text-align:center}
+.stat-total b{display:block; font-size:20px; color:var(--label)}
+.stat-total span{font-size:11px; color:var(--label3)}
+.stat-sec{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:14px 0 8px}
+.stat-row{display:flex; align-items:center; gap:8px; margin:7px 0}
+.stat-row .sn{width:76px; flex:none; font-size:12px; color:var(--label2); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.stat-row .sb{flex:1; height:14px; background:var(--fill); border-radius:7px; overflow:hidden}
+.stat-row .sb i{display:block; height:100%; border-radius:7px; min-width:2px}
+.stat-row .sv{width:34px; flex:none; font-size:12px; font-weight:700; color:var(--label)}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -1052,11 +1063,64 @@ function openSettings(){
       </div>
       <div class="set-sec">提醒推送</div>
       <div id="notifyCfg"><div class="sub" style="padding:4px 0 8px">正在读取服务端配置…</div></div>
+      <div class="set-sec">数据</div>
+      <div class="set-row" style="cursor:pointer" onclick="openStats()" role="button" aria-label="打开数据统计">
+        <div class="lbl">数据统计<span class="sub">各游戏活动密度 / 分类分布 / 时间跨度</span></div>
+        <span class="chev">›</span>
+      </div>
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
   loadNotifyCfgUI();
+}
+/* ── 数据统计弹窗(纯前端计算 DATA.events,零依赖 CSS 条形图) ── */
+function openStats(){
+  const evs=(DATA&&DATA.events||[]).filter(isEv);  // 只统计真活动
+  const now=new Date();
+  const ongoing=evs.filter(e=>{const s=evStart(e),t=evEnd(e);return s&&t&&s<=now&&t>=now});
+  const soon=evs.filter(e=>{const s=evStart(e);return s&&s>now});
+  // 各游戏:总数 + 进行中
+  const byGame=new Map();
+  for(const e of evs){
+    const g=e.game||gameName(e.game_id);
+    if(!byGame.has(g))byGame.set(g,{n:0,on:0,color:gameColor(e.game_id)});
+    byGame.get(g).n++;
+  }
+  for(const e of ongoing){const g=byGame.get(e.game||gameName(e.game_id));if(g)g.on++}
+  const games=[...byGame.entries()].sort((a,b)=>b[1].n-a[1].n);
+  const maxG=Math.max(1,...games.map(([,v])=>v.n));
+  // 分类分布
+  const byCat=new Map();
+  for(const e of evs){const c=e.category||'其他';byCat.set(c,(byCat.get(c)||0)+1)}
+  const cats=[...byCat.entries()].sort((a,b)=>b[1]-a[1]);
+  const maxC=Math.max(1,...cats.map(([,v])=>v));
+  // 时间跨度:最近 30 天开过的活动
+  const m30=new Date(now.getTime()-30*864e5);
+  const recent=evs.filter(e=>{const s=evStart(e);return s&&s>=m30});
+  const o=document.createElement('div');
+  o.className='detail-overlay';
+  const bar=(name,n,max,color,extra)=>`<div class="stat-row"><span class="sn" title="${esc(name)}">${esc(name)}</span><div class="sb"><i style="width:${Math.round(n/max*100)}%;background:${color}"></i></div><span class="sv">${n}${extra||''}</span></div>`;
+  o.innerHTML=`<div class="detail-sheet">
+    <div class="detail-header" style="--c:var(--blue)">
+      <div class="dthumb">统</div>
+      <div class="dmeta"><div class="dtitle">数据统计</div><div class="dsub">共 ${evs.length} 个活动 · 全量口径(不受筛选影响) · 更新于 ${(DATA&&DATA.updated||'').replace('T',' ').slice(5,16)}</div></div>
+      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+    </div>
+    <div class="detail-body">
+      <div class="stat-total">
+        <div><b>${ongoing.length}</b><span>进行中</span></div>
+        <div><b>${soon.length}</b><span>即将开始</span></div>
+        <div><b>${recent.length}</b><span>近30天开始</span></div>
+      </div>
+      <div class="stat-sec">各游戏活动数</div>
+      ${games.map(([g,v])=>bar(g,v.n,maxG,v.color,v.on?`<small style="color:var(--label3)"> (${v.on} 进行中)</small>`:'')).join('')}
+      <div class="stat-sec">分类分布</div>
+      ${cats.map(([c,n])=>bar(c,n,maxC,CAT_COLOR[c]||'#8e8e93')).join('')}
+    </div>
+  </div>`;
+  o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
+  document.body.appendChild(o);
 }
 /* ── 提醒配置(服务端 notify.json 的界面化,离线模式不可用) ── */
 let NC=null;

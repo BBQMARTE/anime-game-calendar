@@ -1,6 +1,6 @@
 /* 二游活动聚合 PWA Service Worker
    静态资源缓存优先;/api/events 网络优先、失败回退缓存(离线可看) */
-const CACHE = 'ycal-v27';
+const CACHE = 'ycal-v29';
 const ASSETS = ['/', '/scraper.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -32,6 +32,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (url.pathname.startsWith('/api/')) return;  // 其余接口不缓存
+  if (url.pathname === '/sw.js') return;  // SW 自身不拦截:浏览器直连,字节对比更新检测才能及时生效
 
   // 页面本身:网络优先,保证前端发版即时可见(缓存优先会让用户长期停在旧页面);离线回退缓存
   if (e.request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
