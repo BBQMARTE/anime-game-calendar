@@ -100,10 +100,12 @@ Agent 会自己读完本文档,完成剩下的一切:装依赖 → 启动服务 
 | ------------ | ----------------------------------------------------------------------------------------- |
 | **ICS 日历订阅** | 系统日历 / Google 日历添加订阅日历,填 `http://<服务器地址>:5000/api/calendar.ics`,全部真活动进入系统日历               |
 | **PWA 安装**   | 平板/手机浏览器打开网页 →「添加到主屏幕」,获得全屏 App 图标,离线可看缓存数据                                               |
-| **活动开始提醒**   | 编辑 `data/notify.json` 填入 webhook(支持飞书群机器人 / Bark),每天定时推送今明两天开始的活动汇总                       |
+| **活动开始提醒**   | 编辑 `data/notify.json`(首次启动自动生成,示例见 `data/notify.example.json`)填入 webhook(支持飞书群机器人 / Bark),每天定时推送今明两天开始的活动汇总 |
 | **外网访问**     | 电脑与平板都安装 [Tailscale](https://tailscale.com) 并登录同一账号,出门在外用 `http://100.x.x.x:5000` 访问家里服务器 |
 
-`data/notify.json` 配置示例:
+`data/notify.json` 首次启动时自动生成(默认空 webhook + `time: 08:30`),直接编辑它填入 webhook 即可;
+该文件**不入库**(已在 `.gitignore` 中),避免私密 webhook 被 `git add` 带进仓库。
+模板见 `data/notify.example.json`:
 
 ```json
 {

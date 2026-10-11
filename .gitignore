@@ -8,6 +8,9 @@ __pycache__/
 # 运行时数据与测试输出
 data/cache.json
 data/todo.json
+# 用户配置(含 webhook 凭据):首次启动由 app.py::_ensure_notify_file() 自动生成,
+# 示例见 data/notify.example.json;不跟踪,避免 webhook 被 git add 带进仓库
+data/notify.json
 tests/_out*.txt
 
 # Android 构建产物与本地配置
