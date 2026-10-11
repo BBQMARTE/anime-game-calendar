@@ -771,11 +771,44 @@ function showDetail(e){
   </div>`;
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(overlay);
+  attachSwipeClose(overlay);
 }
 function openUrl(u){
   if(IS_ANDROID&&window.YCalNative&&window.YCalNative.openExternal){window.YCalNative.openExternal(u);return}
   if(IS_ANDROID){const w=window.open();if(w){w.location.href=u;return}}  // 兜底:新窗口打开,不顶掉当前页
   window.open(u,'_blank');
+}
+/* ── 弹窗下滑手势关闭:顶部区域下拉超过 110px 松手关闭,否则回弹 ──
+   内容区滚到顶且继续下滑才启动拖动,不影响正文滚动 */
+function attachSwipeClose(overlay){
+  const sheet=overlay.querySelector('.detail-sheet');
+  const body=overlay.querySelector('.detail-body');
+  if(!sheet)return;
+  let sy=null, dy=0, dragging=false;
+  sheet.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    sy=e.touches[0].clientY; dy=0; dragging=false;
+  },{passive:true});
+  sheet.addEventListener('touchmove',e=>{
+    if(sy===null)return;
+    dy=e.touches[0].clientY-sy;
+    if(!dragging&&(dy<=0||(body&&body.scrollTop>0))){sy=e.touches[0].clientY;return}  // 在顶才开拖
+    dragging=true;
+    if(e.cancelable)e.preventDefault();
+    sheet.style.transition='none';
+    sheet.style.transform=`translateY(${Math.max(0,dy)}px)`;
+  },{passive:false});
+  const end=()=>{
+    if(sy===null)return;
+    sheet.style.transition='';
+    if(dragging&&dy>110){
+      sheet.style.transform='translateY(100%)';
+      setTimeout(()=>overlay.remove(),180);
+    }else sheet.style.transform='';
+    sy=null;dragging=false;
+  };
+  sheet.addEventListener('touchend',end);
+  sheet.addEventListener('touchcancel',end);
 }
 /* 公告正文清洗:白名单标签+属性,剥离其余标签与事件属性(真 HTML 解析,不用正则打补丁) */
 const ALLOW_TAGS=new Set(['P','DIV','SPAN','BR','HR','H1','H2','H3','H4','H5','H6','UL','OL','LI',
@@ -821,6 +854,7 @@ async function showMihoyoDetail(e){
   </div>`;
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove();});
   document.body.appendChild(overlay);
+  attachSwipeClose(overlay);
   // 获取公告正文
   try{
     const api=e._content_api.replace('getAnnList','getAnnContent');
@@ -969,6 +1003,7 @@ function openMemoTpl(){
     if(del){const a=memoTpl();a.splice(+del.dataset.tdel,1);saveMemoTpl(a);this.remove();openMemoTpl()}
   });
   document.body.appendChild(o);
+  attachSwipeClose(o);
   setTimeout(()=>{const i=document.getElementById('tplTitle');if(i)i.focus()},120);
 }
 function addMemoTpl(){
@@ -1041,6 +1076,7 @@ function openNoteAdd(){
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
+  attachSwipeClose(o);
   setTimeout(()=>{const i=document.getElementById('ntTitle');if(i)i.focus()},120);
 }
 function submitNoteAdd(){
@@ -1090,6 +1126,7 @@ function openSettings(){
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
+  attachSwipeClose(o);
   loadNotifyCfgUI();
 }
 /* ── 数据统计弹窗(纯前端计算 DATA.events,零依赖 CSS 条形图) ── */
@@ -1139,6 +1176,7 @@ function openStats(){
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
+  attachSwipeClose(o);
 }
 /* ── 提醒配置(服务端 notify.json 的界面化,离线模式不可用) ── */
 let NC=null;
