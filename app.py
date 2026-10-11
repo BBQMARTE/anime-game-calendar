@@ -578,7 +578,8 @@ def _ensure_notify_file():
 
 def _notify_config():
     try:
-        with open(NOTIFY_FILE, 'r', encoding='utf-8') as f:
+        # utf-8-sig:容忍记事本等编辑器写入的 BOM(普通 utf-8 会因 BOM 导致 json 解析失败)
+        with open(NOTIFY_FILE, 'r', encoding='utf-8-sig') as f:
             cfg = json.load(f)
         return cfg if isinstance(cfg, dict) else {}
     except Exception:  # noqa: BLE001
