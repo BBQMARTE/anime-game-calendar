@@ -151,6 +151,18 @@ def do_refresh():
         except Exception as e:  # noqa: BLE001
             sources['bilibili'] = {'name': 'B站动态', 'ok': False, 'count': 0, 'error': str(e)[:120]}
         events.extend(_manual_events())
+        # 降级容错:本轮失败的源沿用上一轮该源的条目,避免一次网络抖动让整源活动消失 30 分钟
+        with _lock:
+            prev_by_src = {}
+            for e in _state['events']:
+                prev_by_src.setdefault(e.get('src'), []).append(e)
+        for src_name, st in list(sources.items()):
+            if not (st or {}).get('ok'):
+                have = [e for e in events if e.get('src') == src_name]
+                old = prev_by_src.get(src_name) or []
+                if not have and old:
+                    events.extend(old)
+                    print(f'[降级] {src_name} 本轮失败,沿用上轮 {len(old)} 条(下轮重试)')
         # 统一去重(同游戏同标题):手动录入的条目经人工核实,优先保留
         seen = {}
         for e in events:
@@ -176,6 +188,10 @@ def do_refresh():
     except Exception as e:  # noqa: BLE001
         with _lock:
             _state['refreshing'] = False
+            # 全链路崩了也要让前端可见:旧数据继续展示,来源区标记本轮刷新失败
+            _state['sources'] = {**(_state.get('sources') or {}),
+                                 '_system': {'name': '本轮抓取', 'ok': False, 'count': 0,
+                                             'error': f'{str(e)[:110]}(已沿用上一轮数据)'}}
         print(f'[抓取] 失败: {e}')
         return False
 
