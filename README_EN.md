@@ -13,13 +13,16 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Feature | Description |
 |---|---|
 | 7 games aggregated | Honkai: Star Rail, Zenless Zone Zero, Arknights: Endfield, Arknights, Wuthering Waves, Ananta, Reverse: 1999 + official Bilibili posts |
-| Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects daily for accuracy |
+| Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects twice a week for accuracy |
 | Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
-| Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails (Endfield: 19 cards) via vision-guided cropping |
+| Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails via vision-guided cropping |
+| Memo & check-off | weekly to-do memo pinned on top of the list; mark events as "done" — strikethrough, persisted locally |
+| Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline) |
-| Subscriptions & reminders | ICS calendar feed, Feishu/Bark event-start push, Tailscale remote access |
+| Subscriptions & reminders | ICS calendar feed (RFC5545 folding), Feishu/Bark event-start push, Tailscale remote access |
 | Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |
+| NPC automation | cloud NPCs on CNB work in shifts (patrol → dev → review → merge) to iterate the code autonomously, driven by a free model |
 
 ## Contents
 
