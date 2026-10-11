@@ -815,6 +815,7 @@ function loadNotes(){
   }).finally(()=>{
     if(!Array.isArray(NOTES.items))NOTES.items=[];
     notesReady=true;
+    applyWeeklyReset();   // weekly 条目跨周自动复位(周一自动重新打钩待办)
   });
 }
 function saveNotes(){
@@ -825,23 +826,100 @@ function saveNotes(){
       body:JSON.stringify({items:NOTES.items})});
   }catch(e){}
 }
+/* ── 每周模板:模板存 localStorage,导入的条目带 cycle='weekly',跨周自动复位 ── */
+function isoWeek(d){  // ISO-8601 周次(周一为一周之始),如 '2026-W41'
+  const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day=t.getUTCDay()||7;
+  t.setUTCDate(t.getUTCDate()+4-day);
+  const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+  return t.getUTCFullYear()+'-W'+String(Math.ceil(((t-y0)/864e5+1)/7)).padStart(2,'0');
+}
+function memoTpl(){try{return JSON.parse(localStorage.getItem('ycal_memotpl')||'[]')}catch(e){return []}}
+function saveMemoTpl(a){try{localStorage.setItem('ycal_memotpl',JSON.stringify(a))}catch(e){}}
+function applyWeeklyReset(){  // weekly 条目跨周自动复位:done_week 不是本周则重新打钩待办
+  if(!notesReady||!Array.isArray(NOTES.items))return;
+  const wk=isoWeek(new Date());
+  let changed=false;
+  for(const it of NOTES.items){
+    if(it.cycle==='weekly'&&(it.done_week||'')!==wk&&(it.done||!it.done_week)){
+      it.done=false;it.done_week=wk;changed=true;
+    }else if(it.cycle==='weekly'&&!it.done_week){
+      it.done_week=wk;changed=true;   // 历史数据补周次
+    }
+  }
+  if(changed)saveNotes();
+}
+function importMemoTpl(){
+  const tpl=memoTpl();
+  if(!tpl.length){openMemoTpl();return}
+  const wk=isoWeek(new Date());
+  const have=new Set(NOTES.items.map(i=>i.title));
+  let n=0,ts=Date.now();
+  for(const t of tpl){
+    if(have.has(t))continue;   // 本周已在清单的不重复导入
+    NOTES.items.unshift({id:'n'+(ts++),title:t,done:false,cycle:'weekly',done_week:wk});
+    n++;
+  }
+  if(!n){alert('本周清单里已有模板全部条目,无需重复导入');return}
+  saveNotes();mountNotes();
+}
+function openMemoTpl(){
+  // 先清掉已打开的模板弹窗(添加/删除后重开时避免 DOM 叠加残留)
+  document.querySelectorAll('.detail-overlay').forEach(o=>{
+    if(o.querySelector('.dtitle')&&o.querySelector('.dtitle').textContent==='每周模板')o.remove();
+  });
+  const o=document.createElement('div');
+  o.className='detail-overlay';
+  const tpl=memoTpl();
+  o.innerHTML=`<div class="detail-sheet">
+    <div class="detail-header" style="--c:var(--blue)">
+      <div class="dthumb">周</div>
+      <div class="dmeta"><div class="dtitle">每周模板</div><div class="dsub">保存每周固定要做的事,一键导入本周清单;周一自动重置打钩</div></div>
+      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+    </div>
+    <div class="detail-body">
+      <div id="tplList">${tpl.length?tpl.map((t,i)=>`<div class="note-row" data-i="${i}"><span class="note-title">${esc(t)}</span><span class="note-del" data-tdel="${i}">×</span></div>`).join(''):'<div class="empty" style="padding:18px 0">模板还是空的,先加几条</div>'}</div>
+      <input id="tplTitle" class="note-input" placeholder="加一条每周固定事项,比如:清体力 / 打周本">
+      <button class="note-add" onclick="addMemoTpl()">+ 加入模板</button>
+      ${tpl.length?`<button class="note-add" style="color:var(--blue)" onclick="importMemoTpl();this.closest('.detail-overlay').remove()">⤓ 导入全部到本周清单</button>`:''}
+    </div>
+  </div>`;
+  o.addEventListener('click',function(ev){
+    if(ev.target===this)this.remove();
+    const del=ev.target.closest('[data-tdel]');
+    if(del){const a=memoTpl();a.splice(+del.dataset.tdel,1);saveMemoTpl(a);this.remove();openMemoTpl()}
+  });
+  document.body.appendChild(o);
+  setTimeout(()=>{const i=document.getElementById('tplTitle');if(i)i.focus()},120);
+}
+function addMemoTpl(){
+  const i=document.getElementById('tplTitle');
+  const t=((i&&i.value)||'').trim();
+  if(!t){if(i)i.focus();return}
+  const a=memoTpl();
+  if(!a.includes(t))a.push(t);
+  saveMemoTpl(a);
+  const o=document.querySelector('.detail-overlay:last-of-type');if(o)o.remove();
+  openMemoTpl();
+}
 function noteHtml(){
   const items=NOTES.items;
   if(!notesReady)return '';
   // 已完成的沉到区块底部;全部完成且超过 8 条时只显示未完成
   const open=items.filter(i=>!i.done), fin=items.filter(i=>i.done);
   if(!items.length){
-    return `<div class="notes"><div class="group"><button class="note-add" onclick="openNoteAdd()">+ 写个备忘(置顶在这里,做完打勾)</button></div></div>`;
+    return `<div class="notes"><div class="group"><button class="note-add" onclick="openNoteAdd()">+ 写个备忘(置顶在这里,做完打勾)</button><button class="note-add" style="color:var(--label2)" onclick="openMemoTpl()">每周模板(清体力/周本这类固定事项)</button></div></div>`;
   }
   // id 只经 data-id 传递,不再拼进内联 onclick(引号/反斜杠会逃出 JS 字面量)
   const row=it=>`<div class="note-row${it.done?' done':''}" data-id="${esc(it.id)}">
     <span class="note-box"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
-    <span class="note-title">${esc(it.title)}</span>
+    <span class="note-title">${esc(it.title)}${it.cycle==='weekly'?'<span class="tag" style="--tc:var(--blue);margin-left:6px">每周</span>':''}</span>
     <span class="note-del" data-del="1">×</span>
   </div>`;
   let h=`<div class="notes"><div class="sec-title">备忘</div><div class="group">`;
   h+=open.map(row).join('')+(open.length&&fin.length?'':'')+fin.slice(-4).map(row).join('');
-  h+=`<button class="note-add" onclick="openNoteAdd()">+ 写个备忘</button></div></div>`;
+  h+=`<button class="note-add" onclick="openNoteAdd()">+ 写个备忘</button>`;
+  h+=`<button class="note-add" style="color:var(--label2)" onclick="openMemoTpl()">每周模板${memoTpl().length?' · 导入本周':''}</button></div></div>`;
   return h;
 }
 function mountNotes(){
