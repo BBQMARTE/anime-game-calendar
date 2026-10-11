@@ -32,13 +32,13 @@ def ev(title, start):
             'kind': 'event', 'start': start, 'end': None}
 
 
-def collected(now, events):
+def collected(now, events, cfg=None):
     """注入 _state / _send_notify，跑一次 _daily_notify，返回 [(标题, 正文)]。"""
     sent = []
     app._state['events'] = events
     app._state['sources'] = {}
     app._send_notify = lambda title, body: sent.append((title, body)) or True
-    app._notify_config = lambda: {'time': '08:30', 'webhook': 'http://example.invalid/hook'}
+    app._notify_config = lambda: cfg or {'time': '08:30', 'webhook': 'http://example.invalid/hook'}
     app._daily_notify(now)
     return sent
 
@@ -73,7 +73,28 @@ check("次日 00:01 未到点（等 08:30）", app._notify_due(bj.replace(day=24
 check("次日 08:30 记为新的北京日期", app._notify_due(bj.replace(day=24, hour=8, minute=30), '08:30'), '2026-09-24')
 check("配置非法回落 08:30", app._notify_due(bj.replace(hour=8, minute=45), ''), '2026-09-23')
 
-# 5. 不回归：webhook 空值不推送；飞书 / 通用 JSON 载荷格式不变
+# 5. 提醒提前量 lead_days(0=当天 / 1=今明(默认) / 3=提前3天)
+bj2 = datetime(2026, 10, 11, 8, 30, tzinfo=app._CST)
+evs3 = [ev('今天开', '2026-10-11T10:00'), ev('后天开', '2026-10-13T10:00'), ev('三天后开', '2026-10-14T10:00')]
+sent = collected(bj2, evs3, {'webhook': 'http://x/hook', 'lead_days': 3, 'time': '08:30'})
+body3 = sent[0][1] if sent else ''
+check("lead=3 标题含天数", '未来 4 天' in (sent[0][0] if sent else ''), True)
+check("lead=3 含 3 天后活动", '· 3天后 10:00 【绝区零】三天后开' in body3, True)
+check("lead=3 含后天活动", '· 后天 10:00 【绝区零】后天开' in body3, True)
+
+sent = collected(bj2, evs3, {'webhook': 'http://x/hook', 'lead_days': 0, 'time': '08:30'})
+body0 = sent[0][1] if sent else ''
+check("lead=0 标题", '今天' in (sent[0][0] if sent else ''), True)
+check("lead=0 只含当天", '今天开' in body0 and '后天开' not in body0, True)
+
+sent = collected(bj2, evs3, {'webhook': 'http://x/hook', 'lead_days': 99, 'time': '08:30'})
+check("lead=99 非法回落 1(今明两天)", '今明两天' in (sent[0][0] if sent else ''), True)
+sent = collected(bj2, evs3, {'webhook': 'http://x/hook', 'lead_days': 'x', 'time': '08:30'})
+check("lead='x' 非法回落 1", '今明两天' in (sent[0][0] if sent else ''), True)
+check("_lead_days 缺省=1", app._lead_days({}), 1)
+check("_lead_days 只放行 0/1/3", [app._lead_days({'lead_days': v}) for v in (0, 1, 2, 3, 7)], [0, 1, 1, 3, 1])
+
+# 6. 不回归：webhook 空值不推送；飞书 / 通用 JSON 载荷格式不变
 app._send_notify = _REAL_SEND   # 前面几段用 lambda 注入过，这里恢复真实实现
 
 

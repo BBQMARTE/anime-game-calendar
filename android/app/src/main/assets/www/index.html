@@ -888,10 +888,58 @@ function openSettings(){
           <span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleCalAllGames()">全部</span>${games}
         </div>
       </div>
+      <div class="set-sec">提醒推送</div>
+      <div id="notifyCfg"><div class="sub" style="padding:4px 0 8px">正在读取服务端配置…</div></div>
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
+  loadNotifyCfgUI();
+}
+/* ── 提醒配置(服务端 notify.json 的界面化,离线模式不可用) ── */
+let NC=null;
+async function loadNotifyCfgUI(){
+  const box=document.getElementById('notifyCfg'); if(!box)return;
+  try{
+    const r=await fetch('/api/notify-config'); NC=await r.json();
+  }catch(e){
+    box.innerHTML='<div class="sub" style="padding:4px 0 8px">离线模式:提醒推送需连接服务端配置(服务在线时打开设置即可)</div>';
+    return;
+  }
+  const leads=[[0,'仅当天'],[1,'提前1天'],[3,'提前3天']];
+  box.innerHTML=`
+    <div style="padding:6px 0 2px">
+      <div class="lbl" style="font-size:14px">Webhook 推送地址<span class="sub">${NC.has_webhook?'已配置;填写新地址保存可覆盖,清空保存即停用':'未配置 — 支持飞书群机器人 / Bark / 通用 {title,body}'}</span></div>
+      <input id="ncWebhook" class="note-input" style="margin:10px 0 6px;font-size:13px" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/… 或 https://api.day.app/你的key">
+      <button class="detail-btn" style="width:100%;padding:9px 0" onclick="saveNotifyWebhook()">保存推送地址</button>
+    </div>
+    <div class="set-row" style="border-bottom:none;padding:12px 0 2px">
+      <div class="lbl">每日推送时刻</div>
+      <input type="time" value="${esc(NC.time)}" onchange="saveNotifyCfg({time:this.value})"
+        style="padding:6px 10px;border-radius:9px;border:1px solid var(--sep);background:var(--fill);color:var(--label);font-family:inherit;font-size:13px">
+    </div>
+    <div style="padding:2px 0 12px">
+      <div class="lbl" style="font-size:14px">提前量<span class="sub">推送时汇总未来 N 天内开始的活动</span></div>
+      <div class="set-games" style="margin-top:10px">
+        ${leads.map(([v,t])=>`<span class="chip ${NC.lead_days===v?'on':''}" style="--c:var(--blue)" onclick="saveNotifyCfg({lead_days:${v}})">${t}</span>`).join('')}
+      </div>
+    </div>`;
+}
+async function saveNotifyWebhook(){
+  const w=document.getElementById('ncWebhook');
+  const v=((w&&w.value)||'').trim();
+  if(!v&&!confirm('地址留空保存 = 停用提醒推送,确定?'))return;
+  saveNotifyCfg({webhook:v});
+}
+async function saveNotifyCfg(patch){
+  try{
+    const r=await fetch('/api/notify-config',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},
+      body:JSON.stringify(patch)});
+    const d=await r.json();
+    if(!d.ok){alert('保存失败: '+(d.error||''));return}
+    loadNotifyCfgUI();
+  }catch(e){alert('保存失败: 服务端不可达')}
 }
 function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFilters()}
 function toggleCalGame(id){
