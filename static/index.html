@@ -274,6 +274,14 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
   display:flex; align-items:center; justify-content:center; transition:.15s; cursor:pointer;
 }
 .done-box svg{width:14px; height:14px; fill:transparent; transition:.15s}
+/* ---------- 活动收藏(星标) ---------- */
+.fav-box{
+  width:24px; height:24px; flex:none; display:flex; align-items:center; justify-content:center;
+  transition:.15s; cursor:pointer; border-radius:50%;
+}
+.fav-box svg{width:17px; height:17px; fill:transparent; stroke:var(--label3); stroke-width:1.6; transition:.15s}
+.fav-box.on svg{fill:var(--orange); stroke:var(--orange)}
+.fav-box:active{transform:scale(.85)}
 .done-box.on{background:var(--green); border-color:var(--green)}
 .done-box.on svg{fill:#fff}
 .row.doneev .row-title{color:var(--label3); text-decoration:line-through}
@@ -543,7 +551,8 @@ function rowHtml(e){
       ${cd&&!isDone(e)&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
     </div>
     <div class="row-side">
-      <span class="done-box${isDone(e)?' on':''}" onclick="toggleDone(event,'${e.id}')" title="标记做完"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
+      <span class="fav-box${isFav(e)?' on':''}" onclick="toggleFav(event,'${e.id}')" title="${isFav(e)?'取消收藏':'收藏置顶'}" role="button" aria-label="${isFav(e)?'取消收藏':'收藏置顶'}"><svg viewBox="0 0 24 24"><path d="M12 17.3l-6.2 3.6 1.7-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.5 4.7 1.7 7z"/></svg></span>
+      <span class="done-box${isDone(e)?' on':''}" onclick="toggleDone(event,'${e.id}')" title="标记做完" role="button" aria-label="标记做完"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
       ${cd?`<span class="cd ${cd.urgent?'urgent':''}">${cd.txt}</span>`:''}<span class="chev">›</span>
     </div>
   </div>`;
@@ -626,15 +635,18 @@ function renderList(){
   let html='';
   if(tab==='ongoing'){
     const arr=filteredEvents().filter(e=>{const s=evStart(e),t=evEnd(e);return s&&t&&s<=now&&t>=now})
-      .sort((a,b)=>evEnd(a)-evEnd(b));
+      .sort((a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0))||(evEnd(a)-evEnd(b)));  // 收藏置顶,其余按结束时间
     html=`<div class="sec-title">进行中 · ${arr.length}</div>`
       +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`:'');
   }else{
     const arr=(tab==='soon'
       ?filteredEvents().filter(e=>{const s=evStart(e);return s&&s>now}).sort((a,b)=>evStart(a)-evStart(b)).slice(0,60)
       :filteredAll().slice(0,100));
+    const favs=arr.filter(isFav), rest=arr.filter(e=>!isFav(e));
+    if(favs.length)  // 收藏分组置顶(备忘之下)
+      html+=`<div class="sec-title">★ 收藏 · ${favs.length}</div><div class="group">${favs.map(rowHtml).join('')}</div>`;
     const groups=new Map();  // 按开始日期分组
-    for(const e of arr){
+    for(const e of rest){
       const d=evStart(e)||new Date();
       const key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
       if(!groups.has(key))groups.set(key,{d,items:[]});
@@ -673,6 +685,7 @@ function showDetail(e){
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>
       <a class="detail-btn ${isDone(e)?'isdone':'done-btn'}" href="#" onclick="event.preventDefault();toggleDone(event,'${e.id}')">${isDone(e)?'✓ 已标记做完 · 点击取消':'标记这个活动做完 ✓'}</a>
+      <a class="detail-btn" href="#" style="${isFav(e)?'background:var(--orange);color:#fff':'color:var(--orange)'}" onclick="event.preventDefault();toggleFav(event,'${e.id}');favBtnState(this,'${e.id}')">${isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶'}</a>
       ${e.link?`<a class="detail-btn blue" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
       <div class="detail-src">${e.src==='manual'?'已核实 · AI Agent 搜索录入':e.src==='bilibili'?'来源 · B站官方动态':'来源 · 游戏官方接口'}</div>
     </div>
@@ -770,6 +783,27 @@ function toggleDone(ev,id){
   if(DONE[k])delete DONE[k];else DONE[k]=Date.now();
   try{localStorage.setItem('ycal_done',JSON.stringify(DONE))}catch(err){}
   renderView();
+}
+/* ================= 活动收藏(置顶标星) ================= */
+/* 键口径同打钩(game_id+title);本地持久化,过期清理后标记自然消失 */
+let FAV={};
+try{FAV=JSON.parse(localStorage.getItem('ycal_fav')||'{}')}catch(e){}
+function isFav(e){return !!FAV[doneKey(e)]}
+function toggleFav(ev,id){
+  if(ev)ev.stopPropagation();      // 不触发行点击(打开详情)
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  const k=doneKey(e);
+  if(FAV[k])delete FAV[k];else FAV[k]=Date.now();
+  try{localStorage.setItem('ycal_fav',JSON.stringify(FAV))}catch(err){}
+  renderView();
+}
+function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不重开弹窗)
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e||!btn)return;
+  btn.textContent=isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶';
+  btn.style.background=isFav(e)?'var(--orange)':'';
+  btn.style.color=isFav(e)?'#fff':'var(--orange)';
 }
 /* ================= 备忘录(置顶在活动列表最上面) ================= */
 let NOTES={items:[]}, notesReady=false;
