@@ -380,6 +380,7 @@ function applySettings(){
 let _qT=null;
 function onSearch(v){
   q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200);  // 防抖,避免每击键全量重绘
+  _allLimit=60;                                          // 新搜索从头渐进渲染
   clearTimeout(_qH);
   if(v.trim())_qH=setTimeout(()=>pushQHist(v.trim()),1200);  // 停止输入 1.2s 记为一次搜索
   else hideQHist();
@@ -566,7 +567,7 @@ function toggleAll(){
 }
 
 /* ================= 事件行 ================= */
-function setTab(t){tab=t;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderView()}
+function setTab(t){tab=t;_allLimit=60;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderView()}
 function fmtRange(e){
   const s=evStart(e),t=evEnd(e);
   if(!s)return '';
@@ -690,6 +691,7 @@ function renderCal(){
   if(ev.ends.length) h+=`<div class="sec-title">当天结束 · ${ev.ends.length}</div><div class="group">${ev.ends.map(rowHtml).join('')}</div>`;
   $('#list').innerHTML=h;
 }
+let _allLimit=60;  // 「全部资讯」渐进渲染:先 60 条,滚到底部追加(避免 250+ 行一次性渲染卡顿)
 function renderList(){
   const now=new Date();
   document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===tab));
@@ -700,9 +702,10 @@ function renderList(){
     html=`<div class="sec-title">进行中 · ${arr.length}</div>`
       +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`:'');
   }else{
+    const all=filteredAll();
     const arr=(tab==='soon'
       ?filteredEvents().filter(e=>{const s=evStart(e);return s&&s>now}).sort((a,b)=>evStart(a)-evStart(b)).slice(0,60)
-      :filteredAll().slice(0,100));
+      :all.slice(0,_allLimit));
     const favs=arr.filter(isFav), rest=arr.filter(e=>!isFav(e));
     if(favs.length)  // 收藏分组置顶(备忘之下)
       html+=`<div class="sec-title">★ 收藏 · ${favs.length}</div><div class="group">${favs.map(rowHtml).join('')}</div>`;
@@ -715,9 +718,24 @@ function renderList(){
     }
     for(const {d,items} of groups.values())
       html+=`<div class="sec-title">${dayLabel(d)} · ${items.length}</div><div class="group">${items.map(rowHtml).join('')}</div>`;
+    // 渐进加载哨兵:还有更多且当前是「全部资讯」
+    if(tab==='all'&&_allLimit<all.length)
+      html+=`<div id="listMore" class="empty" role="status" aria-label="上滑加载更多">上滑加载更多(${all.length-_allLimit} 条)…</div>`;
   }
   $('#list').innerHTML=html||'<div class="empty">暂无数据</div>';
 }
+let _loadingMore=false;
+window.addEventListener('scroll',()=>{  // 接近底部追加下一批(节流)
+  if(tab!=='all'||_loadingMore)return;
+  const more=document.getElementById('listMore');
+  if(!more)return;
+  if(more.getBoundingClientRect().top<window.innerHeight+250){
+    _loadingMore=true;
+    _allLimit+=60;
+    renderList();
+    _loadingMore=false;
+  }
+},{passive:true});
 function openEv(id){
   const e=(DATA.events||[]).find(x=>x.id===id);
   if(!e)return;
