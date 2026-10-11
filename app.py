@@ -449,9 +449,14 @@ def _url_host(url):
     解析失败返回空串(交由白名单判定拒绝)。
     """
     try:
-        return (parse_url(url).host or '').lower()
+        u = parse_url(url)
     except ValueError:
         return ''
+    # 无 scheme 的串(如 'not a url')会被 urllib3 当成 host,必须拒绝;
+    # 本代理只处理 http/https,其余口径一律空串交由白名单拒绝
+    if not u.host or (u.scheme or '').lower() not in ('http', 'https'):
+        return ''
+    return u.host.lower()
 
 
 def _img_host_allowed(host):
