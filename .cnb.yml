@@ -113,7 +113,8 @@ main:
 
               护栏：
               - 珍惜算力：每轮最多「一次返工」+「一次认领」，不重复做已完成的动作
-              - 禁止修改 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
+              - 禁止修改 data/manual.json、data/notify.json（用户 webhook 配置，已按 #19 去跟踪：
+                不得重新纳入版本控制或改动其内容）、static/img/、README_*.md、CHANGELOG.md、
                 android 签名相关文件（keystore/keystore.properties）
               - 前端改动若涉及 sw.js 缓存策略，记得递增 CACHE 版本号（项目惯例）
 
@@ -135,7 +136,8 @@ main:
               tests/_verify_dir.py tests/test_timeparse.py tests/test_dual_side.py \
               tests/test_manual_parity.py tests/test_parity.py tests/test_bili_norm.py \
               tests/test_ics_fold.py tests/test_notify_tz.py tests/test_manual_end.py \
-              tests/test_img_proxy.py tests/test_day_diff.py tests/test_uid_stable.py tests/test_todo_id.py
+              tests/test_img_proxy.py tests/test_day_diff.py tests/test_uid_stable.py tests/test_todo_id.py \
+              tests/test_notify_ignore.py
             python3 tests/_verify_dir.py
             python3 tests/test_timeparse.py
             python3 tests/test_dual_side.py
@@ -149,6 +151,7 @@ main:
             python3 tests/test_day_diff.py
             python3 tests/test_uid_stable.py
             python3 tests/test_todo_id.py
+            python3 tests/test_notify_ignore.py
             node tests/test_sanitize_html.js
     - name: 审查员·自动审查 PR
       runner:
@@ -166,7 +169,8 @@ main:
               项目关键约束：
               - 双端同构：static/scraper.js 与 Python 端（timeparse.py / scrapers.py）的
                 词表与阈值必须保持一致，漂移会导致「PC 能看到的活动，App 看不到」
-              - 数据文件 data/manual.json 与配图 static/img/ 由本地任务维护，PR 不应改动
+              - 数据文件 data/manual.json、用户配置 data/notify.json 与配图 static/img/ 由本地任务维护，
+                PR 不应改动
               - Service Worker（static/sw.js）改动必须递增 CACHE 版本号
               - 前端注入风险：内联 onclick 拼接变量需转义
               审查要动手验证：用 python / node 实际跑边界用例（例如数值区间 1.5-2.2、日期区间
@@ -218,6 +222,6 @@ main:
               3. 输出汇总：合并了哪些 PR、退回了哪些、各自原因
               护栏：
               - 只合并「审查结论明确为通过」的 PR；结论缺失或存疑一律不合并
-              - 禁止合并改动过 data/manual.json、static/img/、README_*.md、CHANGELOG.md、
-                android 签名相关文件（keystore/keystore.properties）的 PR
+              - 禁止合并改动过 data/manual.json、data/notify.json（#19 的一次性「git rm --cached」
+                除外）、static/img/、README_*.md、CHANGELOG.md、android 签名相关文件的 PR
               - 不修改任何代码，只做「合并 + 评论」
