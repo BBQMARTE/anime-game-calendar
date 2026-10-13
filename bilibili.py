@@ -32,6 +32,19 @@ _HOT = re.compile(r'抽奖|活动|福利|预约|直播|前瞻|征稿|征集|联�
 _TAG = re.compile(r'#[^#\r\n]+#')
 
 
+# 接口重试耗尽的统一文案:两端(本文件与 static/scraper.js)必须逐字一致,
+# 否则同一 mock 场景下 PC/App 的 status.error 会分叉
+NO_RESPONSE = '接口无响应(疑似风控 -352 或网络异常)'
+
+
+class BiliUnavailable(Exception):
+    """B站接口重试耗尽(风控 -352 / 网络异常)。
+
+    以前 _get 静默返回 None,与「接口正常但该官号当天无动态」无法区分,
+    于是接口全挂时 status 仍是 ok:true/count:0(绿色徽标),故障不可见(Issue #24)。
+    """
+
+
 class _Client:
     def __init__(self):
         self.s = requests.Session()
@@ -47,7 +60,7 @@ class _Client:
             except Exception:  # noqa: BLE001
                 pass
             time.sleep(0.4)
-        return None
+        raise BiliUnavailable(NO_RESPONSE)
 
     def opus_feed(self, uid, n=6):
         """图文动态(稳定,但无时间戳)"""
@@ -101,13 +114,34 @@ def _title_of(clean):
     return _u16cut(title, 38) + ('…' if _u16len(title) > 38 else '')
 
 
+def _status_error(failed):
+    """接口失败时的 error 文案。
+
+    只依赖「失败的官号名单」与固定词条,不含异常原文 —— 否则同一 mock 场景下
+    Python 与 JS 的 status.error 会因异常类名/消息不同而分叉(Issue #24 验收 4)。
+    与 static/scraper.js::biliStatusError 逐字一致。
+    """
+    if not failed:
+        return ''
+    if len(failed) == len(GAME_UIDS):
+        return f'{len(failed)} 个官号全部{NO_RESPONSE}'
+    return f'{len(failed)}/{len(GAME_UIDS)} 个官号{NO_RESPONSE}: ' + '、'.join(failed)
+
+
 def fetch_all(per_game=6):
     """抓取各官号最新动态。返回 (events, status)"""
     cli = _Client()
-    events, errs = [], []
+    events, failed = [], []
     for gid, gname, uid in GAME_UIDS:
         try:
-            tmap = cli.time_map(uid)
+            # 时间戳映射只是锦上添花(该接口更不稳定):失败退化为「无发布时间」,
+            # 不计入该官号「无响应」—— 数据源本身是 opus 接口
+            try:
+                tmap = cli.time_map(uid)
+            except Exception:  # noqa: BLE001
+                tmap = {}
+            # opus 接口失败(重试耗尽)会抛 BiliUnavailable:该官号计为失败,
+            # 不得静默当成「今天没发动态」
             for it in cli.opus_feed(uid, per_game)[:per_game]:
                 text = (it.get('content') or '').strip()
                 if not text:
@@ -142,11 +176,15 @@ def fetch_all(per_game=6):
                     'image': img, 'src': 'bilibili',
                     'kind': 'info',  # B站动态一律不上月历,仅进资讯列表
                 })
+        except BiliUnavailable:
+            failed.append(gname)
         except Exception as e:  # noqa: BLE001
-            errs.append(f'{gname}: {str(e)[:60]}')
+            failed.append(f'{gname}: {str(e)[:60]}')
         time.sleep(0.3)
-    status = {'name': 'B站动态', 'ok': not errs, 'count': len(events),
-              'error': '; '.join(errs)[:150] if errs else ''}
+    # 口径:7 个官号都要有响应,任一账号无响应即 ok=False(徽标转红 + error 列出账号),
+    # 正常的「当天无动态」(合法 JSON 且 items 为空)不产生 failed,仍为 ok=True
+    status = {'name': 'B站动态', 'ok': not failed, 'count': len(events),
+              'error': _status_error(failed)}
     return events, status
 
 

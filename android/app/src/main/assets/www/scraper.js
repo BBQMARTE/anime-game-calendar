@@ -768,6 +768,10 @@ const Scraper = (() => {
   const BILI_HOT = /抽奖|活动|福利|预约|直播|前瞻|征稿|征集|联动|测试|签到|开启|版本|维护|更新/;
   const BILI_TAG = /#[^#\r\n]+#/g;
 
+  // 接口重试耗尽的统一文案:与 bilibili.py::NO_RESPONSE 逐字一致
+  const BILI_NO_RESPONSE = '接口无响应(疑似风控 -352 或网络异常)';
+  // 重试耗尽即抛出(以前静默 return null,与「接口正常但该官号当天无动态」无法区分,
+  // 于是接口全挂时 status 仍是 ok:true/count:0,徽标绿色,故障不可见 —— Issue #24)
   async function biliJson(url) {
     for (let i = 0; i < 2; i++) {
       try {
@@ -779,7 +783,14 @@ const Scraper = (() => {
       } catch (e) { }
       await new Promise(r => setTimeout(r, 400));
     }
-    return null;
+    throw new Error(BILI_NO_RESPONSE);
+  }
+  // 失败时的 error 文案:只依赖「失败的官号名单」+ 固定词条,不含异常原文,
+  // 保证与 bilibili.py::_status_error 在同一 mock 场景下逐字一致(Issue #24 验收 4)
+  function biliStatusError(failed) {
+    if (!failed.length) return '';
+    if (failed.length === BILI_UIDS.length) return `${failed.length} 个官号全部${BILI_NO_RESPONSE}`;
+    return `${failed.length}/${BILI_UIDS.length} 个官号${BILI_NO_RESPONSE}: ` + failed.join('、');
   }
   // 按码点截断:与 Python bilibili._u16cut 同口径,不切开代理对(非 BMP 字符记 2 码元)
   function u16cut(s, n) {
@@ -799,17 +810,21 @@ const Scraper = (() => {
     return t.length > 38 ? u16cut(t, 38) + '…' : t;
   }
   async function bilibiliAll(perGame) {
-    const events = [], errs = [];
+    const events = [], failed = [];
     for (const [gid, gname, uid] of BILI_UIDS) {
       try {
         // 完整动态流(带时间戳,可能失败,尽力而为)
         const tmap = new Map();
-        const fd = await biliJson(`https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=${uid}`);
-        for (const it of (((fd || {}).data || {}).items || [])) {
-          const ts = (((it.modules || {}).module_author) || {}).pub_ts;
-          if (it.id_str && ts) tmap.set(it.id_str, +ts);
-        }
-        // 图文动态(稳定)
+        // 时间戳映射只是锦上添花(该接口更不稳定):失败退化为「无发布时间」,
+        // 不计入该官号「无响应」—— 数据源本身是 opus 接口
+        try {
+          const fd = await biliJson(`https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=${uid}`);
+          for (const it of (((fd || {}).data || {}).items || [])) {
+            const ts = (((it.modules || {}).module_author) || {}).pub_ts;
+            if (it.id_str && ts) tmap.set(it.id_str, +ts);
+          }
+        } catch (e) { }
+        // 图文动态(稳定;重试耗尽会抛 BILI_NO_RESPONSE,该官号计为失败)
         const d = await biliJson(`https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/feed/space?host_mid=${uid}&page_num=0&page_size=${Math.max(perGame, 6)}`);
         const items = (((d || {}).data || {}).items || []).slice(0, perGame);
         for (const it of items) {
@@ -833,11 +848,14 @@ const Scraper = (() => {
           events.push(e);
         }
       } catch (e) {
-        errs.push(`${gname}: ${String(e).slice(0, 60)}`);
+        const msg = (e && e.message) ? e.message : String(e);
+        failed.push(msg === BILI_NO_RESPONSE ? gname : `${gname}: ${String(msg).slice(0, 60)}`);
       }
       await new Promise(r => setTimeout(r, 300));
     }
-    return { events, status: { name: 'B站动态', ok: !errs.length, count: events.length, error: errs.join('; ').slice(0, 150) } };
+    // 口径:7 个官号都要有响应,任一账号无响应即 ok=false(徽标转红 + error 列出账号),
+    // 正常的「当天无动态」(合法 JSON 且 items 为空)不产生 failed,仍为 ok=true
+    return { events, status: { name: 'B站动态', ok: !failed.length, count: events.length, error: biliStatusError(failed) } };
   }
 
   /* ---------- 手动事件(安卓端从 localStorage 读) ---------- */
