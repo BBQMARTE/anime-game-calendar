@@ -201,6 +201,26 @@ try:
     check('sl916 https → http 直出仍可用', r.status_code, 200)
     check('sl916 实际请求为 http', _fake.calls, ['http://gamecms-res.sl916.com/x.png'])
 
+    # ---- 9b. sl916 的 http 直链不得被切片改坏（Issue #23）----
+    check('_img_normalize_url https → http',
+          app._img_normalize_url('https://res.sl916.com/a.png'), 'http://res.sl916.com/a.png')
+    check('_img_normalize_url http 原样返回',
+          app._img_normalize_url('http://res.sl916.com/a.png'), 'http://res.sl916.com/a.png')
+    check('_img_normalize_url http 多级路径原样返回',
+          app._img_normalize_url('http://gamecms-res.sl916.com/a/b.png'),
+          'http://gamecms-res.sl916.com/a/b.png')
+    check('_img_normalize_url 保留查询串',
+          app._img_normalize_url('https://gamecms-res.sl916.com/a.png?x=1'),
+          'http://gamecms-res.sl916.com/a.png?x=1')
+    check('_img_normalize_url 非 sl916 域名不变',
+          app._img_normalize_url('https://i0.hdslb.com/x.png'), 'https://i0.hdslb.com/x.png')
+
+    for u in ('http://res.sl916.com/a.png', 'http://gamecms-res.sl916.com/a/b.png'):
+        set_fake({u: FakeResp(200, {'Content-Type': 'image/png'}, PNG)})
+        r = get_img(u)
+        check('sl916 http 直链 → 200 %s' % u, r.status_code, 200)
+        check('sl916 http 直链请求 URL 与输入一致', _fake.calls, [u])
+
     # ---- 10. 现有真实配图形态不被误伤（白名单域 + 本地路径）----
     set_fake({})
     for u in ('http://i0.hdslb.com/bfs/new_dyn/x.jpg',

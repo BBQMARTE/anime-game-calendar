@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib3.util import parse_url
 
 import bilibili
@@ -568,6 +568,22 @@ def _img_host_blocked(host):
     return not _img_host_allowed(host) or _is_private_host(host) or _resolves_to_private(host)
 
 
+def _img_normalize_url(url):
+    """图床地址归一:重返未来1999图床的 https 被 EdgeOne JS 挑战拦(requests 过不了),改写为 http 直出。
+
+    只换 scheme,host/路径/查询串原样保留;非 https 的 sl916 地址直接返回,
+    避免按固定长度切片把 `http://` 开头的地址切坏成他人域名。
+    """
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or '').lower()
+    except ValueError:
+        return url
+    if parts.scheme == 'https' and host.endswith('.sl916.com'):
+        return urlunsplit(parts._replace(scheme='http'))
+    return url
+
+
 def _fetch_image(url, headers, max_redirects=IMG_MAX_REDIRECTS, max_bytes=IMG_MAX_BYTES):
     """取图:手动跟随跳转并逐跳校验 host,响应流式读取并限制体积。
 
@@ -621,9 +637,7 @@ def api_img():
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     if 'hdslb' in host or 'biliimg' in host:
         headers['Referer'] = 'https://www.bilibili.com/'  # B站图床防盗链
-    if host.endswith('.sl916.com'):
-        # 重返未来1999图床:https 被 EdgeOne JS 挑战拦(requests 过不了),http 端口直出
-        url = 'http://' + url[len('https://'):]
+    url = _img_normalize_url(url)
     try:
         status, ctype, content = _fetch_image(url, headers)
     except _ImgTooLarge as e:
