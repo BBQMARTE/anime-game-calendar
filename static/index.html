@@ -420,7 +420,7 @@ document.addEventListener('keydown',e=>{  // Esc 收起
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
-function evStart(e){return e.start?new Date(e.start):(e.date?new Date(e.date):null)}
+function evStart(e){if(e.start)return new Date(e.start);if(e._nodate)return null;return e.date?new Date(e.date):null}
 function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59,59):null}
 function gameColor(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.color:'#007AFF'}
 function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.name:id}
@@ -574,7 +574,7 @@ function toggleAll(){
 function setTab(t){tab=t;_allLimit=60;document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===t));saveFilters();renderView()}
 function fmtRange(e){
   const s=evStart(e),t=evEnd(e);
-  if(!s)return '';
+  if(!s)return e._nodate?'时间待定':'';
   const f=d=>`${d.getMonth()+1}月${d.getDate()}日${(d.getHours()||d.getMinutes())?' '+pad(d.getHours())+':'+pad(d.getMinutes()):''}`;
   if(e.start&&e.end)return f(s)+' ~ '+f(t);
   if(e.start&&!e.end)return f(s)+' 起';

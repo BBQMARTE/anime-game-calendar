@@ -106,17 +106,20 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
     """kind: 'event'=真活动/卡池(上月历,用短标题)  'info'=公告/资讯(仅进资讯列表)
     ext: 可选 {'ann_id','api','params'},前端点击时用它拉取公告正文弹窗展示"""
     title, category = normalize_title_cat(title, category)
+    nodate = False
     if kind == 'event':
         title = _short(title, category)
-        # 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub 兜底
+        # 补 2 天默认窗口:只按解析到的 start 补。
+        # 不得用 pub(公告发布时间)兜底填 start —— 那会把「没有日期的条目」伪造成 2 天活动窗口,
+        # 并让 _validate_event 的规则 5(无起止时间需更强活动特征)永远进不去(Issue #25)。
+        # 无 start 时保持 None 并打 _nodate 标记:前端显示「时间待定」、ICS 不产出 VEVENT。
         # (走 with_two_day_default:起点在 9999 年时它不抛 OverflowError,与 scraper.js 同口径)
-        s = start or pub
-        if s is not None:
-            if end is None or end < s:
-                _s2, end = with_two_day_default(s, None)
+        if start is not None:
+            if end is None or end < start:
+                _s2, end = with_two_day_default(start, None)
                 start = _s2
-            if start is None:
-                start = s  # pub 兜底时也填 start
+        else:
+            nodate = True
     ev = {
         # 稳定 ID:基于内容哈希,跨进程重启不变(内建 hash() 受 PYTHONHASHSEED 随机化影响)
         'id': f'{game_id}-{hashlib.md5(f"{title}|{start or pub}".encode("utf-8")).hexdigest()[:8]}',
@@ -129,6 +132,8 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
         'link': link, 'image': img,
         'kind': kind,
     }
+    if nodate:
+        ev['_nodate'] = True   # 未解析到任何开始时间:前端「时间待定」、ICS 跳过
     if ext and ext.get('ann_id'):
         ev['ann_id'] = ext['ann_id']
         ev['_content_api'] = ext.get('api', '')
