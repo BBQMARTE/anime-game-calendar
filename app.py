@@ -478,8 +478,9 @@ def api_ics():
     for e in events:
         if (e.get('kind') or 'event') != 'event':
             continue
-        s_iso = e.get('start') or e.get('date')
-        if not s_iso:
+        # 无解析到开始时间的条目不得拿 pub(date) 当 DTSTART 伪造事件(Issue #25)
+        s_iso = e.get('start')
+        if not s_iso or e.get('_nodate'):
             continue
         ds = _ics_utc(s_iso)
         # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
@@ -729,6 +730,9 @@ def _daily_notify(now=None):
     starting = []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
+            continue
+        # 未解析到开始时间的条目不得拿 pub(date) 当「今天开始」推送(Issue #25)
+        if e.get('_nodate'):
             continue
         s = str(e.get('start') or e.get('date') or '')
         if s[:10] in days:

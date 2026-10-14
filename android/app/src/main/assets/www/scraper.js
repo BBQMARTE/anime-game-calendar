@@ -207,14 +207,18 @@ const Scraper = (() => {
     title = (title || '').replace(/\s+/g, ' ').trim();
     // 每日签到/累计登录类活动单列「签到」分类(与 scrapers.py 一致)
     if (category === '活动' && CHECKIN_RE.test(title)) category = '签到';
+    let nodate = false;
     if ((kind || 'event') === 'event') {
       title = shortTitle(title, category);  // 月历条目用短标题
-      // 补 2 天默认窗口:有 start 按 start 补;无 start 用 pub(发布日期)兜底
-      const s = start || pub;
-      if (s) {
+      // 补 2 天默认窗口:只按解析到的 start 补。
+      // 不得用 pub(发布日期)兜底填 start —— 会把「没有日期的条目」伪造成 2 天活动窗口,
+      // 并让 validateEvent 的规则 5 永远进不去(Issue #25,与 scrapers.py::_ev 同口径)。
+      // 无 start 时打 _nodate:前端显示「时间待定」、ICS 不产出 VEVENT。
+      if (start) {
         const pe = end ? end.getTime() : 0;
-        if (!end || pe < s.getTime()) [start, end] = withTwoDayDefault(s, null);
-        if (!start) start = s;  // pub 兜底时也填 start
+        if (!end || pe < start.getTime()) [start, end] = withTwoDayDefault(start, null);
+      } else {
+        nodate = true;
       }
     }
     const o = {
@@ -226,6 +230,7 @@ const Scraper = (() => {
       link: link || '', image: img || '',
       kind: kind || 'event',  // event=真活动/卡池(上月历)  info=公告/资讯
     };
+    if (nodate) o._nodate = true;   // 未解析到任何开始时间:前端「时间待定」、ICS 跳过
     // 米哈游事件:附带 ann_id 以便点击时用内容 API 打开详情
     if (ext && ext.ann_id) { o.ann_id = ext.ann_id; o._content_api = ext.api; o._content_params = ext.params; }
     return o;
