@@ -135,10 +135,12 @@ const take = (name) => {
   throw new Error('unbalanced: ' + name);
 };
 const esc = new Function('s', take('esc'));
-const noteHtml = new Function('NOTES', 'notesReady', 'esc', take('noteHtml'));
+// noteHtml 正文引用了 memoTpl/tagText 等模块级函数，这里以 stub 形参补上
+// (payload 非 weekly 条目，tagText 不会被实际调用)
+const noteHtml = new Function('NOTES', 'notesReady', 'esc', 'memoTpl', 'tagText', take('noteHtml'));
 const payload = "x');document.title='pwned';//";
 const NOTES = { items: [{ id: payload, title: '<img src=x onerror=alert(1)>', done: false }] };
-console.log(JSON.stringify({ html: noteHtml(NOTES, true, esc) }));
+console.log(JSON.stringify({ html: noteHtml(NOTES, true, esc, () => [], () => '#fff') }));
 """
     p = subprocess.run(['node', '-e', node_src, 'node',
                         os.path.join(ROOT, 'static', 'index.html')],

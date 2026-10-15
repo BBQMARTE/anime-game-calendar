@@ -892,6 +892,43 @@ const Scraper = (() => {
   const VALID_DURATION = { minH: 2, maxH: 90 * 24 };  // 合理活动时长:2小时~90天(放行同日直播/限时闪购)
   const NON_EVENT_TITLE = /说明$|指南$|攻略$|规则$|介绍$|一览$|公示$|回顾$/;  // 说明书类标题
   const EVENT_FEATURE_RE = /活动(?![说指解规一]).{0,12}(?:开启|开放|上线|开始)|「[^」]+」|限时|版本活动|新版|全新/;  // 真活动常有的特征:活动名+时间动词
+  // 公告正文碎片:版本说明文拆条会从正文误抽奖励清单/叙述句(与 Python scrapers.is_fragment_title 同口径)
+  const FRAGMENT_RE = /[*×]|累计登录\s*\d|经由|倾力|打造|策划|本回合固定|一条废弃/;
+  function isFragmentTitle(t) {
+    const s = (t || '').trim();
+    if (!s) return true;
+    if (FRAGMENT_RE.test(s)) return true;
+    // 无「」引用 + 含句读的较长文本 → 正文句子(真活动名不会这样)
+    if (s.indexOf('「') < 0 && s.length > 12 && /[，。！；、]/.test(s)) return true;
+    return false;
+  }
+
+  // 标题归一化:去括号补充、标点、空白,用于跨源同活动判定(与 Python app._norm_title 同口径)
+  function normTitle(t) {
+    return String(t || '').replace(/[(（][^)）]*[)）]/g, '')
+      .replace(/[·•\s「」【】\[\]:：\-—_/、,，]/g, '').toLowerCase();
+  }
+  // 跨源同活动去重:人工核查条目优先。爬虫从版本说明文拆出的简称(如「影拓丰碑」)
+  // 与人工录入的完整标题(「影拓丰碑·深林呓语(新系列)」)不相等,躲过精确去重,
+  // 导致同一活动在列表出现两遍:一遍有图(manual)、一遍无图(爬虫)。
+  function dedupAgainstManual(events) {
+    const manned = {};
+    for (const e of events) {
+      if (e.src === 'manual') (manned[e.game_id] = manned[e.game_id] || []).push(normTitle(e.title));
+    }
+    if (!Object.keys(manned).length) return events;
+    const kept = []; let dropped = 0;
+    for (const e of events) {
+      if (e.src === 'manual') { kept.push(e); continue; }
+      const nt = normTitle(e.title);
+      const hit = nt.length >= 2 && (manned[e.game_id] || []).some(
+        mt => mt.length >= 2 && (nt.indexOf(mt) >= 0 || mt.indexOf(nt) >= 0));
+      if (hit) { dropped++; continue; }
+      kept.push(e);
+    }
+    if (dropped) console.log(`[dedup] ${dropped} 条爬虫条目与人工录入是同一活动,已丢弃(保留有图的 manual 版)`);
+    return kept;
+  }
 
   function validateEvent(e) {
     // 0) kind='info' 本身就不上月历,无需校验
@@ -907,6 +944,10 @@ const Scraper = (() => {
     // 1.5) 标题以「活动时间:」「开放时间:」等正文串味开头→非活动
     if (/^(活动时间|开放时间|开启时间)[:：]/.test(title))
       return { valid: false, reason: '标题是正文时间串(活动时间:/开放时间:开头)' };
+
+    // 1.6) 公告正文碎片(奖励清单/叙述句/正文截断)→非活动
+    if (isFragmentTitle(title))
+      return { valid: false, reason: '标题是公告正文碎片(非活动名)' };
 
     // 2) 标题过于简短(<2字)且非卡池词→非活动
     if (name.length < 2 && !/祈愿|跃迁|寻访|唤取|调频/.test(title))
@@ -976,9 +1017,11 @@ const Scraper = (() => {
       const old = seen.get(key);
       if (!old || (e.src === 'manual' && old.src !== 'manual') || (!old.start && e.start)) seen.set(key, e);
     }
+    // 跨源同活动去重:人工核查条目优先(爬虫拆条会产出无图简称副本,躲过上面的精确去重)
+    const merged = dedupAgainstManual([...seen.values()]);
     // 后置校验:对每个 event 做质量检查,不通过→降级为 info(不进月历)
     let dropped = 0;
-    for (const e of seen.values()) {
+    for (const e of merged) {
       if (e.kind === 'event') {
         const r = validateEvent(e);
         if (!r.valid) {
@@ -990,7 +1033,7 @@ const Scraper = (() => {
     }
     if (dropped > 0) console.log(`[validateEvent] ${dropped} 个条目降级(非真活动)`);
 
-    const list = [...seen.values()].sort((a, b) => (b.start || b.date || '').localeCompare(a.start || a.date || ''));
+    const list = merged.sort((a, b) => (b.start || b.date || '').localeCompare(a.start || a.date || ''));
     const now = new Date();
     return { events: list, sources, games: GAMES, updated: iso(now) };
   }

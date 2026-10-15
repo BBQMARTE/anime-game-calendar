@@ -146,6 +146,27 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
 _VALID_DURATION_H = (2, 90 * 24)  # 合理活动时长:2小时 ~ 90天(放行同日直播/限时闪购类短活动)
 _NON_EVENT_TITLE = re.compile(r'说明$|指南$|攻略$|规则$|介绍$|一览$|公示$|回顾$')
 _EVENT_FEATURE_RE = re.compile(r'活动(?![说指解规一]).{0,12}(?:开启|开放|上线|开始)|「[^」]+」|限时|版本活动|新版|全新')
+# 公告正文碎片特征:版本说明文拆条时会从正文误抽出奖励清单/叙述句,这些不是活动名
+_FRAGMENT_RE = re.compile(r'[*×]|累计登录\s*\d|经由|倾力|打造|策划|本回合固定|一条废弃')
+
+
+def is_fragment_title(t):
+    """标题是否为公告正文碎片(非活动名)。
+
+    实例:「【累计登录1天】:浮金波纹*5、特级调谐器*10」(奖励清单)、
+    「本回合固定计入10笑点」「星际和平盛典:一镜到底 星际和平娱乐倾力打造的大」(叙述句)、
+    「爱，幽灵与机器人 一条废弃机铠管线经由幽灵斯科特」(正文截断)。
+    真活动名通常是「」引用的短名,不会带句读长句。
+    """
+    t = (t or '').strip()
+    if not t:
+        return True
+    if _FRAGMENT_RE.search(t):
+        return True
+    # 无「」引用 + 含句读的长文本 → 正文句子(真活动名不会这样)
+    if '「' not in t and len(t) > 12 and re.search(r'[，。！；、]', t):
+        return True
+    return False
 
 
 def _validate_event(e):
@@ -162,6 +183,10 @@ def _validate_event(e):
     # 1.5) 标题以「活动时间:」「开放时间:」等正文串味开头→非活动
     if re.match(r'^(活动时间|开放时间|开启时间)[:：]', title):
         return False, '标题是正文时间串(活动时间:/开放时间:开头)'
+
+    # 1.6) 公告正文碎片(奖励清单/叙述句/正文截断)→非活动
+    if is_fragment_title(title):
+        return False, '标题是公告正文碎片(非活动名)'
 
     # 2) 标题过短，且非卡池词→非活动
     if len(name) < 2 and not re.search(r'祈愿|跃迁|寻访|唤取|调频', title):

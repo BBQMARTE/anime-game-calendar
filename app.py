@@ -53,6 +53,44 @@ def _drop_expired(events):
     return kept
 
 
+def _norm_title(t):
+    """标题归一化:去括号补充、标点、空白,用于跨源同活动判定"""
+    t = re.sub(r'[(（][^)）]*[)）]', '', str(t or ''))
+    return re.sub(r'[·•\s「」【】\[\]:：\-—_/、,，]', '', t).lower()
+
+
+def _dedup_against_manual(events):
+    """人工核查条目优先:爬虫条目与之同游戏且标题互相包含时,丢弃爬虫版。
+
+    版本说明文拆条会产出活动简称(如「影拓丰碑」),与人工录入的完整标题
+    (「影拓丰碑·深林呓语（新系列）」)不相等,躲过原有的精确去重,导致同一活动
+    在列表里出现两遍——一遍有图(manual)、一遍无图(爬虫),观感极差。
+    """
+    manned = {}
+    for e in events:
+        if e.get('src') == 'manual':
+            manned.setdefault(e.get('game_id'), []).append(_norm_title(e.get('title')))
+    if not manned:
+        return events
+    kept, dropped = [], 0
+    for e in events:
+        if e.get('src') == 'manual':
+            kept.append(e)
+            continue
+        nt = _norm_title(e.get('title'))
+        hit = len(nt) >= 2 and any(
+            len(mt) >= 2 and (nt in mt or mt in nt)
+            for mt in manned.get(e.get('game_id'), [])
+        )
+        if hit:
+            dropped += 1
+            continue
+        kept.append(e)
+    if dropped:
+        print(f'[去重] {dropped} 条爬虫条目与人工录入是同一活动,已丢弃(保留有图的 manual 版)')
+    return kept
+
+
 def _load_cache():
     if os.path.exists(CACHE_FILE):
         try:
@@ -62,7 +100,8 @@ def _load_cache():
             valid = {g['id'] for g in scrapers.GAMES_META}
             evs = [e for e in data.get('events', [])
                    if e.get('game_id') in valid or e.get('src') == 'manual']
-            _state['events'] = _drop_expired(evs)   # 缓存可能落后于现实(隔天启动),过期活动不放行
+            evs = _drop_expired(evs)                # 缓存可能落后于现实(隔天启动),过期活动不放行
+            _state['events'] = _dedup_against_manual(evs)   # 旧缓存可能存着跨源重复条目,载入时清掉
             _state['sources'] = {k: v for k, v in (data.get('sources') or {}).items()
                                  if k in valid or k == 'bilibili'}
             _state['updated'] = data.get('updated')
@@ -173,6 +212,8 @@ def do_refresh():
         events = list(seen.values())
         # 过滤已结束的真活动(info/公告类保留,历史资讯仍有参考价值)
         events = _drop_expired(events)
+        # 跨源同活动去重:人工核查条目优先(爬虫拆条会产出无图简称副本)
+        events = _dedup_against_manual(events)
         # 合并全部来源(抓取/手动)后统一校验,与 App 端 scraper.js::fetchAll 的时机一致
         scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)

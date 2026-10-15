@@ -22,12 +22,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANUAL = os.path.join(ROOT, 'data', 'manual.json')
 
 # JS 侧按 scraper.js::manualEvents 同样的映射构造（手动条目统一读入后再校验）
+# 注意：manual.json 内容经 stdin 传入，不能当 argv —— Windows CreateProcess 命令行
+# 长度上限会把大 JSON 参数顶爆，报 WinError 206「文件名或扩展名太长」。
 NODE_LOADER = r"""
 const fs = require('fs');
 let src = fs.readFileSync(process.argv[2], 'utf8');
 const S = new Function(src + '\nreturn Scraper;')();
-global.localStorage = { getItem: (k) => (k === 'ycal_manual' ? process.argv[3] : null) };
-const arr = JSON.parse(process.argv[3]);
+const text = fs.readFileSync(0, 'utf8');
+global.localStorage = { getItem: (k) => (k === 'ycal_manual' ? text : null) };
+const arr = JSON.parse(text);
 const evs = S.manualEvents();
 let dropped = 0;
 // 与 fetchAll 的赋值语义一致：只有 kind==='event' 且校验不通过才降级
@@ -64,9 +67,14 @@ def py_manual_events(arr=None):
 
 def js_manual_events(arr=None):
     text = open(MANUAL, encoding='utf-8').read() if arr is None else json.dumps(arr, ensure_ascii=False)
-    p = subprocess.run(['node', '-e', NODE_LOADER, 'node',
-                        os.path.join(ROOT, 'static', 'scraper.js'), text],
-                       capture_output=True, text=True)
+    fd, loader = tempfile.mkstemp(suffix='.js')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(NODE_LOADER)
+        p = subprocess.run(['node', loader, os.path.join(ROOT, 'static', 'scraper.js')],
+                           input=text, capture_output=True, text=True, encoding='utf-8')
+    finally:
+        os.unlink(loader)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.strip() or 'node 退出码 %d' % p.returncode)
     data = json.loads(p.stdout.strip().splitlines()[-1])
@@ -115,10 +123,16 @@ def main():
     # 条目 ID 自 #17 起由内容派生，按 title 取 ID，避免与下标绑定
     kinds = app_side_kinds()
     ids_by_title = {e['title']: e['id'] for e in app._manual_events()}
-    for title in ('「维尔乌姆假日相册」网页活动',
-                  '衣着上新「当宇宙潮涌」（远旅·不夜乌托邦系列）',
-                  '衣着上新「释命运以弦音」（贝丽尔·不夜乌托邦系列）',
-                  '衣着上新「虹色冠冕」（狩勋女巫红弩箭·二十一又一系列）'):
+    # 只校验当前数据里仍存在的网页活动条目：过期条目会被第 4 步清理，硬编码标题会自然失效
+    check_titles = [t for t in ('「维尔乌姆假日相册」网页活动',
+                                '衣着上新「当宇宙潮涌」（远旅·不夜乌托邦系列）',
+                                '衣着上新「释命运以弦音」（贝丽尔·不夜乌托邦系列）',
+                                '衣着上新「虹色冠冕」（狩勋女巫红弩箭·二十一又一系列）')
+                    if t in ids_by_title]
+    if not check_titles:
+        bad += 1
+        print('MISMATCH 网页活动样本已全部过期，需更新测试样本')
+    for title in check_titles:
         got = kinds.get(ids_by_title.get(title, ''))
         if got != ('info', '商城/网页活动不排期'):
             bad += 1

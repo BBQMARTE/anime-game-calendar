@@ -117,7 +117,7 @@ const inp = JSON.parse(process.argv[3]);
 const ref = new Date(2026, 7, 3, 12, 0, 0);   // 本地时区，与 Python naive datetime 对齐
 const p = (n) => String(n).padStart(2, '0');
 const _day = (s) => { const [y, mo, d] = s.split('-').map(Number); const dt = new Date(0); dt.setFullYear(y, mo - 1, d); dt.setHours(0, 0, 0, 0); return dt; };
-const fmt = (d) => d ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+const fmt = (d) => d ? `${String(d.getFullYear()).padStart(4, '0')}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
   + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` : null;
 const out = {
   ranges: inp.ranges.map((t) => { const [s, e] = S.extractRange(t, ref); return [fmt(s), fmt(e)]; }),
