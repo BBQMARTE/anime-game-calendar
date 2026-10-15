@@ -835,13 +835,17 @@ def _lan_ip():
 def main():
     port = 5000
     url = f'http://127.0.0.1:{port}'
+    # 是否启动后自动弹浏览器:默认关闭。后台/自动化方式启动服务时绝不该抢走用户的屏幕
+    # (曾因此盖住用户正在看的游戏剧情)。仅当启动器显式设置 YCAL_OPEN=1 时才自动打开页面。
+    auto_open = os.environ.get('YCAL_OPEN') == '1'
     if _port_in_use(port):
         # 已有实例在运行:不重复启动(避免新旧进程共存数据错乱),直接打开页面
         print('=' * 50)
         print(f'  服务已在运行中,无需重复启动: {url}')
         print('  如需使用最新代码,请先关闭旧的服务窗口再启动')
         print('=' * 50)
-        webbrowser.open(url)
+        if auto_open:
+            webbrowser.open(url)
         return
     _load_cache()
     _ensure_notify_file()
@@ -858,7 +862,8 @@ def main():
     print(f'  活动提醒: 配置 data/notify.json 的 webhook(默认 {(_notify_config().get("time") or "08:30")})')
     print('  每 30 分钟自动抓取一次,关闭本窗口即停止服务')
     print('=' * 50)
-    threading.Timer(1.2, lambda: webbrowser.open(url)).start()
+    if auto_open:
+        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     # 绑定 0.0.0.0:局域网内设备(平板/手机)可直接访问
     app.run(host='0.0.0.0', port=port, debug=False)
 
