@@ -421,7 +421,7 @@ document.addEventListener('keydown',e=>{  // Esc 收起
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
 function evStart(e){if(e.start)return new Date(e.start);if(e._nodate)return null;return e.date?new Date(e.date):null}
-function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate(),23,59,59):null}
+function evEnd(e){if(e.end)return new Date(e.end);const s=evStart(e);return s?new Date(s.getFullYear(),s.getMonth(),s.getDate()+2,s.getHours(),s.getMinutes(),s.getSeconds()):null}
 function gameColor(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.color:'#007AFF'}
 function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.name:id}
 /* 游戏短名(缺图占位用):优先映射表,未知游戏取全名前两字 */

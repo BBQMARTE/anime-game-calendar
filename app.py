@@ -140,7 +140,7 @@ def _manual_events():
 
     无结束时间的条目在此**不补** end:补出来的合成值会进入 validate_events 的时长校验,
     起点晚于 22:00 的条目必然被判「时长过短」降级。默认窗口只由消费点负责
-    (api_ics() 与前端 evEnd() 同一口径:起点当天 23:59:59)。
+    (api_ics() 与前端 evEnd() 同一口径:起点 + 2 天,与抓取条目一致,见 Issue #34)。
     """
     path = os.path.join(DATA_DIR, 'manual.json')
     if not os.path.exists(path):
@@ -479,16 +479,23 @@ def _ics_fold(line, limit=75):
 
 
 def _default_end(start_iso):
-    """无结束时间时的默认窗口:起点当天 23:59:59(仅消费点兜底)。
+    """无结束时间时的默认窗口:起点 + 2 天(仅消费点兜底)。
 
+    与抓取条目同一口径(_ev → timeparse.with_two_day_default 也是补 2 天):
+    缺结束时间的活动在「抓取 / 手动」两条道、PC 与 App 两端都补 2 天,
+    不再出现以前「抓取补 2 天、手动补当天末」的分叉(Issue #34)。
     前端 evEnd() 与 ICS DTEND 统一用这个口径。不在 _manual_events() 里补:
-    合成 end 会进 validate_events 的时长校验,起点晚于 22:00 的条目会被降级。
+    合成 end 会进 validate_events 的时长校验,起点晚于 22:00 的条目会被降级(Issue #13)。
+    起点落在 datetime.max 附近时补窗会越界,此时放弃结束时间(返回 None),与两端同口径。
     """
     try:
         s = datetime.fromisoformat(str(start_iso))
     except (ValueError, TypeError):
         return None
-    return s.replace(hour=23, minute=59, second=59).isoformat(timespec='seconds')
+    try:
+        return (s + timedelta(days=2)).isoformat(timespec='seconds')
+    except OverflowError:
+        return None
 
 
 def _ics_utc(iso, day_end=False):
@@ -525,7 +532,10 @@ def api_ics():
             continue
         ds = _ics_utc(s_iso)
         # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
-        de = _ics_utc(e.get('end') or _default_end(s_iso), day_end=True)
+        # 显式 end 无时分时取当天 23:59(既有口径);补出的默认窗口已是「起点 + 2 天」,
+        # 再按当天末调整会多出一天,故不传 day_end。
+        end_iso = e.get('end')
+        de = _ics_utc(end_iso, day_end=True) if end_iso else _ics_utc(_default_end(s_iso))
         if not ds or not de:
             continue
         lines += ['BEGIN:VEVENT',

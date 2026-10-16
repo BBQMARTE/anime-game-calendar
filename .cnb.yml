@@ -138,7 +138,7 @@ main:
               tests/test_ics_fold.py tests/test_notify_tz.py tests/test_manual_end.py \
               tests/test_img_proxy.py tests/test_day_diff.py tests/test_uid_stable.py tests/test_todo_id.py \
               tests/test_notify_ignore.py tests/test_mihoyo_ann.py tests/test_bili_status.py \
-              tests/test_ev_nodate.py tests/test_iso_seconds.py
+              tests/test_ev_nodate.py tests/test_iso_seconds.py tests/test_default_window.py
             python3 tests/_verify_dir.py
             python3 tests/test_timeparse.py
             python3 tests/test_dual_side.py
@@ -157,6 +157,7 @@ main:
             python3 tests/test_mihoyo_ann.py
             python3 tests/test_bili_status.py
             python3 tests/test_ev_nodate.py
+            python3 tests/test_default_window.py
             node tests/test_sanitize_html.js
     - name: 审查员·自动审查 PR
       runner:
