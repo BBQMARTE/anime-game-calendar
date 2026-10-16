@@ -267,9 +267,11 @@ Agent 每天自动:确保服务在线 → 联网搜索核实新活动 → 识别
 
 - **活动名**:支持 `「」『』【】[]（）〈〉` 多括号,以及 `■/◆/✦` 标题行;泛称(如「版本活动」)会被过滤
 
-- **缺结束时间**:识别到开始时间但拿不到结束时间的活动,默认补到该天的 **23:59:59**(前端列表与 ICS 订阅同一口径),保证日历有可见时长;抓取条目仍走 `_ev()` 的 2 天窗口,两处口径的合并见 Issue #34
+- **缺结束时间**:识别到开始时间但拿不到结束时间的活动,统一补 **2 天窗口**(起点 + 2 天),保证日历有可见时长
 
-  - 起点在 9999 年(补窗会越界)时两端都放弃结束时间、不抛异常:`timeparse.with_two_day_default` 兜 `OverflowError`,`scraper.js` 的 `withTwoDayDefault` 兜 `getFullYear() > 9999`
+  - 单一口径,四条道一致:抓取条目 `scrapers._ev()` → `timeparse.with_two_day_default`、手动条目 ICS 端 `app._default_end()`、前端列表 `evEnd()`(PC / App 同源码);不再有「抓取补 2 天、手动补当天末」的分叉(Issue #34)
+
+  - 起点在 9999 年(补窗会越界)时都放弃结束时间、不抛异常:`timeparse.with_two_day_default` / `app._default_end()` 兜 `OverflowError`,`scraper.js` 的 `withTwoDayDefault` 兜 `getFullYear() > 9999`
 
 <a id="manual-add"></a>
 

@@ -3,8 +3,10 @@
 
 data/manual.json 的条目不走 scrapers._ev()，此前 end 为空时三个消费方各解释一次：
 README 说补 2 天、前端按当天 23:59、ICS 输出零时长（DTEND==DTSTART，违反 RFC5545）。
-统一口径为「起点当天 23:59:59」，但只在**消费点**兜底（api_ics() 与前端 evEnd()）——
-在读取入口补合成 end 会进 validate_events 的时长校验，深夜条目被判「时长过短」降级。
+Issue #13 先把零时长修掉，Issue #34 再把口径收敛为**单一口径：起点 + 2 天**
+（与抓取条目 scrapers._ev() → timeparse.with_two_day_default 一致）。
+默认窗口只在**消费点**兜底（api_ics() 与前端 evEnd()）——在读取入口补合成 end
+会进 validate_events 的时长校验，深夜条目被判「时长过短」降级（Issue #13）。
 
 运行：python3 tests/test_manual_end.py
       （需要 flask；缺依赖则 SKIP 并退出码 0；前端断言需要 node，缺 node 则 SKIP 该组）
@@ -18,6 +20,8 @@ import sys
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import timeparse
 
 try:
     import app
@@ -45,11 +49,16 @@ def no_end_count():
                and e.get('start') and not e.get('end'))
 
 
-# ---- 1. _default_end 口径：起点当天 23:59:59 ----
-check('带时分起点补到当天 23:59:59',
-      app._default_end('2026-09-25T12:00'), '2026-09-25T23:59:59')
-check('纯日期起点补到当天 23:59:59',
-      app._default_end('2026-09-25'), '2026-09-25T23:59:59')
+# ---- 1. _default_end 口径：起点 + 2 天（与抓取条目同口径，Issue #34） ----
+check('带时分起点补 2 天',
+      app._default_end('2026-09-25T12:00'), '2026-09-27T12:00:00')
+check('纯日期起点补 2 天',
+      app._default_end('2026-09-25'), '2026-09-27T00:00:00')
+check('与 timeparse.with_two_day_default 同值',
+      app._default_end('2026-09-25T12:00'),
+      timeparse.with_two_day_default(datetime(2026, 9, 25, 12, 0), None)[1].isoformat(timespec='seconds'))
+check('起点在 9999 年补窗越界 → 放弃结束时间、不抛异常',
+      app._default_end('9999-12-30T00:00'), None)
 check('非法起点返回 None', app._default_end(''), None)
 check('None 起点返回 None', app._default_end(None), None)
 
@@ -114,7 +123,7 @@ else:
         bad += 1
     else:
         js = json.loads(p.stdout.strip().splitlines()[-1])
-        check('前端 evEnd 无 end → 当天 23:59:59',
+        check('前端 evEnd 无 end → 起点 + 2 天（与 ICS 同口径）',
               js['end'], app._default_end('2026-09-25T12:00'))
 
 print('ALL PASS' if bad == 0 else 'SOME FAILED')
