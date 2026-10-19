@@ -131,12 +131,9 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
-def _fmt(d):
-    return d.strftime('%Y-%m-%dT%H:%M:%S') if d else None
-
-
 def _iso(d):
-    """与 scraper.js iso() 同口径：年份补 4 位（datetime.isoformat 天然如此）"""
+    """与 scraper.js fmt() 同口径：年份补 4 位（strftime('%Y') 对 <1000 年不补零，
+    会让 0026 年用例 Python 出 '26-…'、JS 出 '0026-…' 而假失败）"""
     return d.isoformat(timespec='seconds') if d else None
 
 
@@ -144,8 +141,8 @@ def py_side(inp):
     out = {'ranges': [], 'events': [], 'names': [], 'valids': [], 'dates': [], 'windows': []}
     for t in inp['ranges']:
         s, e = tp.extract_range(t, REF)
-        out['ranges'].append([_fmt(s), _fmt(e)])
-        out['events'].append([[n, _fmt(s), _fmt(e)] for n, s, e in tp.extract_events(t, REF)])
+        out['ranges'].append([_iso(s), _iso(e)])
+        out['events'].append([[n, _iso(s), _iso(e)] for n, s, e in tp.extract_events(t, REF)])
     out['names'] = [tp.is_noise_name(n) for n in inp['names']]
     for e in inp['valids']:
         try:
