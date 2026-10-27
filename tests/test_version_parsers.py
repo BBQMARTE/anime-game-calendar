@@ -51,6 +51,17 @@ AN_EDGE = '''一、版本更新公告
 活动时间：12月30日 12:00 ~ 1月5日 12:00
 '''
 
+# 过期守卫：公告于 2024-09-25 发布、活动在 2024-10 结束；运行时钟钉在 2026-09 时应被丢弃
+EF_EXPIRED_TEXT = '''■ 全新活动
+「往期活动」
+· 活动时间：2024/09/26 12:00 - 2024/10/10 03:59
+'''
+
+
+def pub_of():
+    return datetime(2024, 9, 25, 12, 0)
+
+
 NODE_LOADER = r"""
 const fs = require('fs');
 let src = fs.readFileSync(process.argv[2], 'utf8');
@@ -63,10 +74,17 @@ const fmt = d => d ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())
   + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` : null;
 const inp = JSON.parse(process.argv[3]);
 const ref = new Date(inp.ref[0], inp.ref[1] - 1, inp.ref[2], inp.ref[3], inp.ref[4]);
+// 进程时钟钉在 inp.now：过期过滤取运行时钟，不钉死的话 fixture 的绝对日期一过期就红（Issue #57）
+const RealDate = Date;
+global.Date = class extends RealDate {
+  constructor(...a) { super(...(a.length ? a : [inp.now[0], inp.now[1] - 1, inp.now[2], inp.now[3], inp.now[4]])); }
+  static now() { return new RealDate(inp.now[0], inp.now[1] - 1, inp.now[2], inp.now[3], inp.now[4]).getTime(); }
+};
 const conv = (r) => r.map(([n, c, s, e]) => [n, c, fmt(s), fmt(e)]);
 process.stdout.write(JSON.stringify({
   ef: conv(S.efExtractVersion(inp.ef, ref)),
   efStrict: conv(S.efExtractVersion(inp.efStrict, ref)),
+  efExpired: conv(S.efExtractVersion(inp.efExpired, new Date(inp.ref[0], inp.ref[1] - 1, inp.ref[2], inp.ref[3], inp.ref[4]))),
   ananta: conv(S.anantaExtractVersion(inp.ananta, ref)),
   anEdge: conv(S.anantaExtractVersion(inp.anEdge, ref)),
 }));
@@ -89,8 +107,8 @@ def py_side():
 
 
 def js_side(script):
-    inp = {'ref': [2026, 9, 20, 12, 0], 'ef': EF_TEXT, 'efStrict': EF_STRICT_TEXT,
-           'ananta': AN_TEXT, 'anEdge': AN_EDGE}
+    inp = {'ref': [2026, 9, 20, 12, 0], 'now': [2026, 9, 21, 12, 0], 'ef': EF_TEXT, 'efStrict': EF_STRICT_TEXT,
+           'ananta': AN_TEXT, 'anEdge': AN_EDGE, 'efExpired': EF_EXPIRED_TEXT}
     p = subprocess.run(['node', '-e', NODE_LOADER, 'node', script, json.dumps(inp, ensure_ascii=False)],
                        capture_output=True, text=True)
     if p.returncode != 0:
@@ -105,7 +123,25 @@ def main():
         print('SKIP: 未找到 node，跳过双端一致性测试')
         return 0
     bad = 0
-    mine = py_side()
+    # 过期过滤取运行时钟，fixture 的绝对日期会随时间过期（Issue #57）：
+    # 这里把进程时钟钉在 2026-09-21（公告发布后 1 天），用例不再依赖真实日期；JS 侧传同一个 now。
+    frozen = datetime(2026, 9, 21, 12, 0)
+    real_datetime = scrapers.datetime
+
+    class _FrozenDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen
+
+    scrapers.datetime = _FrozenDateTime
+    try:
+        mine = py_side()
+        # 反向守卫：已结束的活动（对照 pub 取窗口）仍必须被运行时钟过滤掉，
+        # 否则「过期过滤失效」会静默放回往期活动，且 App 端无兜底。
+        mine['efExpired'] = [[n, c, _fmt(s), _fmt(e)]
+                             for n, c, s, e in scrapers._ef_extract_version(EF_EXPIRED_TEXT, pub_of())]
+    finally:
+        scrapers.datetime = real_datetime
     # 对照：严格写法下双端都必须解析出同一条完整区间（防止「两端一起挂」被当成一致）
     expect_ef_strict = [['雪淞幽梦', '活动', '2026-10-06T12:00:00', '2026-10-20T03:59:00']]
     if mine['efStrict'] != expect_ef_strict:
@@ -115,6 +151,9 @@ def main():
     if mine['ananta'] != expect_an:
         bad += 1
         print('FAIL 异环「月日写法」解析异常 py = %s' % mine['ananta'])
+    if mine['efExpired'] != []:
+        bad += 1
+        print('FAIL 已结束活动未被运行时钟过滤 py = %s' % mine['efExpired'])
     expect_edge = [['活动乙', '活动', '2026-12-30T12:00:00', '2027-01-05T12:00:00']]
     if mine['anEdge'] != expect_edge:
         bad += 1
@@ -124,14 +163,14 @@ def main():
         if theirs is None:
             bad += 1
             continue
-        for key in ('ef', 'efStrict', 'ananta', 'anEdge'):
+        for key in ('ef', 'efStrict', 'ananta', 'anEdge', 'efExpired'):
             if theirs[key] != mine[key]:
                 bad += 1
                 print('MISMATCH %s %s\n  py = %s\n  js = %s'
                       % (key, os.path.basename(script), mine[key], theirs[key]))
-    print('用例 ef %d / efStrict %d / ananta %d / anEdge %d，mismatch %d'
+    print('用例 ef %d / efStrict %d / ananta %d / anEdge %d / efExpired %d，mismatch %d'
           % (len(mine['ef']), len(mine['efStrict']), len(mine['ananta']),
-             len(mine['anEdge']), bad))
+             len(mine['anEdge']), len(mine['efExpired']), bad))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')
     return 1 if bad else 0
 

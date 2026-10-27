@@ -467,7 +467,7 @@ def _ef_extract_version(text, pub):
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     out = []
     section = last_name = ''
-    now = datetime.now()
+    now = datetime.now()  # 过期过滤口径取运行时钟(与 JS 端 efExtractVersion 的 new Date() 一致);pub 只用于推算年份
     i = 0
     while i < len(lines):
         l = lines[i]
@@ -690,7 +690,7 @@ def _ananta_extract_version(text, pub):
             out.append(d)
         return out
 
-    now = datetime.now()
+    now = datetime.now()  # 同上:过期过滤口径取运行时钟,pub 只用于推算年份
     out = []
     seen = set()
     for tm in _AN_TIME_KW.finditer(text):

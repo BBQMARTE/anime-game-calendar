@@ -444,7 +444,7 @@ const Scraper = (() => {
     const dates = seg => {
       const out = []; let m; EF_T_RE.lastIndex = 0;
       while ((m = EF_T_RE.exec(seg))) {
-        const d = mkDate(m[1], m[2], m[3], m[4], m[5], pub);  // 不存在的日期直接丢弃(同 Python datetime)
+        const d = mkDate(m[1], m[2], m[3], m[4], m[5]);  // 不存在的日期直接丢弃(同 Python datetime);年份已定长给出,勿传 pub
         if (d) out.push(d);
       }
       return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
@@ -452,7 +452,7 @@ const Scraper = (() => {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const out = [];
     let section = '', lastName = '';
-    const now = new Date();
+    const now = new Date();  // 过期过滤口径同 anantaExtractVersion:取运行时钟(pub 只用于推算年份)
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       if (l.startsWith('■') || l.startsWith('▼')) { section = l; continue; }
@@ -580,7 +580,7 @@ const Scraper = (() => {
       }
       return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
     };
-    const now = new Date(), out = [], seen = new Set();
+    const now = new Date(), out = [], seen = new Set();  // 过期过滤口径同 efExtractVersion:取运行时钟(pub 只用于推算年份)
     let tm; AN_TIME_KW.lastIndex = 0;
     while ((tm = AN_TIME_KW.exec(text))) {
       const seg = tm[2];
