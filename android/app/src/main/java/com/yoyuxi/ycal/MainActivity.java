@@ -54,10 +54,9 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri u = request.getUrl();
-                String host = u.getHost();
-                String own = Uri.parse(prefs().getString("server", "")).getHost();
-                // 站外链接交给系统浏览器,App 页面保留,返回键直接回日历
-                if (host != null && own != null && !host.equals(own)) {
+                // 空白名单:只有与当前页面同源(scheme+host+端口)才在 WebView 内加载,其余一律外抛
+                // 爬虫模式(未配置服务器)时页面是 file://,除 file: 内置页面外全部外抛
+                if (!isSameOrigin(u, view.getUrl())) {
                     openExternal(u.toString());
                     return true;
                 }
@@ -84,6 +83,36 @@ public class MainActivity extends Activity {
             String server = prefs().getString("server", "");
             web.loadUrl(server.isEmpty() ? SETTINGS_URL : server);
         }
+    }
+
+    /** 与当前页面同源判定:scheme 与 host 必须相同,端口按默认端口(80/443)归一后比较 */
+    private static boolean isSameOrigin(Uri u, String current) {
+        if (u == null || current == null) return false;
+        String scheme = u.getScheme();
+        if (scheme == null) return false;
+        Uri cur;
+        try {
+            cur = Uri.parse(current);
+        } catch (Exception e) {
+            return false;
+        }
+        String curScheme = cur.getScheme();
+        if ("file".equalsIgnoreCase(scheme) || "file".equalsIgnoreCase(curScheme)) {
+            // 内置页面:同 scheme 且在 assets/www 内即视为同源
+            return "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(curScheme);
+        }
+        String host = u.getHost();
+        if (host == null || !scheme.equalsIgnoreCase(curScheme)) return false;
+        String curHost = cur.getHost();
+        if (curHost == null || !host.equalsIgnoreCase(curHost)) return false;
+        return port(u) == port(cur);
+    }
+
+    /** 端口归一:未写端口时 http=80 / https=443,便于与显式写了同一端口的链接比较 */
+    private static int port(Uri u) {
+        int p = u.getPort();
+        if (p != -1) return p;
+        return "https".equalsIgnoreCase(u.getScheme()) ? 443 : 80;
     }
 
     private SharedPreferences prefs() {
