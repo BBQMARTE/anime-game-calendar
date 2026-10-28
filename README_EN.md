@@ -104,7 +104,7 @@ Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for acces
 |---|---|
 | **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar |
 | **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
-| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest of events starting today & tomorrow is pushed |
+| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest at `time` covers events starting within the next `lead_days+1` days (`lead_days` ∈ 0 / 1 / 3, default 1 = today & tomorrow) |
 | **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |
 
 Example `data/notify.json`:
@@ -112,9 +112,12 @@ Example `data/notify.json`:
 ```json
 {
   "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
-  "time": "08:30"
+  "time": "08:30",
+  "lead_days": 1
 }
 ```
+
+`lead_days` is the reminder lead time: 0 = same day, 1 = today & tomorrow (default), 3 = next 4 days; any other value falls back to 1.
 
 - **Feishu/Lark**: group settings → bots → add a "Custom Bot", paste its webhook URL
 - **Bark** (iOS app): use `https://api.day.app/<your-key>`

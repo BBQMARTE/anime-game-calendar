@@ -72,6 +72,11 @@ if os.path.exists(EXAMPLE):
     check('示例含 time 字段', bool(cfg.get('time')), True)
     check('示例文件被跟踪', git('ls-files', 'data/notify.example.json').stdout.strip(),
           'data/notify.example.json')
+    # 5. 示例模板与运行时口径一致（Issue #67：模板漏 lead_days 会让用户配置静默回落）
+    sys.path.insert(0, ROOT)
+    import app
+    check('示例 lead_days 在合法取值域', cfg.get('lead_days', 1) in app._LEAD_CHOICES, True)
+    check('示例字段无多余项', set(cfg) - {'webhook', 'time', 'lead_days', '_说明'}, set())
 
 print('\nALL PASS' if bad == 0 else '\n%d FAILED' % bad)
 sys.exit(0 if bad == 0 else 1)

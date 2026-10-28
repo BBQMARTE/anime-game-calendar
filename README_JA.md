@@ -105,7 +105,7 @@ Android 8.0(API 26)以上に対応。
 |---|---|
 | **ICS カレンダー購読** | 端末の純正カレンダー / Google カレンダーで `http://<サーバー>:5000/api/calendar.ics` を購読 — 本物のイベントがすべて純正カレンダーに入ります |
 | **PWA インストール** | タブレット/スマホのブラウザで「ホーム画面に追加」→ フルスクリーン App アイコン、オフラインでも閲覧可 |
-| **イベント開始リマインダー** | `data/notify.json` に webhook(Feishu グループボット / Bark)を設定すると、今日・明日開始のイベントを毎日定時にまとめてプッシュ |
+| **イベント開始リマインダー** | `data/notify.json` に webhook(Feishu グループボット / Bark)を設定すると、`time` の時刻に今後 `lead_days+1` 日以内に開始するイベントをまとめてプッシュ(`lead_days` は 0 / 1 / 3、既定 1 = 今日・明日) |
 | **外出先からアクセス** | PC とタブレットの両方に [Tailscale](https://tailscale.com) を入れて同じアカウントでログインすれば、どこからでも `http://100.x.x.x:5000` で自宅サーバーにアクセス可 |
 
 `data/notify.json` の設定例:
@@ -113,9 +113,12 @@ Android 8.0(API 26)以上に対応。
 ```json
 {
   "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
-  "time": "08:30"
+  "time": "08:30",
+  "lead_days": 1
 }
 ```
+
+`lead_days` はリマインダーの先行日数です:0 = 当日、1 = 今日・明日(既定)、3 = 今後 4 日。それ以外の値は 1 として扱われます。
 
 - **Feishu**: グループ設定 → ボット → 「カスタムボット」を追加し、webhook URL を貼る
 - **Bark**(iOS アプリ): `https://api.day.app/自分のキー` を指定
