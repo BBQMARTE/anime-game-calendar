@@ -909,29 +909,55 @@ function render(){renderMeta();applySettings();mountNotes();renderView()}
 let DONE={};
 try{DONE=JSON.parse(localStorage.getItem('ycal_done')||'{}')}catch(e){}
 function doneKey(e){return (e.game_id||'')+'|'+(e.title||'')}
-function isDone(e){return !!DONE[doneKey(e)]}
+function isDone(e){return (DONE[doneKey(e)]||0)>0}   // 0=已取消(墓碑),用于跨设备同步撤销
 function toggleDone(ev,id){
   ev.stopPropagation();            // 不触发行点击(打开详情)
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
   if(!e)return;
   const k=doneKey(e);
-  if(DONE[k])delete DONE[k];else DONE[k]=Date.now();
+  DONE[k]=isDone(e)?-Date.now():Date.now();  // 取消写负时间戳:绝对值为操作时间,跨设备可正确合并
   try{localStorage.setItem('ycal_done',JSON.stringify(DONE))}catch(err){}
+  saveUserState({done:{[k]:DONE[k]}});
   renderView();
 }
 /* ================= 活动收藏(置顶标星) ================= */
 /* 键口径同打钩(game_id+title);本地持久化,过期清理后标记自然消失 */
 let FAV={};
 try{FAV=JSON.parse(localStorage.getItem('ycal_fav')||'{}')}catch(e){}
-function isFav(e){return !!FAV[doneKey(e)]}
+function isFav(e){return (FAV[doneKey(e)]||0)>0}
 function toggleFav(ev,id){
   if(ev)ev.stopPropagation();      // 不触发行点击(打开详情)
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
   if(!e)return;
   const k=doneKey(e);
-  if(FAV[k])delete FAV[k];else FAV[k]=Date.now();
+  FAV[k]=isFav(e)?-Date.now():Date.now();
   try{localStorage.setItem('ycal_fav',JSON.stringify(FAV))}catch(err){}
+  saveUserState({fav:{[k]:FAV[k]}});
   renderView();
+}
+/* ── 跨设备同步:服务端 /api/userstate 按「时间戳绝对值」合并(负值=已取消);离线模式自动降级为本地 ── */
+function mergeTS(a,b){
+  const o=Object.assign({},a||{});
+  for(const k in (b||{})){
+    const v=+b[k];
+    if(!isNaN(v)&&v!==0&&(k in o? Math.abs(v)>Math.abs(o[k]) : true))o[k]=v;
+  }
+  return o;
+}
+function saveUserState(patch){
+  try{
+    fetch('/api/userstate',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},
+      body:JSON.stringify(patch)});
+  }catch(e){}
+}
+function loadUserState(){
+  return fetch('/api/userstate').then(r=>r.json()).then(d=>{
+    if(!d||typeof d!=='object')return;
+    DONE=mergeTS(DONE,d.done);FAV=mergeTS(FAV,d.fav);
+    try{localStorage.setItem('ycal_done',JSON.stringify(DONE));
+        localStorage.setItem('ycal_fav',JSON.stringify(FAV))}catch(e){}
+  }).catch(()=>{});   // 离线/APK 直连模式:保持本地状态即可
 }
 function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不重开弹窗)
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
@@ -1144,12 +1170,33 @@ function openSettings(){
         <div class="lbl">数据统计<span class="sub">各游戏活动密度 / 分类分布 / 时间跨度</span></div>
         <span class="chev">›</span>
       </div>
+      <div class="set-row" style="cursor:pointer" onclick="copyIcsUrl()" role="button" aria-label="复制日历订阅链接">
+        <div class="lbl">日历订阅链接<span class="sub">只含当前显示的游戏,可粘到系统日历 / Google 日历订阅</span></div>
+        <span class="chev">›</span>
+      </div>
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(o);
   attachSwipeClose(o);
   loadNotifyCfgUI();
+}
+/* ── 日历订阅链接:按「显示的游戏」拼 ?games=,只订阅自己玩的 ── */
+function icsUrl(){
+  const ids=[...calGamesSet()];
+  const all=(DATA&&DATA.games||[]).map(g=>g.id);
+  const qs=(ids.length&&ids.length<all.length)?('?games='+ids.join(',')):'';
+  const origin=location.origin.indexOf('http')===0?location.origin:'http://127.0.0.1:5000';
+  return origin+'/api/calendar.ics'+qs;
+}
+function copyIcsUrl(){
+  const u=icsUrl();
+  const fallback=()=>alert('日历订阅链接(复制后粘到系统日历/Google 日历):\n\n'+u);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(u)
+      .then(()=>alert('已复制日历订阅链接:\n\n'+u))
+      .catch(fallback);
+  }else fallback();
 }
 /* ── 数据统计弹窗(纯前端计算 DATA.events,零依赖 CSS 条形图) ── */
 function openStats(){
@@ -1266,6 +1313,7 @@ function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历+
 
 load();
 loadNotes().then(mountNotes);   // 备忘录数据加载后置顶渲染
+loadUserState().then(()=>{try{renderView()}catch(e){}});  // 打钩/收藏从服务端同步(离线模式自动跳过)
 if(!IS_ANDROID){
   setInterval(async()=>{try{const r=await fetch('/api/events');const d=await r.json();
     if(d.updated!==(DATA&&DATA.updated)){DATA=d;render();}}catch(e){}},60000);

@@ -400,6 +400,83 @@ def api_todo():
     return jsonify({'ok': ok, 'count': len(clean)})
 
 
+# ================= 打钩/收藏多设备同步 =================
+USERSTATE_FILE = os.path.join(DATA_DIR, 'userstate.json')
+_userstate_lock = threading.Lock()
+_USERSTATE_MAX = 600          # 每个集合的键上限(超出按时间戳保留最新的)
+_TS_MAX = 10 ** 13            # 合法毫秒时间戳上限,防异常数据
+
+
+def _load_userstate():
+    """读取已保存的打钩/收藏状态。
+
+    值是「有符号毫秒时间戳」:正数=已标记(值为操作时间),负数=已取消(绝对值为取消时间)。
+    用符号表示撤销、用绝对值比新旧,这样多设备并发时也能正确合并(plain 0 无法比大小)。
+    """
+    out = {'done': {}, 'fav': {}}
+    try:
+        with open(USERSTATE_FILE, 'r', encoding='utf-8-sig') as f:
+            d = json.load(f)
+    except Exception:  # noqa: BLE001
+        return out
+    for kind in ('done', 'fav'):
+        v = d.get(kind) if isinstance(d, dict) else None
+        if not isinstance(v, dict):
+            continue
+        for key, ts in v.items():
+            if isinstance(ts, (int, float)) and 0 < abs(int(ts)) <= _TS_MAX:
+                out[kind][str(key)[:120]] = int(ts)
+    return out
+
+
+def _merge_userstate(cur, inc):
+    """按键合并:绝对值较大(更晚)的一方胜出,符号决定状态 → last-writer-wins"""
+    for kind in ('done', 'fav'):
+        src = inc.get(kind)
+        if not isinstance(src, dict):
+            continue
+        dst = cur.setdefault(kind, {})
+        for key, ts in src.items():
+            if not isinstance(ts, (int, float)):
+                continue
+            ts = int(ts)
+            if ts == 0 or abs(ts) > _TS_MAX:
+                continue
+            key = str(key)[:120]
+            if abs(ts) > abs(dst.get(key, 0)):
+                dst[key] = ts
+        if len(dst) > _USERSTATE_MAX:
+            for k in sorted(dst, key=lambda x: abs(dst[x]))[:len(dst) - _USERSTATE_MAX]:
+                dst.pop(k, None)
+    return cur
+
+
+@app.route('/api/userstate', methods=['GET', 'POST'])
+def api_userstate():
+    """打钩/收藏状态跨设备同步:GET 读取全量,POST 增量合并(键=game_id|title)"""
+    if request.method == 'GET':
+        with _userstate_lock:
+            return jsonify(_load_userstate())
+    # 与 /api/refresh、/api/todo 同样的简单 CSRF 防护
+    if request.headers.get('X-Requested-With') != 'ycal':
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({'ok': False, 'error': 'bad body'}), 400
+    with _userstate_lock:
+        cur = _merge_userstate(_load_userstate(), body)
+        try:
+            with open(USERSTATE_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'done': cur['done'], 'fav': cur['fav'],
+                           'updated': datetime.now().isoformat(timespec='seconds')},
+                          f, ensure_ascii=False, indent=1)
+            ok = True
+        except Exception as e:  # noqa: BLE001
+            print(f'[状态] 保存失败: {e}')
+            ok = False
+    return jsonify({'ok': ok, 'done': cur['done'], 'fav': cur['fav']})
+
+
 # ================= 提醒配置(notify.json 的 API 化) =================
 def _save_notify_cfg(cfg):
     with open(NOTIFY_FILE, 'w', encoding='utf-8') as f:
@@ -522,8 +599,12 @@ def api_ics():
              'X-WR-TIMEZONE:Asia/Shanghai']
     with _lock:
         events = list(_state['events'])
+    # ?games=hsr,zzz:只订阅自己玩的游戏(逗号分隔;未知 id 自然筛不出事件,无需白名单)
+    games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
     n = 0
     for e in events:
+        if games and e.get('game_id') not in games:
+            continue
         if (e.get('kind') or 'event') != 'event':
             continue
         # 无解析到开始时间的条目不得拿 pub(date) 当 DTSTART 伪造事件(Issue #25)
@@ -767,7 +848,7 @@ def _lead_days(cfg):
 
 
 def _daily_notify(now=None):
-    """未来 lead_days+1 天内开始的活动汇总推送(now 可注入,便于测试)"""
+    """未来 lead_days+1 天内开始的活动 + 今天/明天结束的活动汇总推送(now 可注入,便于测试)"""
     cfg = _notify_config()
     if not (cfg.get('webhook') or '').strip():
         return
@@ -778,7 +859,10 @@ def _daily_notify(now=None):
     days = {}
     for i in range(lead + 1):
         days[(now + timedelta(days=i)).strftime('%Y-%m-%d')] = i
-    starting = []
+    today = now.strftime('%Y-%m-%d')
+    tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+    naive_now = now.replace(tzinfo=None)   # 条目时间是北京时间裸值,比较前去掉时区
+    starting, ending = [], []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
             continue
@@ -788,17 +872,39 @@ def _daily_notify(now=None):
         s = str(e.get('start') or e.get('date') or '')
         if s[:10] in days:
             starting.append((s, e))
+        # 结束提醒:今天/明天结束且尚未结束(限时活动最后一天最容易漏)
+        ed = str(e.get('end') or '')
+        if ed[:10] in (today, tomorrow):
+            try:
+                if datetime.fromisoformat(ed) <= naive_now:
+                    continue
+            except ValueError:
+                pass
+            ending.append((ed, e))
     span = {0: '今天', 1: '今明两天'}.get(lead) or f'未来 {lead + 1} 天'
-    if not starting:
+    if not starting and not ending:
         _send_notify('二游活动日历', f'{span}没有新活动开始。')
         return
+    parts = []
+    if starting:
+        parts.append(f'{span} {len(starting)} 个活动开始')
+    if ending:
+        parts.append(f'{len(ending)} 个活动即将结束')
     lines = []
     for s, e in sorted(starting, key=lambda x: x[0]):
         i = days[s[:10]]
         when = _DAY_LABELS.get(i) or f'{i}天后'
         tm = s[11:16] if len(s) >= 16 else ''
         lines.append(f'· {when}{tm and " " + tm} 【{e.get("game") or ""}】{e.get("title", "")}')
-    _send_notify(f'二游活动提醒:{span} {len(starting)} 个活动开始', '\n'.join(lines))
+    if ending:
+        if lines:
+            lines.append('')
+        lines.append('⏰ 即将结束(别漏了):')
+        for ed, e in sorted(ending, key=lambda x: x[0]):
+            when = '今天' if ed[:10] == today else '明天'
+            tm = ed[11:16] if len(ed) >= 16 else ''
+            lines.append(f'· {when}{tm and " " + tm} 截止 【{e.get("game") or ""}】{e.get("title", "")}')
+    _send_notify('二游活动提醒:' + ' / '.join(parts), '\n'.join(lines))
 
 
 def _notify_due(now, cfg_time):

@@ -8,6 +8,8 @@ __pycache__/
 # 运行时数据与测试输出
 data/cache.json
 data/todo.json
+# 个人打钩/收藏状态(每台设备不同,不入库),接口见 /api/userstate
+data/userstate.json
 # 用户配置(含 webhook 凭据):首次启动由 app.py::_ensure_notify_file() 自动生成,
 # 示例见 data/notify.example.json;不跟踪,避免 webhook 被 git add 带进仓库
 data/notify.json
