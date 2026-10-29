@@ -189,15 +189,6 @@
     "image": "/static/img/endfield/endfield_dianhui_yishubaojun.jpg"
   },
   {
-    "game_id": "hsr",
-    "title": "虚构叙事·立界开篇",
-    "category": "活动",
-    "start": "2026-09-14T04:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://www.taptap.cn/moment/841375445998898274",
-    "image": "/static/img/hsr/xugou_lijie_kaipian_45.jpg"
-  },
-  {
     "game_id": "zzz",
     "title": "「她与她的隐秘往事」3.2版本前瞻特别节目（直播）",
     "category": "活动",
@@ -214,42 +205,6 @@
     "end": "",
     "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
     "image": "/static/img/zzz/fengmian_32neirongyilan_shangqi.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "洛克茜 角色调频（3.2下半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T12:00",
-    "end": "2026-10-20T14:59",
-    "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
-    "image": "/static/img/zzz/diaopin_dierqi_luokexi.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "普罗米娅 复刻调频（3.2下半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T12:00",
-    "end": "2026-10-20T14:59",
-    "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
-    "image": "/static/img/zzz/diaopin_dierqi_puoluomiya.jpg"
-  },
-  {
-    "game_id": "endfield",
-    "title": "理智补给（第二期）",
-    "category": "活动",
-    "start": "2026-10-08T04:00",
-    "end": "2026-10-15T04:00",
-    "link": "https://endfield.hypergryph.com/news/2653",
-    "image": "/static/img/endfield/endfield_lizhi_buji.jpg"
-  },
-  {
-    "game_id": "endfield",
-    "title": "丰碑留名·刻影（限时挑战）",
-    "category": "活动",
-    "start": "2026-10-05T12:00",
-    "end": "2026-10-19T04:00",
-    "link": "https://endfield.hypergryph.com/news/2653",
-    "image": "/static/img/endfield/endfield_yingtuo.jpg"
   },
   {
     "game_id": "r1999",
@@ -277,42 +232,6 @@
     "end": "",
     "link": "https://www.taptap.cn/moment/845326566899584400",
     "image": "/static/img/r1999/qianzhan_2026xiangzhong.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "「全新放送」签到活动",
-    "category": "签到",
-    "start": "2026-09-09T11:00",
-    "end": "2026-10-20T03:59",
-    "link": "https://zenless.hoyoverse.com/zh-cn/news/165917",
-    "image": "/static/img/zzz/qiandao_quanxin_fangsong2.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "「『弹球勇者』哐哐当！」主题活动",
-    "category": "活动",
-    "start": "2026-09-10T10:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://zenless.hoyoverse.com/m/en-us/news/165998",
-    "image": "/static/img/zzz/tanqiu_yongzhe_kuangkuangdang.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "潜能预演·烈火重锤",
-    "category": "活动",
-    "start": "2026-09-09T11:00",
-    "end": "2026-10-21T05:59",
-    "link": "https://sdk.mihoyo.com/nap/announcement/index.html?auth_appid=announcement&authkey_ver=1&bundle_id=nap_cn&channel_id=1&game=nap&game_biz=nap_cn&lang=zh-cn&level=60&platform=pc&region=prod_gf_cn&sign_type=2&uid=100000000",
-    "image": "/static/img/zzz/qianneng_yuyan_liehuo_chongchui.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "丽都城募",
-    "category": "活动",
-    "start": "2026-09-09T11:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://sdk.mihoyo.com/nap/announcement/index.html?auth_appid=announcement&authkey_ver=1&bundle_id=nap_cn&channel_id=1&game=nap&game_biz=nap_cn&lang=zh-cn&level=60&platform=pc&region=prod_gf_cn&sign_type=2&uid=100000000",
-    "image": "/static/img/zzz/lidu_chengmu_32.jpg"
   },
   {
     "game_id": "wuwa",
@@ -433,30 +352,12 @@
   },
   {
     "game_id": "r1999",
-    "title": "【天真的预言】贝丽尔轶事",
-    "category": "活动",
-    "start": "2026-10-01T05:00",
-    "end": "2026-10-15T04:59",
-    "link": "https://www.taptap.com/moment/848618643670436274",
-    "image": "/static/img/r1999/r1999_tianzhendeyuyan_beilier_yishi.jpg"
-  },
-  {
-    "game_id": "r1999",
     "title": "【光影栖息处】",
     "category": "活动",
     "start": "2026-10-01T05:00",
     "end": "2026-11-05T04:59",
     "link": "https://www.taptap.com/moment/848618643670436274",
     "image": "/static/img/r1999/guangying_qixichu_40.jpg"
-  },
-  {
-    "game_id": "r1999",
-    "title": "【众声的谱成】",
-    "category": "活动",
-    "start": "2026-10-01T05:00",
-    "end": "2026-10-15T04:59",
-    "link": "https://www.taptap.com/moment/848618643670436274",
-    "image": "/static/img/r1999/zhongsheng_pucheng_40.jpg"
   },
   {
     "game_id": "r1999",
@@ -478,48 +379,12 @@
   },
   {
     "game_id": "ananta",
-    "title": "黑羽 限定棋盘「预言终幕时」（1.4上半）",
-    "category": "角色与专武",
-    "start": "2026-09-24T06:00",
-    "end": "2026-10-15T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/heiyu_yuyanzhongmushi.jpg"
-  },
-  {
-    "game_id": "ananta",
-    "title": "安魂曲 限定棋盘「久梦初醒时」（1.4上半复刻）",
-    "category": "角色与专武",
-    "start": "2026-09-24T06:00",
-    "end": "2026-10-15T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/anhunqu_jiumengchuxingshi.jpg"
-  },
-  {
-    "game_id": "ananta",
     "title": "明音凛 限定棋盘「灿烂的星」（1.4下半）",
     "category": "角色与专武",
     "start": "2026-10-15T06:00",
     "end": "2026-11-05T05:59",
     "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
     "image": "/static/img/ananta/mingyinlin_canlandedexing.jpg"
-  },
-  {
-    "game_id": "ananta",
-    "title": "「栖羽特刊·罪与罚」弧盘研募（1.4上半）",
-    "category": "角色与专武",
-    "start": "2026-09-24T06:00",
-    "end": "2026-10-15T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/qiyutekan_zuiyufa.jpg"
-  },
-  {
-    "game_id": "ananta",
-    "title": "「夜曲特刊·最后一朵玫瑰」弧盘研募（1.4上半）",
-    "category": "角色与专武",
-    "start": "2026-09-24T06:00",
-    "end": "2026-10-15T05:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/yequ_tekan_zuihouyiduomeigui.jpg"
   },
   {
     "game_id": "ananta",
@@ -568,30 +433,12 @@
   },
   {
     "game_id": "ananta",
-    "title": "像素溢出",
-    "category": "活动",
-    "start": "2026-10-12T05:00",
-    "end": "2026-10-19T04:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/xiangsu_yichu.jpg"
-  },
-  {
-    "game_id": "ananta",
     "title": "夺金大作战",
     "category": "活动",
     "start": "2026-10-19T05:00",
     "end": "2026-11-02T04:59",
     "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
     "image": "/static/img/ananta/duojin_dazuozhan.jpg"
-  },
-  {
-    "game_id": "ananta",
-    "title": "轨外之境「夕照环线」",
-    "category": "活动",
-    "start": "2026-10-02T05:00",
-    "end": "2026-10-16T04:59",
-    "link": "https://yh.wanmei.com/news/gamebroad/20260916/264201.html",
-    "image": "/static/img/ananta/guaiwaizhijing_xizhao_huanxian.jpg"
   },
   {
     "game_id": "ananta",
@@ -619,51 +466,6 @@
     "end": "",
     "link": "https://www.bilibili.com/opus/1246691569245880326",
     "image": "/static/img/endfield/naixue_lianming_xiawucha.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "「惊喜放映企划」签到（14天，自选妄想天使时装）",
-    "category": "签到",
-    "start": "2026-09-23T10:00",
-    "end": "2026-10-20T03:59",
-    "link": "https://zzz.mihoyo.com/news/166026",
-    "image": "/static/img/zzz/qiandao_jingxi_fangying_qihua.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "锵锵！球仔成长日记",
-    "category": "活动",
-    "start": "2026-09-30T10:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://www.bilibili.com/opus/1252976824383701010",
-    "image": "/static/img/zzz/zzz_qiuzai_riji.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "「嗯呢」从天降（累计登录送邦布券）",
-    "category": "签到",
-    "start": "2026-09-30T10:00",
-    "end": "2026-10-20T03:59",
-    "link": "https://zzz.mihoyo.com/news/166026",
-    "image": "/static/img/zzz/enne_congtianjiang.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "跛脚乌鸦奇探录",
-    "category": "活动",
-    "start": "2026-10-03T10:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://zzz.mihoyo.com/news/166026",
-    "image": "http://i0.hdslb.com/bfs/new_dyn/525f93a322150ae27573c98c8f188a9d1636034895.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "数据悬赏-实战模拟（双倍奖励）",
-    "category": "活动",
-    "start": "2026-10-14T04:00",
-    "end": "2026-10-19T03:59",
-    "link": "https://zzz.mihoyo.com/news/166026",
-    "image": "/static/img/zzz/shuju_xuanshang_shizhan_moni.jpg"
   },
   {
     "game_id": "r1999",
@@ -712,15 +514,6 @@
   },
   {
     "game_id": "r1999",
-    "title": "【命运亦需捧场】贝丽尔复刻征集（4.0）",
-    "category": "角色与专武",
-    "start": "2026-09-25T05:00",
-    "end": "2026-10-15T04:59",
-    "link": "https://www.bilibili.com/opus/1247156714191454214",
-    "image": "/static/img/r1999/r1999_mingyiyixupengchang_beilier_fuke.jpg"
-  },
-  {
-    "game_id": "r1999",
     "title": "【存在之火】德雷克活动征集（4.0下半）",
     "category": "角色与专武",
     "start": "2026-10-15T05:00",
@@ -754,15 +547,6 @@
     "end": "2026-11-10T15:00",
     "link": "https://www.bilibili.com/opus/1252628932049502233",
     "image": "/static/img/hsr/hsr_46_zhenzhu.jpg"
-  },
-  {
-    "game_id": "hsr",
-    "title": "绯英 复刻跃迁（4.6第一期，含光锥「邂逅于下一个花季」）",
-    "category": "角色与专武",
-    "start": "2026-09-28T12:00",
-    "end": "2026-10-21T11:59",
-    "link": "https://www.bilibili.com/opus/1252628932049502233",
-    "image": "/static/img/hsr/hsr_46_feiying.jpg"
   },
   {
     "game_id": "hsr",
@@ -817,15 +601,6 @@
     "end": "2026-11-10T23:59",
     "link": "https://www.bilibili.com/opus/1251840376080171008",
     "image": "/static/img/hsr/hsr_46_xunxing.jpg"
-  },
-  {
-    "game_id": "hsr",
-    "title": "位面分裂（位面饰品双倍，4.6第一期）",
-    "category": "活动",
-    "start": "2026-10-12T04:00",
-    "end": "2026-10-25T03:59",
-    "link": "https://www.bilibili.com/opus/1251840376080171008",
-    "image": "/static/img/hsr/hsr_46_weimian.jpg"
   },
   {
     "game_id": "hsr",
@@ -898,60 +673,6 @@
     "end": "",
     "link": "https://mc.kurogame.com/main/news/detail/5531",
     "image": "/static/img/wuwa/wuwa_37_kv.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "心 角色唤取「但愿长圆如此夜」（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253324864893222928",
-    "image": "/static/img/wuwa/wuwa_37_xin.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "千咲 复刻唤取「曙暮一线之间」（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253328582229360648",
-    "image": "/static/img/wuwa/wuwa_37_qianza.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "尤诺 复刻唤取「漫于盈缺时轴」（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253328582229360648",
-    "image": "/static/img/wuwa/wuwa_37_youluo.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "「玉阙玄华」武器活动唤取（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253326011705065478",
-    "image": "/static/img/wuwa/wuwa_37_yuque.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "「昙切」武器活动唤取（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253328582229360648",
-    "image": "/static/img/wuwa/wuwa_37_tanqie.jpg"
-  },
-  {
-    "game_id": "wuwa",
-    "title": "「万物持存的注释」武器活动唤取（3.7上半）",
-    "category": "角色与专武",
-    "start": "2026-09-30T11:00",
-    "end": "2026-10-22T09:59",
-    "link": "https://www.bilibili.com/opus/1253328582229360648",
-    "image": "/static/img/wuwa/wuwa_37_wanwu.jpg"
   },
   {
     "game_id": "wuwa",
@@ -1063,15 +784,6 @@
   },
   {
     "game_id": "wuwa",
-    "title": "天工寻物",
-    "category": "活动",
-    "start": "2026-10-08T04:00",
-    "end": "2026-10-26T03:59",
-    "link": "https://mc.kurogame.com/main/news/detail/5531",
-    "image": "/static/img/wuwa/wuwa_37_tianguang.jpg"
-  },
-  {
-    "game_id": "wuwa",
     "title": "无音消除",
     "category": "活动",
     "start": "2026-10-22T10:00",
@@ -1081,7 +793,7 @@
   },
   {
     "game_id": "wuwa",
-    "title": "踏潮探历·玄方地界",
+    "title": "踏潮探历・玄方地界",
     "category": "活动",
     "start": "2026-10-29T04:00",
     "end": "2026-11-11T03:59",
@@ -1108,39 +820,12 @@
   },
   {
     "game_id": "wuwa",
-    "title": "回音盈域",
-    "category": "活动",
-    "start": "2026-10-15T04:00",
-    "end": "2026-10-22T03:59",
-    "link": "https://mc.kurogame.com/main/news/detail/5531",
-    "image": "/static/img/wuwa/wuwa_37_huiying.jpg"
-  },
-  {
-    "game_id": "wuwa",
     "title": "声弦涤荡（3.7）",
     "category": "活动",
     "start": "2026-11-04T04:00",
     "end": "2026-11-11T03:59",
     "link": "https://mc.kurogame.com/main/news/detail/5531",
     "image": "/static/img/wuwa/wuwa_37_shengxian.jpg"
-  },
-  {
-    "game_id": "zzz",
-    "title": "「绯月银棺」「朔月裁霜」音擎调频（3.2下期）",
-    "category": "角色与专武",
-    "start": "2026-09-30T12:00",
-    "end": "2026-10-20T14:59",
-    "link": "https://www.bilibili.com/opus/1252972958935154720",
-    "image": "/static/img/zzz/zzz_32_yinqing_xiaqi.jpg"
-  },
-  {
-    "game_id": "arknights",
-    "title": "矢量突破#3「拟生态」限时活动",
-    "category": "活动",
-    "start": "2026-09-29T16:00",
-    "end": "2026-10-20T03:59",
-    "link": "https://ak.hypergryph.com/news/1455",
-    "image": "/static/img/arknights/ak_shiliang3.jpg"
   },
   {
     "game_id": "r1999",
@@ -1170,24 +855,6 @@
     "image": "/static/img/arknights/zuorihai_kv.jpg"
   },
   {
-    "game_id": "arknights",
-    "title": "【海渊巡游】限时寻访（克莱门莎UP）",
-    "category": "角色与专武",
-    "start": "2026-10-09T12:00",
-    "end": "2026-10-23T03:59",
-    "link": "https://ak.hypergryph.com/news/5101",
-    "image": "/static/img/arknights/haiyuan_xunyou_klamensha.jpg"
-  },
-  {
-    "game_id": "arknights",
-    "title": "【中坚寻访】灵知/银灰 概率提升",
-    "category": "角色与专武",
-    "start": "2026-10-01T04:00",
-    "end": "2026-10-15T03:59",
-    "link": "https://www.bilibili.com/opus/1253773111307796485",
-    "image": "http://i0.hdslb.com/bfs/new_dyn/34cea49ebe57c39c95421d91c6d61ca8161775300.png"
-  },
-  {
     "game_id": "endfield",
     "title": "「丹青渡」版本前瞻特别节目（直播）",
     "category": "活动",
@@ -1213,15 +880,6 @@
     "end": "2026-11-05T04:59",
     "link": "https://www.bilibili.com/opus/1254453434127482889",
     "image": "http://i0.hdslb.com/bfs/new_dyn/b4d09038bbe12478a337e6c052db6b9a1197454103.jpg"
-  },
-  {
-    "game_id": "r1999",
-    "title": "重返未来：1999×滴滴青桔 联动活动",
-    "category": "活动",
-    "start": "2026-10-01T00:00",
-    "end": "2026-10-15T23:59",
-    "link": "https://www.bilibili.com/opus/1253742187592548392",
-    "image": "http://i0.hdslb.com/bfs/new_dyn/6fed94be081eea5aeff6b2bc6b1d01b01197454103.jpg"
   },
   {
     "game_id": "zzz",
@@ -1300,7 +958,7 @@
     "title": "万物有灵签到（7日）",
     "category": "签到",
     "start": "2026-10-15T12:00",
-    "end": "",
+    "end": "2026-11-05T11:59",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_qiandao_wanwu_youling.jpg"
   },
@@ -1336,7 +994,7 @@
     "title": "烟火生缘（缘缘庄客栈经营玩法）",
     "category": "活动",
     "start": "2026-10-15T12:00",
-    "end": "",
+    "end": "2026-11-25T06:00",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_yanhuo_shengyuan.jpg"
   },
@@ -1354,7 +1012,7 @@
     "title": "百趣演武（挑战活动）",
     "category": "活动",
     "start": "2026-10-29T12:00",
-    "end": "",
+    "end": "2026-11-19T04:00",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_baiqu_yanwu.jpg"
   },
@@ -1362,8 +1020,8 @@
     "game_id": "endfield",
     "title": "危机筹备（限时活动）",
     "category": "活动",
-    "start": "2026-10-29T12:00",
-    "end": "",
+    "start": "2026-10-29T04:00",
+    "end": "2026-11-05T04:00",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_weiji_choubei.jpg"
   },
@@ -1381,7 +1039,7 @@
     "title": "卡莉的芳菲童话（拍照活动）",
     "category": "活动",
     "start": "2026-10-22T12:00",
-    "end": "",
+    "end": "2026-11-05T04:00",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_kali_fangfei.jpg"
   },
@@ -1396,25 +1054,25 @@
   },
   {
     "game_id": "endfield",
-    "title": "丰碑留名·魔林",
+    "title": "丰碑留名·魇林",
     "category": "活动",
     "start": "2026-10-22T12:00",
-    "end": "",
+    "end": "2026-11-05T04:00",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_fengbei_liuming_molin.jpg"
   },
   {
     "game_id": "endfield",
-    "title": "战争回响·异想（新赛季）",
+    "title": "战争回响·异想赛季（新赛季）",
     "category": "活动",
     "start": "2026-10-15T12:00",
-    "end": "",
+    "end": "2026-11-05T11:59",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_zhanzhenghuixiang_yixiang.jpg"
   },
   {
     "game_id": "endfield",
-    "title": "战争回响·狂热（新赛季）",
+    "title": "战争回响·狂热赛季（新赛季）",
     "category": "活动",
     "start": "2026-11-05T12:00",
     "end": "",
@@ -1447,24 +1105,6 @@
     "end": "",
     "link": "https://www.bilibili.com/opus/1256079648339525640",
     "image": "/static/img/endfield/endfield_cloud_yun.jpg"
-  },
-  {
-    "game_id": "endfield",
-    "title": "天地墨显 限时签到（7日）",
-    "category": "签到",
-    "start": "2026-10-08T12:00",
-    "end": "2026-10-15T12:00",
-    "link": "https://www.bilibili.com/opus/1256308860049686529",
-    "image": "/static/img/endfield/endfield_tiandi_moxian_qiandao.png"
-  },
-  {
-    "game_id": "r1999",
-    "title": "【双重解析】意志解析双倍",
-    "category": "活动",
-    "start": "2026-10-10T05:00",
-    "end": "2026-10-20T04:59",
-    "link": "https://www.bilibili.com/opus/1257143801644843015",
-    "image": "/static/img/r1999/r1999_shuangchong_jiexi.jpg"
   },
   {
     "game_id": "zzz",
@@ -1611,15 +1251,6 @@
     "image": "/static/img/r1999/r1999_xiaoguaishou_fandouqi_molupangka.jpg"
   },
   {
-    "game_id": "r1999",
-    "title": "【零重力漫游】轮换征集（库珀花环UP）",
-    "category": "角色与专武",
-    "start": "2026-10-13T05:00",
-    "end": "2026-10-27T04:59",
-    "link": "https://www.taptap.cn/moment/857951282290230294",
-    "image": "/static/img/r1999/r1999_lingzhongli_manyou_lunhuan.jpg"
-  },
-  {
     "game_id": "arknights",
     "title": "【新增服饰】「盛世之象」琳琅诗怀雅（恒远津梁联动时装）",
     "category": "资讯",
@@ -1669,7 +1300,7 @@
     "title": "予众魂的新光影（趣味活动）",
     "category": "活动",
     "start": "2026-10-31T12:00",
-    "end": "",
+    "end": "2026-11-14T04:00",
     "link": "https://endfield.hypergryph.com/version_briefing/latest",
     "image": "/static/img/endfield/endfield_yuzhonghun_xinguangying.jpg"
   },
@@ -1678,7 +1309,7 @@
     "title": "危机合约·机密圣所",
     "category": "活动",
     "start": "2026-11-05T12:00",
-    "end": "",
+    "end": "2026-12-02T04:00",
     "link": "https://endfield.hypergryph.com/version_briefing/latest",
     "image": "/static/img/endfield/endfield_weijiyue_jimishengsuo.jpg"
   },
@@ -1686,9 +1317,459 @@
     "game_id": "endfield",
     "title": "理智补给（第三期）",
     "category": "活动",
-    "start": "2026-11-19T12:00",
-    "end": "",
+    "start": "2026-11-18T04:00",
+    "end": "2026-11-25T04:00",
     "link": "https://endfield.hypergryph.com/version_briefing/latest",
     "image": "/static/img/endfield/endfield_lizhibuji_disanti.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "集成战略「沉沦者的黑流树海」内容拓展·一",
+    "category": "活动",
+    "start": "2026-10-16T16:00",
+    "end": "",
+    "link": "https://www.bilibili.com/opus/1258968303773155350",
+    "image": "/static/img/arknights/ak_chenlunzhe_heiliushuhai_tuozhan1_card.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【新增头像】//“探源开物”（博览群书组合包）",
+    "category": "资讯",
+    "start": "2026-10-16T16:00",
+    "end": "2026-11-06T03:59",
+    "link": "https://www.bilibili.com/opus/1259339388952772612",
+    "image": "/static/img/arknights/ak_touxiang_tanyuankaiwu.png"
+  },
+  {
+    "game_id": "ananta",
+    "title": "轨外之境「澄明环线」特别路线",
+    "category": "活动",
+    "start": "2026-10-16T05:00",
+    "end": "2026-10-30T04:59",
+    "link": "https://www.bilibili.com/opus/1259323927087284224",
+    "image": "/static/img/ananta/guaiwaizhijing_chengming_huanxian.jpg"
+  },
+  {
+    "game_id": "endfield",
+    "title": "「丹青渡」新版本导览（浏览网页领嵌晶玉）",
+    "category": "活动",
+    "start": "2026-10-15T12:00",
+    "end": "",
+    "link": "https://endfield.hypergryph.com/news/4774",
+    "image": "/static/img/endfield/endfield_danqingdu_daolan.png"
+  },
+  {
+    "game_id": "hsr",
+    "title": "「帕姆展览馆 | 月升之前，与兽共舞」",
+    "category": "资讯",
+    "start": "2026-10-16T12:00",
+    "end": "",
+    "link": "https://www.bilibili.com/opus/1255566689655848964",
+    "image": "/static/img/hsr/hsr_46_pam_zhanlanguan.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」前瞻特别节目（直播）",
+    "category": "活动",
+    "start": "2026-10-24T19:30",
+    "end": "",
+    "link": "https://ak.hypergryph.com/news/0799",
+    "image": "/static/img/arknights/ak_2026ganxieqingdian_qianzhan.png"
+  },
+  {
+    "game_id": "zzz",
+    "title": "3.3版本「丽都城募」",
+    "category": "活动",
+    "start": "2026-10-21T12:00",
+    "end": "2026-11-30T03:59",
+    "link": "https://zenless.hoyoverse.com/zh-cn/news/166644",
+    "image": "/static/img/zzz/zzz_33_liduchengmu.png"
+  },
+  {
+    "game_id": "r1999",
+    "title": "4.1版本「亚特兰蒂斯谋杀案」上线",
+    "category": "活动",
+    "start": "2026-11-05T10:00",
+    "end": "",
+    "link": "https://re.bluepoch.com/home/detail.html#newsId?103",
+    "image": "/static/img/r1999/r1999_41_yatelantisi_kv.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "SideStory「时间啊，向前！」限时活动",
+    "category": "活动",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-22T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_shijian_xiangqian_kv.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【将雪投火】限定寻访（塔露拉 限定）",
+    "category": "角色与专武",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-15T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_jiangxue_touhuo.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」特别登录活动（登录送十连凭证）",
+    "category": "签到",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-15T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_tebie_denglu.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」限定寻访每日赠送",
+    "category": "签到",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-15T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_meiri_zengsong.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」特别招募活动",
+    "category": "活动",
+    "start": "2026-10-24T21:30",
+    "end": "2026-12-02T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_tebie_zhaomu.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」前瞻签到活动（7日）",
+    "category": "签到",
+    "start": "2026-10-24T21:30",
+    "end": "2026-11-03T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_qianzhan_qiandao.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "「视相博物馆：演化」限时活动",
+    "category": "活动",
+    "start": "2026-10-24T21:30",
+    "end": "2026-11-07T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_shixiang_bowuguan.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」限时签到活动（10日）",
+    "category": "签到",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-15T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_xianshi_qiandao10.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【塞梦珂城许愿墙】",
+    "category": "活动",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-15T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_xuyuanqiang.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【采购凭证商店】可兑换干员更新（镜匠/行铃）",
+    "category": "资讯",
+    "start": "2026-11-01T12:00",
+    "end": "",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_caigou_pingzheng.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "2026「感谢庆典」新装限时上架（4款）",
+    "category": "资讯",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-29T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_xinzhuang_shangjia.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "复刻时装限时上架「寻翼之歌·新约能天使」",
+    "category": "资讯",
+    "start": "2026-11-01T12:00",
+    "end": "2026-11-29T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_fuke_shizhuang_1101.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "复刻时装限时上架「夜之终局·弑君者 / 幻火·止颂」",
+    "category": "资讯",
+    "start": "2026-11-16T16:00",
+    "end": "2026-11-30T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_fuke_shizhuang_1116.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "「卫戍协议·规程·序列I」",
+    "category": "活动",
+    "start": "2026-11-08T16:00",
+    "end": "",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_weishu_xieyi_xulie1.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【卫戍寻访】特选干员定向寻访",
+    "category": "角色与专武",
+    "start": "2026-11-08T16:00",
+    "end": "2026-12-02T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_weishu_xunfang.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "卫戍时装回顾展",
+    "category": "资讯",
+    "start": "2026-11-08T16:00",
+    "end": "2026-11-22T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_weishu_shizhuang_huiguzhan.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【中坚甄选】概率提升寻访",
+    "category": "角色与专武",
+    "start": "2026-11-12T04:00",
+    "end": "2026-11-26T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_zhongjian_zhenxuan.jpg"
+  },
+  {
+    "game_id": "arknights",
+    "title": "【联合行动】特选干员定向寻访",
+    "category": "角色与专武",
+    "start": "2026-11-15T16:00",
+    "end": "2026-11-29T03:59",
+    "link": "https://ak.hypergryph.com/news/0787",
+    "image": "/static/img/arknights/ak_2026_lianhe_xingdong.jpg"
+  },
+  {
+    "game_id": "hsr",
+    "title": "4.7版本「此刻将群星付之一笑」前瞻特别节目（直播）",
+    "category": "活动",
+    "start": "2026-10-30T19:30",
+    "end": "",
+    "link": "https://www.bilibili.com/opus/1263452277521252377",
+    "image": "/static/img/hsr/hsr_47_qianzhan_aha_zhiye.jpg"
+  },
+  {
+    "game_id": "r1999",
+    "title": "【亚特兰蒂斯谋杀案·上篇】签到活动（7日）",
+    "category": "签到",
+    "start": "2026-11-05T10:00",
+    "end": "2026-11-26T04:59",
+    "link": "https://www.taptap.cn/moment/863193169716577213",
+    "image": "/static/img/r1999/r1999_41_qiandao_shang.jpg"
+  },
+  {
+    "game_id": "r1999",
+    "title": "【亚特兰蒂斯谋杀案·下篇】签到活动（7日）",
+    "category": "签到",
+    "start": "2026-11-26T05:00",
+    "end": "2026-12-10T04:59",
+    "link": "https://www.taptap.cn/moment/863193169716577213",
+    "image": "/static/img/r1999/r1999_41_qiandao_xia.jpg"
+  },
+  {
+    "game_id": "r1999",
+    "title": "【明日之础】轮换征集（奠基石UP）",
+    "category": "角色与专武",
+    "start": "2026-10-27T05:00",
+    "end": "2026-11-10T04:59",
+    "link": "https://www.taptap.cn/moment/863194983203604727",
+    "image": "/static/img/r1999/r1999_41_mingrizhichu_lunhuan.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "1.5版本「致电，空想迷数」前瞻特别节目（直播）",
+    "category": "活动",
+    "start": "2026-10-28T19:30",
+    "end": "",
+    "link": "https://www.bilibili.com/opus/1261954317481410582",
+    "image": "/static/img/ananta/ananta_15_qianzhan_kaiobo.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "轨外之境「飞芒环线」特别路线",
+    "category": "活动",
+    "start": "2026-10-30T05:00",
+    "end": "2026-11-13T04:59",
+    "link": "https://www.bilibili.com/opus/1264472733861806084",
+    "image": "/static/img/ananta/ananta_feimang_huanxian.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "1.5版本「致电，空想迷数」上线",
+    "category": "公告",
+    "start": "2026-11-05T06:00",
+    "end": "",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_banben.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "运通全城",
+    "category": "活动",
+    "start": "2026-11-05T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_yuntong_quancheng.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "争锋赏宴·攻坚",
+    "category": "活动",
+    "start": "2026-11-05T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_zhengfeng_shangyan.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "曳尔沐「电子人之梦」限定棋盘（1.5上半）",
+    "category": "角色与专武",
+    "start": "2026-11-05T06:00",
+    "end": "2026-11-26T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_yiermu_dianzi_renzhimeng.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "真红「破晓前」限定棋盘 复刻（1.5上半）",
+    "category": "角色与专武",
+    "start": "2026-11-05T06:00",
+    "end": "2026-11-26T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_zhenhong_poxiaoqian.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "「弧盘研募计划」回音特刊/决胜特刊（1.5上半）",
+    "category": "角色与专武",
+    "start": "2026-11-05T06:00",
+    "end": "2026-11-26T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_hupan_shangban.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "像素溢出",
+    "category": "活动",
+    "start": "2026-11-09T05:00",
+    "end": "2026-11-16T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_xiangsu_yichu.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "轨外之境「霜寒环线」特别路线",
+    "category": "活动",
+    "start": "2026-11-13T05:00",
+    "end": "2026-11-27T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_shuanghan_huanxian.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "渔获大作战",
+    "category": "活动",
+    "start": "2026-11-16T05:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_yuhuo_dazuozhan.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "夺金大作战（1.5 返场）",
+    "category": "活动",
+    "start": "2026-11-16T05:00",
+    "end": "2026-11-30T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_duojin_dazuozhan.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "铺满全城",
+    "category": "活动",
+    "start": "2026-11-26T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_puman_quancheng.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "Exe「离线的真式」限定棋盘（1.5下半）",
+    "category": "角色与专武",
+    "start": "2026-11-26T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_exe_lixian_zhenshi.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "卡厄斯「无归路」限定棋盘 复刻（1.5下半）",
+    "category": "角色与专武",
+    "start": "2026-11-26T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_kaesi_wuguilu.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "「弧盘研募计划」密钥特刊/追猎特刊（1.5下半）",
+    "category": "角色与专武",
+    "start": "2026-11-26T06:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_hupan_xiaban.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "淘方斯记",
+    "category": "活动",
+    "start": "2026-11-30T05:00",
+    "end": "2026-12-07T04:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_taofang_siji.jpg"
+  },
+  {
+    "game_id": "ananta",
+    "title": "奇想翻翻乐",
+    "category": "活动",
+    "start": "2026-12-04T05:00",
+    "end": "2026-12-17T05:59",
+    "link": "https://yh.wanmei.com/news/gamebroad/20261028/264788.html",
+    "image": "/static/img/ananta/ananta_15_qixiang_fanfanle.jpg"
+  },
+  {
+    "game_id": "r1999",
+    "title": "【UTTU采风巡行：泰晤士剪影】",
+    "category": "活动",
+    "start": "2026-10-29T05:00",
+    "end": "2026-11-05T04:59",
+    "link": "https://www.bilibili.com/opus/1264194420008288256",
+    "image": "/static/img/r1999/r1999_uttu_taimushi_jianying.jpg"
+  },
+  {
+    "game_id": "r1999",
+    "title": "【佩施塔·雪红与玫瑰白】角色剧情活动",
+    "category": "活动",
+    "start": "2026-11-05T10:00",
+    "end": "2026-11-26T04:59",
+    "link": "https://www.bilibili.com/opus/1264565505144913921",
+    "image": "/static/img/r1999/r1999_peishita_xuehong_meigui.jpg"
   }
 ]
