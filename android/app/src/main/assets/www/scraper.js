@@ -434,25 +434,40 @@ const Scraper = (() => {
 
   /* ---------- 明日方舟:终末地 ---------- */
   const EF_T_RE = /(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/g;
+  // 不带秒的月日写法(10月6日 12:00):版本说明里与严格写法混用,只认前者会把整条活动漏掉
+  const EF_MD_T_RE = /(\d{1,2})月(\d{1,2})日\s*(\d{1,2})[:：](\d{2})/g;
   // 版本更新说明:按「■ 全新寻访及申领 / ■ 全新活动」章节拆排期,返回 [[name,cat,start,end]]
-  function efExtractVersion(text, pub) {
+  function efExtractVersion(text, pub, nowRef) {
     let verStart = pub;  // 版本开服时间 = 维护时段的结束时间
     const vm = /(\d{4})\/(\d{2})\/(\d{2}) \d{2}:\d{2}\s*-\s*(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})\s*（UTC\+8）/.exec(text);
     if (vm) verStart = new Date(+vm[4], +vm[5] - 1, +vm[6], +vm[7], +vm[8]);
-    // 只认「yyyy/mm/dd hh:mm」定长写法,与 scrapers.py::_ef_extract_version 同口径
+    // 认「yyyy/mm/dd hh:mm」与「x月x日 hh:mm」两种写法,与 scrapers.py::_ef_extract_version 同口径
     // (不再用 findDateTokens 兜底:取样窗口是按行/定长截的,截断串会被误当日期)
+    const now = nowRef || new Date();   // nowRef: 过期过滤的参考时刻,不传即运行时钟
     const dates = seg => {
-      const out = []; let m; EF_T_RE.lastIndex = 0;
-      while ((m = EF_T_RE.exec(seg))) {
-        const d = mkDate(m[1], m[2], m[3], m[4], m[5]);  // 不存在的日期直接丢弃(同 Python datetime);年份已定长给出,勿传 pub
-        if (d) out.push(d);
+      // 只看本行内容:多期活动会连续取若干行,月日写法不能吃到下一行的「活动时间」
+      const line = seg.split('\n')[0];
+      const marks = []; let m;
+      EF_T_RE.lastIndex = 0;
+      while ((m = EF_T_RE.exec(line))) marks.push([m.index, true, m.slice(1)]);
+      EF_MD_T_RE.lastIndex = 0;
+      while ((m = EF_MD_T_RE.exec(line))) marks.push([m.index, false, m.slice(1)]);
+      marks.sort((a, b) => a[0] - b[0]);
+      const out = [], seen = new Set();
+      for (const [, strict, g] of marks) {
+        let d;
+        if (strict) d = mkDate(g[0], g[1], g[2], g[3], g[4]);   // 年份定长给出,勿传 pub;不存在的日期直接丢弃(同 Python)
+        // 月日写法缺年取公告年份 pub,不拿参考时钟滚年:否则过滤时钟一变,月日写法整体漂到次年
+        else d = mkDate(null, g[0], g[1], g[2], g[3], pub);
+        if (!d || seen.has(d.getTime())) continue;
+        seen.add(d.getTime());
+        out.push(d);
       }
       return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
     };
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const out = [];
     let section = '', lastName = '';
-    const now = new Date();  // 过期过滤口径同 anantaExtractVersion:取运行时钟(pub 只用于推算年份)
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       if (l.startsWith('■') || l.startsWith('▼')) { section = l; continue; }
@@ -561,7 +576,7 @@ const Scraper = (() => {
   const AN_TIME_KW = /(活动时间|开放时间|开启时间)[:：]\s*([^。●]{0,60})/g;
   const AN_DATE = /(\d{1,2})月(\d{1,2})日(?:\s*(\d{1,2})[:：](\d{2}))?/g;
   // 版本更新/停服维护公告:找全部时间规格,名字取前面最近的「」/【】,返回 [[name,cat,start,end]]
-  function anantaExtractVersion(text, pub) {
+  function anantaExtractVersion(text, pub, nowRef) {
     let verStart = pub;  // 版本开服时间 = 维护时段的结束时间
     const vm = /(\d{1,2})月(\d{1,2})日(\d{1,2})[:：](\d{2})\s*[–—\-~]\s*(\d{1,2})[:：](\d{2})\s*进行(?:停服|版本更新)?维护/.exec(text);
     if (vm) verStart = new Date(pub.getFullYear(), +vm[1] - 1, +vm[2], +vm[5], +vm[6]);
@@ -580,7 +595,7 @@ const Scraper = (() => {
       }
       return out;   // 文档顺序,不排序(Python 侧同为文档顺序)
     };
-    const now = new Date(), out = [], seen = new Set();  // 过期过滤口径同 efExtractVersion:取运行时钟(pub 只用于推算年份)
+    const now = nowRef || new Date(), out = [], seen = new Set();   // nowRef 同 efExtractVersion
     let tm; AN_TIME_KW.lastIndex = 0;
     while ((tm = AN_TIME_KW.exec(text))) {
       const seg = tm[2];

@@ -73,20 +73,16 @@ const p = n => String(n).padStart(2, '0');
 const fmt = d => d ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
   + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` : null;
 const inp = JSON.parse(process.argv[3]);
-const ref = new Date(inp.ref[0], inp.ref[1] - 1, inp.ref[2], inp.ref[3], inp.ref[4]);
-// 进程时钟钉在 inp.now：过期过滤取运行时钟，不钉死的话 fixture 的绝对日期一过期就红（Issue #57）
-const RealDate = Date;
-global.Date = class extends RealDate {
-  constructor(...a) { super(...(a.length ? a : [inp.now[0], inp.now[1] - 1, inp.now[2], inp.now[3], inp.now[4]])); }
-  static now() { return new RealDate(inp.now[0], inp.now[1] - 1, inp.now[2], inp.now[3], inp.now[4]).getTime(); }
-};
+const mk = a => new Date(a[0], a[1] - 1, a[2], a[3], a[4]);
+const ref = mk(inp.ref), late = mk(inp.now);
 const conv = (r) => r.map(([n, c, s, e]) => [n, c, fmt(s), fmt(e)]);
+// 过期过滤参考时刻也要能注入:不传 now 即运行时钟(与 Python 侧 now=None 同语义)
 process.stdout.write(JSON.stringify({
-  ef: conv(S.efExtractVersion(inp.ef, ref)),
-  efStrict: conv(S.efExtractVersion(inp.efStrict, ref)),
-  efExpired: conv(S.efExtractVersion(inp.efExpired, new Date(inp.ref[0], inp.ref[1] - 1, inp.ref[2], inp.ref[3], inp.ref[4]))),
-  ananta: conv(S.anantaExtractVersion(inp.ananta, ref)),
-  anEdge: conv(S.anantaExtractVersion(inp.anEdge, ref)),
+  ef: conv(S.efExtractVersion(inp.ef, ref, late)),
+  efStrict: conv(S.efExtractVersion(inp.efStrict, ref, late)),
+  efExpired: conv(S.efExtractVersion(inp.efExpired, ref, late)),
+  ananta: conv(S.anantaExtractVersion(inp.ananta, ref, late)),
+  anEdge: conv(S.anantaExtractVersion(inp.anEdge, ref, late)),
 }));
 """
 
@@ -95,20 +91,38 @@ def _fmt(d):
     return d.strftime('%Y-%m-%dT%H:%M:%S') if d else None
 
 
-def py_side():
-    pub = datetime(2026, 9, 20, 12, 0)
+# fixture 用到的公告发布时刻与「过期过滤参考时刻」:显式注入,让用例不随系统日期变红
+PUB = datetime(2026, 9, 20, 12, 0)
+NOW = datetime(2026, 10, 6, 12, 0)       # 落在 fixture 区间内(10-06 ~ 10-24),条目全部有效
+NOW_MID = datetime(2026, 10, 15, 0, 0)   # 边界内:环期赠礼(至 10-20)仍有效,限定S级祈愿(至 10-24)仍在
+NOW_LATE = datetime(2028, 1, 1, 0, 0)    # 推到所有 fixture 区间之后,用于验证过期过滤
+
+# 各参考时刻的绝对期望(只比对一端不够:两端一起错时对拍恒绿)
+EXPECT_NOW = {'ef': [], 'efStrict': [], 'ananta': [], 'anEdge': []}
+EXPECT_LATE = {'ef': [], 'efStrict': [], 'ananta': [], 'anEdge': [], 'efExpired': []}
+
+
+def py_side(now=None):
     conv = lambda rs: [[n, c, _fmt(s), _fmt(e)] for n, c, s, e in rs]
     return {
-        'ef': conv(scrapers._ef_extract_version(EF_TEXT, pub)),
-        'efStrict': conv(scrapers._ef_extract_version(EF_STRICT_TEXT, pub)),
-        'ananta': conv(scrapers._ananta_extract_version(AN_TEXT, pub)),
-        'anEdge': conv(scrapers._ananta_extract_version(AN_EDGE, pub)),
+        'ef': conv(scrapers._ef_extract_version(EF_TEXT, PUB, now)),
+        'efStrict': conv(scrapers._ef_extract_version(EF_STRICT_TEXT, PUB, now)),
+        'ananta': conv(scrapers._ananta_extract_version(AN_TEXT, PUB, now)),
+        'anEdge': conv(scrapers._ananta_extract_version(AN_EDGE, PUB, now)),
+        # main 的反向守卫：往期活动在任一参考时刻都必须被过滤掉（含运行时钟）
+        'efExpired': conv(scrapers._ef_extract_version(EF_EXPIRED_TEXT, PUB, now)),
     }
 
 
-def js_side(script):
-    inp = {'ref': [2026, 9, 20, 12, 0], 'now': [2026, 9, 21, 12, 0], 'ef': EF_TEXT, 'efStrict': EF_STRICT_TEXT,
-           'ananta': AN_TEXT, 'anEdge': AN_EDGE, 'efExpired': EF_EXPIRED_TEXT}
+def py_late(now=NOW_LATE):
+    return py_side(now)
+
+
+def js_side(script, now=NOW):
+    inp = {'ref': [2026, 9, 20, 12, 0],
+           'now': [now.year, now.month, now.day, now.hour, now.minute],
+           'ef': EF_TEXT, 'efStrict': EF_STRICT_TEXT, 'efExpired': EF_EXPIRED_TEXT,
+           'ananta': AN_TEXT, 'anEdge': AN_EDGE}
     p = subprocess.run(['node', '-e', NODE_LOADER, 'node', script, json.dumps(inp, ensure_ascii=False)],
                        capture_output=True, text=True)
     if p.returncode != 0:
@@ -123,25 +137,7 @@ def main():
         print('SKIP: 未找到 node，跳过双端一致性测试')
         return 0
     bad = 0
-    # 过期过滤取运行时钟，fixture 的绝对日期会随时间过期（Issue #57）：
-    # 这里把进程时钟钉在 2026-09-21（公告发布后 1 天），用例不再依赖真实日期；JS 侧传同一个 now。
-    frozen = datetime(2026, 9, 21, 12, 0)
-    real_datetime = scrapers.datetime
-
-    class _FrozenDateTime(real_datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return frozen
-
-    scrapers.datetime = _FrozenDateTime
-    try:
-        mine = py_side()
-        # 反向守卫：已结束的活动（对照 pub 取窗口）仍必须被运行时钟过滤掉，
-        # 否则「过期过滤失效」会静默放回往期活动，且 App 端无兜底。
-        mine['efExpired'] = [[n, c, _fmt(s), _fmt(e)]
-                             for n, c, s, e in scrapers._ef_extract_version(EF_EXPIRED_TEXT, pub_of())]
-    finally:
-        scrapers.datetime = real_datetime
+    mine = py_side(NOW)
     # 对照：严格写法下双端都必须解析出同一条完整区间（防止「两端一起挂」被当成一致）
     expect_ef_strict = [['雪淞幽梦', '活动', '2026-10-06T12:00:00', '2026-10-20T03:59:00']]
     if mine['efStrict'] != expect_ef_strict:
@@ -168,9 +164,42 @@ def main():
                 bad += 1
                 print('MISMATCH %s %s\n  py = %s\n  js = %s'
                       % (key, os.path.basename(script), mine[key], theirs[key]))
-    print('用例 ef %d / efStrict %d / ananta %d / anEdge %d / efExpired %d，mismatch %d'
+    # 过期过滤双端同口径：now 推到 fixture 区间之后，两端都必须清空（不是只有一端丢弃）
+    late_py = py_side(NOW_LATE)
+    for key in EXPECT_LATE:
+        if late_py[key] != EXPECT_LATE[key]:
+            bad += 1
+            print('FAIL 过期后应为空 py %s = %s' % (key, late_py[key]))
+    # 注入是否真被采用：边界内的参考时刻必须解析出条目（把 now 写死成运行时钟时这条会转红）
+    mid_py = py_side(NOW_MID)
+    if len(mid_py['ananta']) != 1:
+        bad += 1
+        print('FAIL 注入参考时刻未生效 py ananta = %s' % mid_py['ananta'])
+    # 月日写法的年份只随公告走，不随参考时刻漂移
+    if [r[2:] for r in mine['ef']] != [r[2:] for r in mid_py['ef']]:
+        bad += 1
+        print('FAIL 月日写法随参考时刻漂移 ef %s / %s' % (mine['ef'], mid_py['ef']))
+    for script in SCRAPERS:
+        late_js = js_side(script, NOW_LATE)
+        if late_js is None:
+            bad += 1
+            continue
+        for key in EXPECT_LATE:
+            if late_js[key] != EXPECT_LATE[key] or late_js[key] != late_py[key]:
+                bad += 1
+                print('MISMATCH 过期过滤 %s %s\n  expect = %s\n  py = %s\n  js = %s'
+                      % (key, os.path.basename(script), EXPECT_LATE[key], late_py[key], late_js[key]))
+        mid_js = js_side(script, NOW_MID)
+        if mid_js is None or len(mid_js['ananta']) != 1:
+            bad += 1
+            print('FAIL 注入参考时刻未生效 js %s mid ananta = %s'
+                  % (os.path.basename(script), mid_js and mid_js['ananta']))
+    print('用例 ef %d / efStrict %d / ananta %d / anEdge %d / efExpired %d，'
+          '过期后 py %d/%d/%d/%d/%d，mismatch %d'
           % (len(mine['ef']), len(mine['efStrict']), len(mine['ananta']),
-             len(mine['anEdge']), len(mine['efExpired']), bad))
+             len(mine['anEdge']), len(mine['efExpired']),
+             len(late_py['ef']), len(late_py['efStrict']),
+             len(late_py['ananta']), len(late_py['anEdge']), len(late_py['efExpired']), bad))
     print('ALL PASS' if bad == 0 else 'SOME FAILED')
     return 1 if bad else 0
 

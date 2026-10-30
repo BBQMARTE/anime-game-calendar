@@ -438,13 +438,20 @@ def _mihoyo_ingame(gid, gname):
 
 # ---------------- 明日方舟:终末地 ----------------
 
-def _ef_extract_version(text, pub):
+# 不带秒的月日写法(10月6日 12:00),供终末地版本说明与严格写法混用时补日期
+_MD_HM = re.compile(r'(\d{1,2})月(\d{1,2})日\s*(\d{1,2})[:：](\d{2})')
+
+
+def _ef_extract_version(text, pub, now=None):
     """终末地版本更新说明:按「■ 全新寻访及申领 / ■ 全新活动」章节拆排期
     返回 [(name, category, start, end)]
 
-    日期只认严格写法 yyyy/mm/dd hh:mm,保持文档顺序(不排序);
-    JS 端 efExtractVersion 必须同口径,不得再加 findDateTokens 兜底或升序重排
-    ——取样窗口是按行截取的,截断串会被兜底误当日期(见 Issue #10)。"""
+    now: 过期过滤的参考时刻,None 表示取运行时钟(可注入以便 fixture 用例稳定)
+
+    日期认 yyyy/mm/dd hh:mm 与「x月x日 hh:mm」两种写法(月日缺年取公告年份 pub),
+    保持文档顺序(不排序);JS 端 efExtractVersion 必须同口径,不得再加 findDateTokens
+    兜底或升序重排——取样窗口是按行截取的,截断串会被兜底误当日期(见 Issue #10)。"""
+    now = now if now is not None else datetime.now()  # 口径是运行时钟,只让用例可注入
     ver_start = pub  # 版本开服时间 = 维护时段的结束时间
     m = re.search(r'(\d{4})/(\d{2})/(\d{2}) \d{2}:\d{2}\s*-\s*(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2})\s*（UTC\+8）', text)
     if m:
@@ -454,20 +461,37 @@ def _ef_extract_version(text, pub):
         except ValueError:
             pass
     t_re = re.compile(r'(\d{4})/(\d{2})/(\d{2})\s+(\d{2}):(\d{2})')
+    # 月日写法(10月6日 12:00):版本说明里与严格写法混用,只认前者会把整条活动漏掉
+    md_t_re = _MD_HM
+
+    def has_date(seg):
+        # 只看本行内容:多期活动会连续取若干行,月日写法不能吃到下一行的「活动时间」
+        return bool(t_re.search(seg) or md_t_re.search(seg))
 
     def dates(seg):
-        out = []
-        for mm in t_re.finditer(seg):
+        line = seg.split('\n', 1)[0]
+        marks = [('ymd', mm) for mm in t_re.finditer(line)]
+        marks += [('md', mm) for mm in md_t_re.finditer(line)]
+        # 两种写法按出现顺序合并且不重复
+        out, seen = [], set()
+        for kind, mm in sorted(marks, key=lambda km: km[1].start()):
             try:
-                out.append(datetime(*[int(x) for x in mm.groups()]))
+                if kind == 'ymd':
+                    d = datetime(*[int(x) for x in mm.groups()])
+                else:
+                    # 跨年只认公告年份(pub),不拿参考时钟滚年:否则过滤时钟一变,月日写法整体漂到次年
+                    d = datetime(pub.year, int(mm.group(1)), int(mm.group(2)), int(mm.group(3)), int(mm.group(4)))
             except ValueError:
-                pass
+                continue
+            if d in seen:
+                continue
+            seen.add(d)
+            out.append(d)
         return out
 
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     out = []
     section = last_name = ''
-    now = datetime.now()  # 过期过滤口径取运行时钟(与 JS 端 efExtractVersion 的 new Date() 一致);pub 只用于推算年份
     i = 0
     while i < len(lines):
         l = lines[i]
@@ -480,10 +504,10 @@ def _ef_extract_version(text, pub):
                 last_name = nm.group(1) if nm else last_name
             if tm:
                 segs = [tm.group(2)]
-                if not t_re.search(segs[0]):  # 时间写在下一行(多期活动)
+                if not has_date(segs[0]):  # 时间写在下一行(多期活动)
                     segs = []
                     j = i + 1
-                    while j < len(lines) and t_re.search(lines[j]):
+                    while j < len(lines) and has_date(lines[j]):
                         segs.append(lines[j])
                         j += 1
                 for seg in segs:
@@ -658,9 +682,11 @@ _AN_DATE = re.compile(r'(\d{1,2})月(\d{1,2})日(?:\s*(\d{1,2})[:：](\d{2}))?')
 _AN_VER_RE = re.compile(r'更新公告|维护公告')
 
 
-def _ananta_extract_version(text, pub):
+def _ananta_extract_version(text, pub, now=None):
     """异环版本更新/停服维护公告:找全部时间规格,名字取前面最近的「」/【】
     返回 [(name, cat, start, end)]
+
+    now: 过期过滤的参考时刻,None 表示取运行时钟(可注入以便 fixture 用例稳定)
 
     日期只认「x月x日」严格写法,保持文档顺序(不排序);JS 端 anantaExtractVersion
     必须同口径,不得再加 findDateTokens 兜底或升序重排——取样窗口
@@ -690,7 +716,7 @@ def _ananta_extract_version(text, pub):
             out.append(d)
         return out
 
-    now = datetime.now()  # 同上:过期过滤口径取运行时钟,pub 只用于推算年份
+    now = now if now is not None else datetime.now()  # 口径是运行时钟(与 JS 的 new Date() 一致),只让用例可注入
     out = []
     seen = set()
     for tm in _AN_TIME_KW.finditer(text):
