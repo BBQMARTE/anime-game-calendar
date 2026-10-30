@@ -143,6 +143,9 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .tb b{display:block; font-size:19px; font-weight:700; color:var(--label); line-height:1.2}
 .tb span{font-size:11px; color:var(--label3)}
 
+/* 数据陈旧提示:超过 24 小时未更新才出现,点一下立即刷新 */
+.stale-bar{display:none; margin:0 0 10px; padding:9px 12px; border-radius:12px; background:rgba(255,149,0,.14); color:var(--orange); font-size:12.5px; font-weight:600; cursor:pointer; line-height:1.35}
+.stale-bar.show{display:block}
 /* ---------- 月历视图 ---------- */
 .cal-card{background:var(--card); border-radius:16px; padding:12px 6px 8px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .cal-head{display:flex; align-items:center; gap:4px; padding:0 8px 10px}
@@ -368,6 +371,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 </div>
 
 <main>
+  <div id="staleBar" class="stale-bar" onclick="doRefresh()" role="button" aria-label="数据陈旧,立即刷新"></div>
   <div id="todayBar" class="todaybar" aria-live="polite"></div>
   <div class="seg" id="seg">
     <button class="on" data-tab="cal" onclick="setTab('cal')">日历</button>
@@ -1169,6 +1173,22 @@ function renderView(){
   renderTodayBar();
   tab==='cal'?renderCal():renderList();
 }
+/* 数据陈旧:服务停摆/抓取连续失败时,列表看着正常但其实没更新;超过 24 小时给出提示 */
+function staleText(updated, nowMs){
+  if(!updated)return '';
+  const t=new Date(updated);
+  if(isNaN(t.getTime()))return '';
+  const h=(nowMs-t.getTime())/36e5;
+  if(h<24)return '';
+  const span=h<48?`${Math.floor(h)} 小时`:`${Math.floor(h/24)} 天`;
+  return `数据已 ${span}未更新,自动抓取可能异常 · 点此立即刷新`;
+}
+function renderStale(){
+  const el=$('#staleBar'); if(!el)return;
+  const txt=staleText(DATA&&DATA.updated,Date.now());
+  el.textContent=txt;
+  el.classList.toggle('show',!!txt);
+}
 /* 今日摘要:今天开始 / 今天结束 / 进行中 三个计数,点一下跳到今天的月历详情 */
 function renderTodayBar(){
   const el=$('#todayBar'); if(!el)return;
@@ -1191,7 +1211,7 @@ function jumpToday(){
   settings.calOn=true;saveSettings();applySettings();
   setTab('cal');calToday();   // 顺带把月历滚到「今天」并展开当天详情
 }
-function render(){renderMeta();applySettings();mountNotes();renderView()}
+function render(){renderMeta();applySettings();mountNotes();renderStale();renderView()}
 /* ================= 活动打钩(做完的活动标记完成) ================= */
 /* 以 game_id+title 为键,本地持久化;不用条目 ID(#17 起由内容派生,内容变化即换 ID) */
 let DONE={};
