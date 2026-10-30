@@ -18,7 +18,7 @@ import csv
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 from urllib3.util import parse_url
 
 import bilibili
@@ -951,17 +951,37 @@ def _notify_config():
         return {}
 
 
+def _pushplus_token(url):
+    """从 PushPlus 地址取 token:支持 /send/<token> 与 ?token=<token> 两种常见写法"""
+    parts = urlsplit(url)
+    tok = (parse_qs(parts.query).get('token') or [''])[0]
+    if tok:
+        return tok.strip()
+    m = re.search(r'/send/([A-Za-z0-9_-]+)', parts.path)
+    return m.group(1) if m else ''
+
+
 def _post_webhook(url, title, body):
     """推送一次并返回 (是否成功, 可读说明)。
 
     webhook 常见失败是「HTTP 200 但业务 code 非 0」(飞书 token 失效、Bark key 错),
     只看状态码会把这类错误当成成功;这里同时核对常见返回体的 code / statusCode,Bark
-    的 200 视为成功。
+    的 200 视为成功。支持的地址:飞书群机器人 / Bark / Server酱 / PushPlus / 通用 JSON。
     """
+    low = url.lower()
     try:
-        if 'feishu' in url or 'larksuite' in url:
+        if 'feishu' in low or 'larksuite' in low:
             r = requests.post(url, json={'msg_type': 'text',
                                          'content': {'text': f'{title}\n{body}'}}, timeout=10)
+        elif 'sctapi.ftqq.com' in low or 'sc.ftqq.com' in low:
+            # Server酱:表单 title/desp,不是 JSON
+            r = requests.post(url, data={'title': title, 'desp': body}, timeout=10)
+        elif 'pushplus' in low:
+            token = _pushplus_token(url)
+            if not token:
+                return False, 'PushPlus 地址需要带 token(如 https://www.pushplus.plus/send/你的token)'
+            r = requests.post('https://www.pushplus.plus/send',
+                              json={'token': token, 'title': title, 'content': body}, timeout=10)
         else:
             r = requests.post(url, json={'title': title, 'body': body}, timeout=10)
     except Exception as e:  # noqa: BLE001

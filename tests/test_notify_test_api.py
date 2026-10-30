@@ -39,8 +39,8 @@ def main():
     sent = []
     orig_cfg, orig_post = app._notify_config, app.requests.post
 
-    def fake_post(url, json=None, timeout=None):
-        sent.append({'url': url, 'json': json})
+    def fake_post(url, json=None, data=None, timeout=None):
+        sent.append({'url': url, 'json': json, 'data': data})
         return fake_post.resp
 
     app.requests.post = fake_post
@@ -84,7 +84,34 @@ def main():
         check("Bark code=200 → ok", d['ok'], True)
         check("非飞书 payload 为 {title,body}", sorted(sent[-1]['json'].keys()), ['body', 'title'])
 
-        # 6. HTTP 500
+        # 5b. Server酱:表单 title/desp
+        app._notify_config = lambda: {'webhook': 'https://sctapi.ftqq.com/KEY.send'}
+        fake_post.resp = Resp(200, {'code': 0, 'message': 'ok'})
+        d = client.post('/api/notify-test', headers=hdr).get_json()
+        check("Server酱 → ok", d['ok'], True)
+        check("Server酱 用表单提交", sorted(sent[-1]['data'].keys()), ['desp', 'title'])
+        check("Server酱 不再发 JSON", sent[-1]['json'], None)
+        check("Server酱 正文含测试消息", '测试消息' in sent[-1]['data']['desp'], True)
+
+        # 5c. PushPlus:/send/<token> 形式
+        app._notify_config = lambda: {'webhook': 'https://www.pushplus.plus/send/abc123'}
+        fake_post.resp = Resp(200, {'code': 200, 'msg': 'success'})
+        d = client.post('/api/notify-test', headers=hdr).get_json()
+        check("PushPlus → ok", d['ok'], True)
+        check("PushPlus 统一发到 /send", sent[-1]['url'], 'https://www.pushplus.plus/send')
+        check("PushPlus 取出路径 token", sent[-1]['json']['token'], 'abc123')
+        check("PushPlus payload 字段", sorted(sent[-1]['json'].keys()), ['content', 'title', 'token'])
+
+        # 5d. PushPlus 缺 token:给出可读错误且不发请求
+        app._notify_config = lambda: {'webhook': 'https://www.pushplus.plus/send'}
+        n_before = len(sent)
+        d = client.post('/api/notify-test', headers=hdr).get_json()
+        check("PushPlus 缺 token → ok=false", d['ok'], False)
+        check("PushPlus 缺 token → 说明提示 token", 'token' in d['detail'], True)
+        check("PushPlus 缺 token 不发请求", len(sent), n_before)
+
+        # 6. HTTP 500(换成通用地址,避免命中 PushPlus 的 token 分支)
+        app._notify_config = lambda: {'webhook': 'https://example.com/hook'}
         fake_post.resp = Resp(500, None)
         d = client.post('/api/notify-test', headers=hdr).get_json()
         check("HTTP 500 → ok=false", d['ok'], False)

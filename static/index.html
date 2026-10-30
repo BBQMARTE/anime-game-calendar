@@ -1668,7 +1668,7 @@ async function loadNotifyCfgUI(){
   const leads=[[0,'仅当天'],[1,'提前1天'],[3,'提前3天']];
   box.innerHTML=`
     <div style="padding:6px 0 2px">
-      <div class="lbl" style="font-size:14px">Webhook 推送地址<span class="sub">${NC.has_webhook?'已配置;填写新地址保存可覆盖,清空保存即停用':'未配置 — 支持飞书群机器人 / Bark / 通用 {title,body}'}</span></div>
+      <div class="lbl" style="font-size:14px">Webhook 推送地址<span class="sub">${NC.has_webhook?'已配置;填写新地址保存可覆盖,清空保存即停用':'未配置 — 支持飞书群机器人 / Bark / Server酱 / PushPlus / 通用 {title,body}'}</span></div>
       <input id="ncWebhook" class="note-input" style="margin:10px 0 6px;font-size:13px" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/… 或 https://api.day.app/你的key">
       <button class="detail-btn" style="width:100%;padding:9px 0" onclick="saveNotifyWebhook()">保存推送地址</button>
       ${NC.has_webhook?`<button class="detail-btn" style="width:100%;padding:9px 0;margin-top:8px;background:var(--fill);color:var(--label)" onclick="testNotify()">发送测试消息</button>`:''}

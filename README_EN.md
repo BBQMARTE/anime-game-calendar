@@ -21,7 +21,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Search & stats | search history dropdown; **quick filters: today / tomorrow / this week / weekend / next week / not started / ended**; **game prefixes `hsr:` / `zzz:` to scope to one game (combinable, e.g. `hsr: today`)**; **one-tap "clear search & filters" when the list is empty**; data stats in settings (per-game density / category mix / week & month starts / 14-day timeline); **export the current filter as CSV (opens directly in Excel)** |
 | Personal settings | **settings grouped into collapsible sections: Calendar / Reminders / Data**; toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days); every item is tagged by source (**verified / auto / Bilibili**) with an option to **hide unverified auto items**; the detail sheet offers one-tap feedback (missing image / wrong time / other) |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline); sheets support swipe-down to close; a stale-data banner appears after 24h without updates and refreshes in one tap |
-| Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark event-start + ending-soon push (adjustable lead days, **optional evening re-ping**, **one-tap test message** in settings), Tailscale remote access |
+| Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark/Server酱/PushPlus event-start + ending-soon push (adjustable lead days, **optional evening re-ping**, **one-tap test message** in settings), Tailscale remote access |
 | Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link; **generate a 1080×1350 share card and download the PNG**; **add a single event to your system calendar (downloads an .ics with a 30-minute reminder)**; **jump to other ongoing events of the same game from the sheet** |
 | NPC automation | cloud NPCs on CNB work in shifts (patrol → dev → review → merge) to iterate the code autonomously, driven by a free model |
 
@@ -104,7 +104,7 @@ Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for acces
 |---|---|
 | **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` for specific games or `?cats=活动,签到` for specific categories (the settings panel builds and copies this URL for you) |
 | **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
-| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest at `time` covers events starting within the next `lead_days+1` days (`lead_days` ∈ 0 / 1 / 3, default 1 = today & tomorrow), plus an "ending soon" section for events ending today/tomorrow |
+| **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark / Server酱 / PushPlus); a daily digest at `time` covers events starting within the next `lead_days+1` days (`lead_days` ∈ 0 / 1 / 3, default 1 = today & tomorrow), plus an "ending soon" section for events ending today/tomorrow |
 | **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |
 
 Example `data/notify.json`:
@@ -121,6 +121,8 @@ Example `data/notify.json`:
 
 - **Feishu/Lark**: group settings → bots → add a "Custom Bot", paste its webhook URL
 - **Bark** (iOS app): use `https://api.day.app/<your-key>`
+- **Server酱**: use `https://sctapi.ftqq.com/<your-SendKey>.send` (form-based push to WeChat)
+- **PushPlus**: use `https://www.pushplus.plus/send/<token>` (or `?token=...`)
 - Leave empty to disable; changes take effect on the next cycle
 
 <a id="games"></a>

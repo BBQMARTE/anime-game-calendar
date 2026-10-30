@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 推送支持 Server酱 / PushPlus
+
+- **推送渠道扩展**：webhook 除飞书群机器人 / Bark / 通用 JSON 外,新增 **Server酱**(`sctapi.ftqq.com/...send`,表单 `title/desp`)与 **PushPlus**(`/send/<token>` 或 `?token=`,统一发到官方 `/send` 接口),微信也能收到活动提醒;PushPlus 地址缺 token 时给出明确提示
+- 扩展 `tests/test_notify_test_api.py`（三种载荷格式、PushPlus token 提取与缺失分支）；更新设置面板文案与三语 README；SW 缓存版本 v51→v52
+
 ## 2026-10-31 · 空结果一键清除筛选
 
 - **空结果出口**：搜索词 / 游戏 / 分类把列表筛空时,不再只显示「暂无数据」,而是提示「没有符合条件的活动」并给出**一键清除搜索与筛选**链接;与「被隐藏自动条目筛空」「真的没数据」三种空状态分开
