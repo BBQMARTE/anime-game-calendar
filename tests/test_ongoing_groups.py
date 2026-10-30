@@ -33,7 +33,7 @@ const EVENTS = __EVENTS__;
 const FAV = new Set(__FAV__);
 const fn = new Function('evStart', 'evEnd', 'isFav', grab('ongoingGroups') + '\nreturn ongoingGroups;');
 const g = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id))(EVENTS, new Date('2026-10-31T12:00:00+08:00'));
-console.log(JSON.stringify({ live: g.live.map(e => e.id), unknown: g.unknown.map(e => e.id) }));
+console.log(JSON.stringify({ live: g.live.map(e => e.id), unknown: g.unknown.map(e => e.id), stale: g.stale.map(e => e.id) }));
 """
 
 EV = [
@@ -43,6 +43,7 @@ EV = [
     {'id': 'd', 'start': '2026-10-01T12:00'},                             # 开始 30 天,结束未知
     {'id': 'e', 'start': '2026-10-28T12:00'},                             # 开始 3 天,结束未知
     {'id': 'f', 'start': '2026-10-25T12:00', 'end': '2026-11-01T12:00'},  # 进行中且收藏
+    {'id': 'g', 'start': '2026-09-01T12:00'},                             # 结束未知且超过 30 天 → 折叠区
 ]
 FAV = ['f']
 
@@ -73,10 +74,12 @@ def main():
     got = json.loads(r.stdout.strip().splitlines()[-1])
     check('进行中只含真实未结束的活动(收藏置顶,按结束时间升序)',
           got['live'], ['f', 'a'])
-    check('结束未知组按开始时间倒序(最近的在前)', got['unknown'], ['e', 'd'])
+    check('结束未知(最近 30 天)按开始时间倒序', got['unknown'], ['e', 'd'])
+    check('结束未知且超过 30 天的进折叠区', got['stale'], ['g'])
     check('已结束/未开始都不出现在任何组',
           ('b' in got['live']) or ('b' in got['unknown']) or ('c' in got['live']) or ('c' in got['unknown']),
           False)
+    check('折叠区有展开入口', 'toggleUnknownAll()' in open(HTML, encoding='utf-8').read(), True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

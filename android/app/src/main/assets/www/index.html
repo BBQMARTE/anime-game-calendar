@@ -173,6 +173,7 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .cal-ev{display:block; max-width:100%; padding:0 3px; font-size:9.5px; line-height:1.25; color:var(--label2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .cal-dots{display:flex; gap:3px; height:5px; align-items:center}
 .cal-dots i{width:5px; height:5px; border-radius:50%}
+.more-btn{display:block; width:100%; text-align:left; background:none; border:none; padding:0; cursor:pointer; font:inherit; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; font-size:12px; font-weight:600; margin:4px 6px 8px}
 
 /* ---------- 设置面板 ---------- */
 .set-sec{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:18px 0 8px}
@@ -753,7 +754,7 @@ function eventsOnDay(y,mo,d){
   for(const e of filteredEvents()){
     if(!calVisible(e))continue;  // 设置里勾掉的游戏不上月历
     const s=evStart(e); if(!s)continue;
-    const t=evEnd(e)||s;
+    const t=e.end?evEnd(e):s;   // 无结束时间只算开始日,不在月历里伪造 2 天跨度
     const s0=new Date(s.getFullYear(),s.getMonth(),s.getDate());
     const t0=new Date(t.getFullYear(),t.getMonth(),t.getDate());
     if(s0>=day0&&s0<day1)starts.push(e);
@@ -866,18 +867,22 @@ function favEvents(evs,now){
     return (evStart(b)||0)-(evStart(a)||0);         // 已结束/时间未知:最近的在前
   });
 }
+let _unknownAll=false;   // 「更早开始·结束未知」是否展开(默认折叠)
+function toggleUnknownAll(){_unknownAll=!_unknownAll;renderList()}
 /* 进行中分组:有真实结束时间的算「进行中」;结束时间未知的单列,避免与已知截止的混排 */
 function ongoingGroups(evs,now){
-  const live=[],unknown=[];
+  const live=[],unknown=[],stale=[];
+  const cut=new Date(now.getTime()-30*864e5);   // 结束未知:最近 30 天正常展示,更早的折叠
   for(const e of evs){
     const s=evStart(e); if(!s||s>now)continue;
     if(e.end){if(evEnd(e)>=now)live.push(e)}
-    else unknown.push(e);
+    else (s<cut?stale:unknown).push(e);
   }
   const fav=(a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0));
   live.sort((a,b)=>fav(a,b)||(evEnd(a)-evEnd(b)));
   unknown.sort((a,b)=>fav(a,b)||(evStart(b)-evStart(a)));  // 最近开始的在前
-  return {live,unknown};
+  stale.sort((a,b)=>fav(a,b)||(evStart(b)-evStart(a)));
+  return {live,unknown,stale};
 }
 function renderList(){
   const now=new Date();
@@ -890,6 +895,9 @@ function renderList(){
     if(g.unknown.length)
       html+=`<div class="sec-title" title="来源只给了开始时间,没有结束时间,无法计算倒计时">已开始 · 结束未知 · ${g.unknown.length}</div>`
         +`<div class="group">${g.unknown.map(rowHtml).join('')}</div>`;
+    if(g.stale.length)
+      html+=`<button class="sec-title more-btn" onclick="toggleUnknownAll()">更早开始 · 结束未知 · ${g.stale.length} ${_unknownAll?'▲ 收起':'▼ 展开'}</button>`
+        +(_unknownAll?`<div class="group">${g.stale.map(rowHtml).join('')}</div>`:'');
   }else if(tab==='fav'){
     const arr=favEvents(filteredAll(),now);
     html=`<div class="sec-title">★ 收藏 · ${arr.length}</div>`

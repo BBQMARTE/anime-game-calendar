@@ -1084,6 +1084,15 @@ const Scraper = (() => {
     return { valid: true, reason: '' };
   }
 
+  /* 资讯时效:超过 60 天的旧公告不再进「全部资讯」(人工录入不受限)。与 app._INFO_KEEP_DAYS 同口径 */
+  const INFO_KEEP_DAYS = 60;
+  function isFreshInfo(e, now) {
+    if ((e.kind || 'event') !== 'info') return true;
+    if (e.src === 'manual' || !e.date) return true;
+    const d = new Date(e.date);
+    if (isNaN(d.getTime())) return true;
+    return dayDiff(now || new Date(), d) <= INFO_KEEP_DAYS;
+  }
   async function fetchAll(onProgress) {
     _uid = 0;
     const events = [], sources = {};
@@ -1134,7 +1143,8 @@ const Scraper = (() => {
     }
     if (dropped > 0) console.log(`[validateEvent] ${dropped} 个条目降级(非真活动)`);
 
-    const list = merged.sort((a, b) => (b.start || b.date || '').localeCompare(a.start || a.date || ''));
+    const fresh = merged.filter(e => isFreshInfo(e));
+    const list = fresh.sort((a, b) => (b.start || b.date || '').localeCompare(a.start || a.date || ''));
     const now = new Date();
     return { events: list, sources, games: GAMES, updated: iso(now) };
   }
@@ -1149,6 +1159,6 @@ const Scraper = (() => {
     return [s, e];
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent, signinDays,
+  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent, signinDays, isFreshInfo,
            extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();

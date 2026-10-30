@@ -43,15 +43,33 @@ _state = {
 }
 
 
-def _drop_expired(events):
-    """丢弃已结束的真活动(info/公告保留):do_refresh 与缓存载入共用同一口径"""
-    today = _bj_now().strftime('%Y-%m-%d')
-    kept = [e for e in events
-            if (e.get('kind') or 'event') != 'event'
-            or not e.get('end') or str(e['end'])[:10] >= today]
-    n = len(events) - len(kept)
-    if n:
-        print(f'[过滤] 丢弃 {n} 条已过期活动')
+_INFO_KEEP_DAYS = 60   # 资讯保留窗口(与 r1999 官方源同口径),人工录入不受限
+
+
+def _drop_expired(events, now=None):
+    """丢弃已结束的真活动;资讯只保留近 60 天(人工录入除外)。
+    do_refresh 与缓存载入共用同一口径,避免旧公告在「全部资讯」里长期堆积。"""
+    now = now or _bj_now().replace(tzinfo=None)
+    today = now.strftime('%Y-%m-%d')
+    kept, dropped_ev, dropped_info = [], 0, 0
+    for e in events:
+        if (e.get('kind') or 'event') != 'event':
+            if e.get('src') != 'manual' and e.get('date'):
+                try:
+                    days = (now - datetime.fromisoformat(str(e['date'])[:19])).days
+                    if days > _INFO_KEEP_DAYS:
+                        dropped_info += 1
+                        continue
+                except ValueError:
+                    pass
+            kept.append(e)
+            continue
+        if e.get('end') and str(e['end'])[:10] < today:
+            dropped_ev += 1
+            continue
+        kept.append(e)
+    if dropped_ev or dropped_info:
+        print(f'[过滤] 丢弃 {dropped_ev} 条已过期活动、{dropped_info} 条 60 天前旧资讯')
     return kept
 
 

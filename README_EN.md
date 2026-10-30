@@ -145,7 +145,7 @@ Everything fetched falls into two tiers:
 | Tier | Content | Where it shows |
 |---|---|---|
 | **Event** | limited-time events, character & weapon banners with **start/end times**, auto-shortened titles, countdown & progress bar | Ongoing / Upcoming |
-| **Info** | fix notices, gameplay guides, shop updates, surveys, official news, Bilibili posts | "All info" tab only |
+| **Info** | fix notices, gameplay guides, shop updates, surveys, official news, Bilibili posts | "All info" tab only (last 60 days; manual entries exempt) |
 
 The top filter bar filters by game and by category (events / check-in / characters & weapons / notices / info). **Daily sign-in and cumulative login events are auto-tagged "check-in" (签到)** — filter them out in one click if you don't want the daily grind.
 
@@ -249,7 +249,7 @@ Event times are extracted by `timeparse.py` (web/server) and `static/scraper.js`
   - Year-crossing ranges like `12月30日 ~ 1月5日` roll the end date into the next year
 - **Permanent**: keywords like 长期/常驻/永久/持续开放 mark an event as never-ending
 - **Event names**: brackets `「」『』【】[]（）〈〉` and `■/◆/✦` heading lines; generic titles (e.g. "version event") are filtered
-- **Missing end time**: events with a start but no end get a default **2-day** window
+- **Missing end time**: events with a start but no end keep a default **2-day** window for ICS subscription / single-event download; the calendar and date filters ("today / this week") show them on the **start day only** instead of inventing a span (the Ongoing tab lists them separately as "end unknown")
 
 <a id="manual-add"></a>
 
