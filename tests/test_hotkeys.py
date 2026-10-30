@@ -38,6 +38,8 @@ console.log(JSON.stringify({
   cmdK: html.includes("toLowerCase()==='k'"),
   onlyGameFn: html.includes('function onlyThisGame'),
   onlyGameBtn: html.includes('只看「'),
+  closeTopFn: html.includes('function closeTopOverlay'),
+  noBrittleSelector: src.includes('.detail-overlay:last-of-type') === false,
 }));
 """
 
@@ -74,6 +76,8 @@ def main():
     check("Ctrl/Cmd+K 聚焦搜索", d['cmdK'], True)
     check("onlyThisGame 已实现", d['onlyGameFn'], True)
     check("详情页有「只看某游戏」按钮", d['onlyGameBtn'], True)
+    check("closeTopOverlay 已实现", d['closeTopFn'], True)
+    check("不再使用不可靠的 :last-of-type 关弹层", d['noBrittleSelector'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

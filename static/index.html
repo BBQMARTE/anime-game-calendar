@@ -1446,7 +1446,7 @@ function addMemoTpl(){
   const a=memoTpl();
   if(!a.includes(t))a.push(t);
   saveMemoTpl(a);
-  const o=document.querySelector('.detail-overlay:last-of-type');if(o)o.remove();
+  closeTopOverlay();
   openMemoTpl();
 }
 function noteHtml(){
@@ -1518,7 +1518,7 @@ function submitNoteAdd(){
   if(!t){if(i)i.focus();return}
   NOTES.items.unshift({id:'n'+Date.now(),title:t,done:false});
   saveNotes();
-  const o=document.querySelector('.detail-overlay:last-of-type');if(o)o.remove();
+  closeTopOverlay();
   mountNotes();
 }
 /* ================= 设置面板 ================= */
@@ -1780,16 +1780,22 @@ function toggleCalAllGames(){
   saveSettings();openSettingsRefresh();
 }
 function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历+顶部筛选器
-  const o=document.querySelector('.detail-overlay:last-of-type'); if(o)o.remove();
+  document.querySelectorAll('.detail-overlay').forEach(o=>o.remove());  // 清干净,避免反复切换堆叠
   render();openSettings();
+}
+/* 关掉最上层弹层:CSS 的 :last-of-type 按标签类型匹配,多个弹层叠放时会选错 */
+function closeTopOverlay(){
+  const all=document.querySelectorAll('.detail-overlay');
+  const top=all[all.length-1];
+  if(top){top.remove();return true}
+  return false;
 }
 
 /* 键盘快捷键(桌面):Esc 关弹窗,「/」或 Ctrl/Cmd+K 聚焦搜索 */
 function isTypingTag(tag){return /^(INPUT|TEXTAREA|SELECT)$/.test(String(tag||''))}
 function hotkeyGo(e){
   if(e.key==='Escape'){
-    const o=document.querySelector('.detail-overlay:last-of-type');
-    if(o){o.remove();return true}
+    if(closeTopOverlay())return true;
   }
   const slash=e.key==='/';
   const cmdK=(e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==='k';

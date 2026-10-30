@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 修复弹层关闭选择器
+
+- **弹层堆叠修复**：`openSettingsRefresh` / 备忘模板 / 添加备忘 / Esc 原用 `.detail-overlay:last-of-type`,该选择器按标签类型匹配,多个弹层叠放时可能关错或残留。改为统一的 `closeTopOverlay()`(取最后一个 overlay)与设置刷新前清空全部弹层,反复切换开关不再堆叠
+- 扩展 `tests/test_hotkeys.py`(断言不再使用脆弱选择器)；SW 缓存版本 v56→v57
+
 ## 2026-10-31 · 一键测试 + GitHub Actions
 
 - 新增 `run_tests.py`:一条命令跑 `tests/` 全部用例并汇总失败项(`python run_tests.py notify` 可只跑文件名含 notify 的子集)
