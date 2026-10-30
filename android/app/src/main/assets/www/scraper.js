@@ -900,7 +900,8 @@ const Scraper = (() => {
     return out;
   }
   function biliTitle(clean) {
-    const lines = clean.split('\n').map(s => s.trim().replace(/^[,，。. ]+|[,，。. ]+$/g, '')).filter(Boolean);
+    // 正文夹带的链接不进标题(与 bilibili._title_of 同口径)
+    const lines = clean.split('\n').map(s => s.replace(/https?:\/\/\S+/g, '').trim().replace(/^[,，。. ]+|[,，。. ]+$/g, '')).filter(Boolean);
     if (!lines.length) return '';
     let t = lines[0];
     if (t.length < 8 && lines.length > 1) t = t + ' ' + lines[1];
@@ -1159,6 +1160,6 @@ const Scraper = (() => {
     return [s, e];
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent, signinDays, isFreshInfo,
+  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent, signinDays, isFreshInfo, biliTitle,
            extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();

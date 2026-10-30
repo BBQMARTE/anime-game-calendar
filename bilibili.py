@@ -104,8 +104,13 @@ def _u16cut(s, n):
     return ''.join(out)
 
 
+_URL_RE = re.compile(r'https?://\S+')
+
+
 def _title_of(clean):
-    lines = [l.strip(_TRIM) for l in clean.split('\n') if l.strip(_TRIM)]
+    # 动态正文里夹带的链接不进标题(否则会出现「互动抽奖 https://...」这类无效标题)
+    lines = [_URL_RE.sub('', l).strip(_TRIM) for l in clean.split('\n')]
+    lines = [l for l in lines if l]
     if not lines:
         return ''
     title = lines[0]
