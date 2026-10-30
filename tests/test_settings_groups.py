@@ -57,6 +57,7 @@ console.log(JSON.stringify({
   hasAutoHint: out.includes('当前 2 条自动条目会被隐藏') && out.includes('其中 1 条无图'),
   hasCss: html.includes('.set-group>summary::-webkit-details-marker{display:none}')
       && html.includes('.set-group[open]>summary::after{transform:rotate(-90deg)}'),
+  hasExport: out.includes('导出 CSV') && html.includes('/api/export.csv') && html.includes('function exportCsv'),
 }));
 """
 
@@ -88,6 +89,7 @@ def main():
     check("默认全部展开", d['anyCollapsed'], False)
     check("隐藏自动条目仍显示条数提示", d['hasAutoHint'], True)
     check("折叠箭头样式已写入", d['hasCss'], True)
+    check("数据分组含「导出 CSV」入口", d['hasExport'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

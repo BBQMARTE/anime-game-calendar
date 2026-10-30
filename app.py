@@ -13,6 +13,8 @@ import threading
 import time
 import webbrowser
 from datetime import datetime, timedelta, timezone
+from io import StringIO
+import csv
 
 import requests
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -736,6 +738,41 @@ def api_ics():
     print(f'[订阅] 生成 ICS: {n} 个事件')
     body = '\r\n'.join(_ics_fold(l) for l in lines)
     return Response(body + '\r\n', mimetype='text/calendar; charset=utf-8')
+
+
+@app.route('/api/export.csv')
+def api_export_csv():
+    """导出 CSV(Excel 直接打开):按 ?games= / ?cats= 筛选,与订阅同口径。
+
+    带 UTF-8 BOM,否则 Windows Excel 打开会把中文识别成乱码;内容含全部条目
+    (活动与公告资讯),「类型」列区分,方便用户在表格里自行透视。
+    """
+    with _lock:
+        events = list(_state['events'])
+    games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
+    cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
+    rows = [e for e in events
+            if (not games or e.get('game_id') in games)
+            and (not cats or e.get('category') in cats)]
+    rows.sort(key=lambda e: (e.get('start') or e.get('date') or '~', e.get('title') or ''))
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接'])
+    src_label = {'manual': '已核实', 'bilibili': 'B站'}
+    for e in rows:
+        w.writerow([
+            e.get('game') or e.get('game_id') or '',
+            e.get('title') or '',
+            e.get('category') or '',
+            e.get('start') or '',
+            e.get('end') or '',
+            '活动' if (e.get('kind') or 'event') == 'event' else '资讯',
+            src_label.get(e.get('src'), '自动'),
+            e.get('link') or '',
+        ])
+    body = '\ufeff' + buf.getvalue()
+    return Response(body, content_type='text/csv; charset=utf-8',
+                    headers={'Content-Disposition': 'attachment; filename=ycal-events.csv'})
 
 
 # ================= 图片代理(绕过图床跨域/防盗链) =================

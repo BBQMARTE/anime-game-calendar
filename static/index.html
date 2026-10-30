@@ -1475,6 +1475,10 @@ function openSettings(){
         <div class="lbl">日历订阅链接<span class="sub">只含当前显示的游戏与分类,可粘到系统日历 / Google 日历订阅</span></div>
         <span class="chev">›</span>
       </div>
+      <div class="set-row" style="cursor:pointer" onclick="exportCsv()" role="button" aria-label="导出 CSV">
+        <div class="lbl">导出 CSV<span class="sub">按当前显示的游戏与分类导出表格,Excel 直接打开</span></div>
+        <span class="chev">›</span>
+      </div>
       </details>
     </div>
   </div>`;
@@ -1483,16 +1487,26 @@ function openSettings(){
   attachSwipeClose(o);
   loadNotifyCfgUI();
 }
-/* ── 日历订阅链接:按「显示的游戏」拼 ?games=,只订阅自己玩的 ── */
-function icsUrl(){
+/* ── 当前筛选的查询串:ICS 订阅与 CSV 导出共用 ── */
+function filterQuery(){
   const ids=[...calGamesSet()];
   const all=(DATA&&DATA.games||[]).map(g=>g.id);
   const cats=[...activeCats], allC=Object.keys(CAT_COLOR);
   const q=[];
   if(ids.length&&ids.length<all.length)q.push('games='+ids.join(','));
   if(cats.length&&cats.length<allC.length)q.push('cats='+cats.map(encodeURIComponent).join(','));
-  const origin=location.origin.indexOf('http')===0?location.origin:'http://127.0.0.1:5000';
-  return origin+'/api/calendar.ics'+(q.length?'?'+q.join('&'):'');
+  return q.length?'?'+q.join('&'):'';
+}
+function apiOrigin(){
+  return location.origin.indexOf('http')===0?location.origin:'http://127.0.0.1:5000';
+}
+function icsUrl(){ return apiOrigin()+'/api/calendar.ics'+filterQuery(); }
+/* 导出 CSV:直接下载,Excel/Numbers 打开即可透视 */
+function exportCsv(){
+  const a=document.createElement('a');
+  a.href=apiOrigin()+'/api/export.csv'+filterQuery();
+  a.download='二游活动日历.csv';
+  document.body.appendChild(a);a.click();a.remove();
 }
 function copyIcsUrl(){
   const u=icsUrl();
