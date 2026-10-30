@@ -589,6 +589,7 @@ def api_notify_config():
         return jsonify({'time': cfg.get('time') or '08:30',
                         'lead_days': _lead_days(cfg),
                         'evening': cfg.get('evening') or '',
+                        'fav_only': bool(cfg.get('fav_only')),
                         'has_webhook': bool((cfg.get('webhook') or '').strip())})
     if request.headers.get('X-Requested-With') != 'ycal':
         return jsonify({'ok': False, 'error': 'forbidden'}), 403
@@ -617,6 +618,9 @@ def api_notify_config():
             cfg['evening'] = f'{hh:02d}:{mm:02d}'
         else:
             cfg['evening'] = ''
+    # 只推送收藏的活动:布尔开关(收藏状态来自 data/userstate.json)
+    if 'fav_only' in body:
+        cfg['fav_only'] = bool(body.get('fav_only'))
     # webhook:空串=清除;http(s) 才收(防 file:// 等奇形怪状值)
     if 'webhook' in body:
         w = str(body.get('webhook') or '').strip()
@@ -632,6 +636,7 @@ def api_notify_config():
     return jsonify({'ok': True, 'time': cfg.get('time') or '08:30',
                     'lead_days': _lead_days(cfg),
                     'evening': cfg.get('evening') or '',
+                    'fav_only': bool(cfg.get('fav_only')),
                     'has_webhook': bool((cfg.get('webhook') or '').strip())})
 
 
@@ -999,7 +1004,8 @@ NOTIFY_FILE = os.path.join(DATA_DIR, 'notify.json')
 def _ensure_notify_file():
     if not os.path.exists(NOTIFY_FILE):
         with open(NOTIFY_FILE, 'w', encoding='utf-8') as f:
-            json.dump({'webhook': '', 'time': '08:30', 'lead_days': 1, 'evening': ''},
+            json.dump({'webhook': '', 'time': '08:30', 'lead_days': 1, 'evening': '',
+                       'fav_only': False},
                       f, ensure_ascii=False, indent=2)
 
 
@@ -1109,12 +1115,17 @@ def _daily_notify(now=None, evening=False):
     # 晚安提醒只覆盖「明天开始」与「今天结束」,避免与早间推送重复刷屏
     start_days = {tomorrow: 1} if evening else days
     end_days = (today,) if evening else (today, tomorrow)
+    fav_only = bool(cfg.get('fav_only'))
+    fav_map = (_load_userstate().get('fav') or {}) if fav_only else {}
     starting, ending = [], []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
             continue
         # 未解析到开始时间的条目不得拿 pub(date) 当「今天开始」推送(Issue #25)
         if e.get('_nodate'):
+            continue
+        # 只推送收藏的活动:键与前端 doneKey 一致(game_id|title),正值=收藏
+        if fav_only and fav_map.get(f"{e.get('game_id') or ''}|{e.get('title') or ''}", 0) <= 0:
             continue
         s = str(e.get('start') or e.get('date') or '')
         if s[:10] in start_days:
@@ -1130,6 +1141,8 @@ def _daily_notify(now=None, evening=False):
             ending.append((ed, e))
     span = '明天' if evening else ({0: '今天', 1: '今明两天'}.get(lead) or f'未来 {lead + 1} 天')
     if not starting and not ending:
+        if fav_only:
+            return   # 只推收藏时没有命中就静默,避免每天空推打扰
         _send_notify('二游活动日历',
                      '今晚没有需要注意的活动。' if evening else f'{span}没有新活动开始。')
         return

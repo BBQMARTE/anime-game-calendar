@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 提醒推送可选「只推收藏」
+
+- **少打扰**：设置「提醒推送」新增开关「只推送收藏的活动」，开启后每日/晚间推送只包含点过 ★ 收藏的活动（收藏键与前端一致 `game_id|title`，来自 `data/userstate.json`）；没有命中就静默，不再每天空推
+- `/api/notify-config` GET/POST 增加 `fav_only`；新增 `tests/test_notify_fav.py`（收藏过滤 / 取消收藏墓碑 / 关闭恢复全量 / API 读写）；三语 README 同步；SW 缓存版本 v70→v71
+
 ## 2026-10-31 · 安卓离线模式带上人工核实活动
 
 - **离线不再只剩爬虫数据**：APK 连不上服务器时走 file:// 离线模式，此前看不到 `data/manual.json` 里 197 条人工核实活动。现在打包时生成 `manual-data.js`（`window.YCAL_MANUAL`），前端在 localStorage 无数据时回退读取；服务端新增 `/manual-data.js` 路由

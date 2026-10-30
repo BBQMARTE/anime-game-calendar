@@ -1790,6 +1790,10 @@ async function loadNotifyCfgUI(){
       <div class="set-games" style="margin-top:10px">
         ${leads.map(([v,t])=>`<span class="chip ${NC.lead_days===v?'on':''}" style="--c:var(--blue)" onclick="saveNotifyCfg({lead_days:${v}})">${t}</span>`).join('')}
       </div>
+    </div>
+    <div class="set-row" style="border-bottom:none;padding:10px 0 2px">
+      <div class="lbl">只推送收藏的活动<span class="sub">${NC.fav_only?'已开启:每天只推你点过 ★ 收藏的活动':'关闭:每日推送包含全部活动'}</span></div>
+      <label class="switch"><input type="checkbox" ${NC.fav_only?'checked':''} onchange="saveNotifyCfg({fav_only:this.checked})" aria-label="只推送收藏的活动"><span class="tr"></span></label>
     </div>`;
 }
 async function saveNotifyWebhook(){
