@@ -578,29 +578,31 @@ const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已
 function isQuickWord(s){return QUICK_WORDS.indexOf(s)>=0}
 function quickMatch(e,w,now){
   const s=evStart(e); if(!s)return false;
-  const t=evEnd(e)||s;
+  const hasEnd=!!e.end;
+  const t=hasEnd?evEnd(e):null;   // 无结束时间不拿默认 2 天窗口判定「结束/已结束」
   const d0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const day=n=>new Date(d0.getTime()+864e5*n);
   const same=(a,b)=>a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-  if(w==='今天')return same(s,now)||same(t,now)||(s<=now&&t>=now);
+  if(w==='今天')return same(s,now)||same(t,now)||(s<=now&&(!t||t>=now));
   if(w==='明天')return same(s,day(1))||same(t,day(1));
+  const te=hasEnd?t:new Date(8.64e15);   // 无结束时间视为仍在进行(不参与区间收窄)
   if(w==='本周'){
     const w0=day(-((now.getDay()+6)%7));   // 本周一 00:00(国内习惯周一起算)
     const w1=day(-((now.getDay()+6)%7)+7);
-    return s<w1&&t>=w0;                    // 本周内开始或跨到本周的都算
+    return s<w1&&te>=w0;                    // 本周内开始或跨到本周的都算
   }
   if(w==='周末'){
     const add=(6-now.getDay()+7)%7;   // 到本周六的天数
     const sat=day(add), mon=day(add+2);
-    return (s>=sat&&s<mon)||(s<sat&&t>=sat);
+    return (s>=sat&&s<mon)||(s<sat&&te>=sat);
   }
   if(w==='下周'){
     const add=7-((now.getDay()+6)%7);  // 到下周一的天数(今天就是周一时取 7)
     const w0=day(add), w1=day(add+7);
-    return s<w1&&t>=w0;               // 下周内开始或跨到下周的都算
+    return s<w1&&te>=w0;               // 下周内开始或跨到下周的都算
   }
   if(w==='未开始')return s>now;
-  if(w==='已结束')return t<now;
+  if(w==='已结束')return hasEnd&&t<now;
   return false;
 }
 /* 游戏前缀:输入 hsr: / zzz: 只看该游戏,冒号后可跟关键词或快捷词(如 hsr: 今天) */
@@ -683,7 +685,8 @@ function fmtRange(e){
   return f(s);
 }
 function cdText(e){
-  const now=new Date(),s=evStart(e),t=evEnd(e);
+  // 没有真实结束时间(n.end 为空)时不伪造「剩 N 天」——后端/前端 evEnd 只是日历用的 2 天默认窗口
+  const now=new Date(),s=evStart(e),t=e.end?evEnd(e):null;
   const dur=ms=>{const m=Math.floor(ms/6e4),h=Math.floor(m/60),d=Math.floor(h/24);
     return d>0?`${d}天${h%24?h%24+'小时':''}`:(h>0?`${h}小时${m%60?m%60+'分':''}`:`${Math.max(m,1)}分钟`)};
   if(s&&s>now)return {txt:'还有 '+dur(s-now),urgent:(s-now)<24*3600e3};
@@ -844,8 +847,9 @@ function renderList(){
   document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===tab));
   let html='';
   if(tab==='ongoing'){
-    const arr=filteredEvents().filter(e=>{const s=evStart(e),t=evEnd(e);return s&&t&&s<=now&&t>=now})
-      .sort((a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0))||(evEnd(a)-evEnd(b)));  // 收藏置顶,其余按结束时间
+    const arr=filteredEvents().filter(e=>{const s=evStart(e),t=e.end?evEnd(e):null;return s&&s<=now&&(!t||t>=now)})
+      .sort((a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0))
+        ||((a.end?evEnd(a):new Date(8.64e15))-(b.end?evEnd(b):new Date(8.64e15))));  // 收藏置顶;无结束时间的排最后
     html=`<div class="sec-title">进行中 · ${arr.length}</div>`
       +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`:'');
   }else{
@@ -1275,10 +1279,10 @@ function renderTodayBar(){
   let start=0,end=0,run=0;
   for(const e of filteredEvents()){
     const s=evStart(e); if(!s)continue;
-    const t=evEnd(e)||s;
+    const t=e.end?evEnd(e):null;   // 无结束时间不伪造「今天结束」
     if(s>=t0&&s<t1)start++;
-    if(t>=t0&&t<t1)end++;
-    if(s<=now&&t>=now)run++;
+    if(t&&t>=t0&&t<t1)end++;
+    if(s<=now&&(!t||t>=now))run++;
   }
   el.innerHTML=`<div class="tb" onclick="jumpToday()" role="button" aria-label="今天开始 ${start} 个活动"><b>${start}</b><span>今天开始</span></div>`
     +`<div class="tb" onclick="jumpToday()" role="button" aria-label="今天结束 ${end} 个活动"><b>${end}</b><span>今天结束</span></div>`
@@ -1626,7 +1630,7 @@ function copyIcsUrl(){
 function openStats(){
   const evs=(DATA&&DATA.events||[]).filter(isEv);  // 只统计真活动
   const now=new Date();
-  const ongoing=evs.filter(e=>{const s=evStart(e),t=evEnd(e);return s&&t&&s<=now&&t>=now});
+  const ongoing=evs.filter(e=>{const s=evStart(e),t=e.end?evEnd(e):null;return s&&s<=now&&(!t||t>=now)});
   const soon=evs.filter(e=>{const s=evStart(e);return s&&s>now});
   // 各游戏:总数 + 进行中
   const byGame=new Map();

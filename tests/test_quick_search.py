@@ -67,6 +67,9 @@ EV = [
     # 已结束(10/1–10/5)
     {'id': 'f', 'game_id': 'wuwa', 'title': '活动F', 'category': '活动',
      'start': '2026-10-01T10:00', 'end': '2026-10-05T23:59'},
+    # 今天开始、未写结束时间(应算进行中,不算已结束)
+    {'id': 'g', 'game_id': 'hsr', 'title': '活动G', 'category': '活动',
+     'start': '2026-10-31T09:00'},
 ]
 
 bad = 0
@@ -92,19 +95,19 @@ def main():
         print('FAIL: node 执行失败\n' + r.stderr[:800])
         return 1
     d = json.loads(r.stdout.strip().splitlines()[-1])
-    check("今天:含进行中+今天结束", d['today'], ['a', 'b'])
+    check("今天:含进行中+今天结束+无结束时间", d['today'], ['a', 'b', 'g'])
     check("明天:含明天开始", d['tomorrow'], ['c'])
-    check("本周(周一起算):含进行中与本周开始", d['week'], ['a', 'b', 'c'])
-    check("周末:11/1(周日)开始的活动", d['weekend'], ['a', 'b', 'c'])
+    check("本周(周一起算):含进行中与本周开始", d['week'], ['a', 'b', 'c', 'g'])
+    check("周末:11/1(周日)开始的活动", d['weekend'], ['a', 'b', 'c', 'g'])
     check("未开始:开始时间晚于此刻", d['notStarted'], ['c', 'd', 'e'])
     check("普通关键词仍按文本匹配", d['plain'], ['a'])
-    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd'])
-    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd'])
+    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd', 'g'])
+    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd', 'g'])
     check("游戏前缀+关键词 zzz: 活动", d['prefixZzzWord'], ['b', 'e'])
-    check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a'])
+    check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
-    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd'])
-    check("已结束:结束时间早于此刻", d['ended'], ['f'])
+    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd', 'g'])
+    check("已结束:必须真有结束时间", d['ended'], ['f'])
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

@@ -46,6 +46,8 @@ EV = [
     {'start': '2026-10-25T10:00', 'end': '2026-11-05T03:59'},
     # 明天才开始(三项都不计)
     {'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
+    # 今天开始但未写结束时间:算今天开始与进行中,不算今天结束
+    {'start': '2026-10-31T09:00'},
 ]
 
 bad = 0
@@ -73,9 +75,9 @@ def main():
         return 1
     d = json.loads(r.stdout.strip().splitlines()[-1])
     check("渲染出三个计数", len(d['nums']), 3)
-    check("今天开始 = 1", d['nums'][0], 1)
+    check("今天开始 = 2(含未写结束时间的一条)", d['nums'][0], 2)
     check("今天结束 = 1", d['nums'][1], 1)
-    check("进行中 = 3(含今天起止的两条)", d['nums'][2], 3)
+    check("进行中 = 4(含今天起止与未写结束时间)", d['nums'][2], 4)
     check("输出非空", d['html'] > 0, True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
