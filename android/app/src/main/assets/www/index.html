@@ -713,9 +713,16 @@ function imgUrl(u){
 /* 列表/详情头的小缩略图:本地封面图交给服务端按需压到 200px(原图几百 KB);
    安卓离线模式用随包生成的 www/thumb/ 小图,避免 99MB 原图进 APK */
 function thumbUrl(u){
-  if(!u||!/^\/static\/img\//i.test(u))return imgUrl(u);   // 远程图仍走原代理
-  if(location.protocol==='file:')return 'thumb'+u.slice(7); // /static/img/x -> thumb/img/x
-  return '/api/thumb?path='+encodeURIComponent(u);
+  if(!u)return '';
+  if(/^\/static\/img\//i.test(u)){   // 本地封面:服务端压 200px / 离线用随包小图
+    if(location.protocol==='file:')return 'thumb'+u.slice(7);
+    return '/api/thumb?path='+encodeURIComponent(u);
+  }
+  if(/^https?:/i.test(u)){            // 远程图:B站/官网图床交给代理时顺带缩到 200px
+    if(location.protocol==='file:')return u;
+    return '/api/img?url='+encodeURIComponent(u)+'&w=200';
+  }
+  return u;
 }
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';

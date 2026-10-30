@@ -68,6 +68,30 @@ def main():
     check('不存在的图片返回 404',
           client.get('/api/thumb?path=/static/img/__nope__.jpg').status_code, 404)
 
+    # ---- 远程图代理 ?w=200:用假响应,避免联网 ----
+    from io import BytesIO
+    from PIL import Image
+    buf = BytesIO()
+    Image.new('RGB', (800, 400), (220, 40, 40)).save(buf, 'PNG')
+    png = buf.getvalue()
+    real_fetch = app._fetch_image
+    real_block = app._img_host_blocked
+    app._fetch_image = lambda url, headers: (200, 'image/png', png)
+    app._img_host_blocked = lambda host: False   # 测试用 example.com,跳过白名单/DNS
+    try:
+        big = client.get('/api/img?url=https://example.com/a.png')
+        small = client.get('/api/img?url=https://example.com/a.png&w=200')
+        check('不带 w 返回原图', big.mimetype, 'image/png')
+        check('w=200 返回 JPEG', small.mimetype, 'image/jpeg')
+        check('w=200 体积更小', len(small.data) < len(big.data), True)
+        bad_w = client.get('/api/img?url=https://example.com/a.png&w=abc')
+        check('非法 w 回退原图', bad_w.mimetype, 'image/png')
+        tiny = client.get('/api/img?url=https://example.com/a.png&w=20')
+        check('w 低于下限回退原图', tiny.mimetype, 'image/png')
+    finally:
+        app._fetch_image = real_fetch
+        app._img_host_blocked = real_block
+
     node = shutil.which('node')
     if not node:
         print('SKIP: 未找到 node,跳过前端 thumbUrl 映射测试')
@@ -110,8 +134,8 @@ console.log(JSON.stringify({
             check('服务端本地图走 /api/thumb',
                   d['localHttp'], '/api/thumb?path=%2Fstatic%2Fimg%2Fhsr%2Fa.jpg')
             check('离线模式走相对 thumb/img', d['localFile'], 'thumb/img/hsr/a.jpg')
-            check('远程图仍走图片代理',
-                  d['remoteHttp'], '/api/img?url=https%3A%2F%2Fexample.com%2Fa.jpg')
+            check('远程图走代理并缩到 200px',
+                  d['remoteHttp'], '/api/img?url=https%3A%2F%2Fexample.com%2Fa.jpg&w=200')
             check('空图片返回空串', d['empty'], '')
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))

@@ -13,7 +13,7 @@ import threading
 import time
 import webbrowser
 from datetime import datetime, timedelta, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 import csv
 
 import requests
@@ -1006,6 +1006,24 @@ def _fetch_image(url, headers, max_redirects=IMG_MAX_REDIRECTS, max_bytes=IMG_MA
         r.close()
 
 
+def _shrink_image(content, width=200):
+    """把位图缩到指定宽度并转 JPEG;失败/非位图返回 None(调用方回退原图)。
+
+    列表行只有 40px,远程原图往往几百 KB;这里按需缩小而非落盘缓存,
+    省掉一次磁盘读写,浏览器侧仍按 URL(含 w 参数)缓存一天。
+    """
+    try:
+        from PIL import Image
+        im = Image.open(BytesIO(content)).convert('RGB')
+        if im.width > width:
+            im = im.resize((width, max(1, round(im.height * width / im.width))), Image.LANCZOS)
+        out = BytesIO()
+        im.save(out, 'JPEG', quality=80, optimize=True)
+        return out.getvalue()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 @app.route('/api/img')
 def api_img():
     url = (request.args.get('url') or '').strip()
@@ -1031,6 +1049,15 @@ def api_img():
     if ctype == 'image/svg+xml':
         # SVG 内嵌脚本会在同源上下文执行,不放行
         return jsonify({'error': 'svg not allowed'}), 502
+    # 列表缩略图:?w=200 时缩宽转 JPEG(SVG/GIF 与非位图回退原图)
+    try:
+        want_w = int(request.args.get('w') or 0)
+    except ValueError:
+        want_w = 0
+    if 80 <= want_w <= 800 and ctype not in ('image/gif', 'image/svg+xml'):
+        small = _shrink_image(content, want_w)
+        if small:
+            content, ctype = small, 'image/jpeg'
     resp = Response(content, mimetype=ctype)
     resp.headers['X-Content-Type-Options'] = 'nosniff'
     resp.headers['Cache-Control'] = 'public, max-age=86400'  # 图片缓存 1 天
