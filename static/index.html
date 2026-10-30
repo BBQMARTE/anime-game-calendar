@@ -354,7 +354,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 <div class="sources" id="sources"></div>
 <div class="filters" id="filters"></div>
 <div class="searchbar" style="position:relative">
-  <input type="search" id="q" placeholder="搜索活动或资讯…" oninput="onSearch(this.value)" onfocus="showQHist()" autocomplete="off">
+  <input type="search" id="q" placeholder="搜索活动,或输入 今天/明天/本周/周末/未开始…" oninput="onSearch(this.value)" onfocus="showQHist()" autocomplete="off">
   <div id="qhist" style="display:none"></div>
 </div>
 
@@ -552,14 +552,40 @@ async function doRefresh(){
     }finally{setLoading(false)}
   }
 }
+/* 搜索快捷词:输入这些词直接按时间筛选(不用记活动名) */
+const QUICK_WORDS=['今天','明天','本周','周末','未开始'];
+function isQuickWord(s){return QUICK_WORDS.indexOf(s)>=0}
+function quickMatch(e,w,now){
+  const s=evStart(e); if(!s)return false;
+  const t=evEnd(e)||s;
+  const d0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const day=n=>new Date(d0.getTime()+864e5*n);
+  const same=(a,b)=>a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+  if(w==='今天')return same(s,now)||same(t,now)||(s<=now&&t>=now);
+  if(w==='明天')return same(s,day(1))||same(t,day(1));
+  if(w==='本周'){
+    const w0=day(-((now.getDay()+6)%7));   // 本周一 00:00(国内习惯周一起算)
+    const w1=day(-((now.getDay()+6)%7)+7);
+    return s<w1&&t>=w0;                    // 本周内开始或跨到本周的都算
+  }
+  if(w==='周末'){
+    const add=(6-now.getDay()+7)%7;   // 到本周六的天数
+    const sat=day(add), mon=day(add+2);
+    return (s>=sat&&s<mon)||(s<sat&&t>=sat);
+  }
+  if(w==='未开始')return s>now;
+  return false;
+}
 function filtered(){
-  const k=q.trim().toLowerCase();
+  const raw=q.trim(), k=raw.toLowerCase();
+  const quick=isQuickWord(raw);
+  const now=new Date();
   return (DATA.events||[]).filter(e=>
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
     &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
     &&(!settings.hideAuto||e.src==='manual'||e.src==='bilibili')  // 只留有来源保证的条目
     &&activeCats.has(e.category)
-    &&(!k||((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k)));
+    &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k))));
 }
 /* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
 function isEv(e){return (e.kind||'event')==='event'}
@@ -1375,9 +1401,12 @@ function openSettings(){
 function icsUrl(){
   const ids=[...calGamesSet()];
   const all=(DATA&&DATA.games||[]).map(g=>g.id);
-  const qs=(ids.length&&ids.length<all.length)?('?games='+ids.join(',')):'';
+  const cats=[...activeCats], allC=Object.keys(CAT_COLOR);
+  const q=[];
+  if(ids.length&&ids.length<all.length)q.push('games='+ids.join(','));
+  if(cats.length&&cats.length<allC.length)q.push('cats='+cats.map(encodeURIComponent).join(','));
   const origin=location.origin.indexOf('http')===0?location.origin:'http://127.0.0.1:5000';
-  return origin+'/api/calendar.ics'+qs;
+  return origin+'/api/calendar.ics'+(q.length?'?'+q.join('&'):'');
 }
 function copyIcsUrl(){
   const u=icsUrl();

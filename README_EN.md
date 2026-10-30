@@ -18,7 +18,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
 | Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails via vision-guided cropping |
 | Memo & check-off | weekly to-do memo pinned on top (weekly templates one-tap import, auto-reset each Monday); mark events as "done" or "★ favorite to top" — **state is stored server-side, so it survives device or browser changes** |
-| Search & stats | search history dropdown; data stats in settings (per-game density / category mix) |
+| Search & stats | search history dropdown; **quick filters: today / tomorrow / this week / weekend / not started**; data stats in settings (per-game density / category mix / 14-day timeline) |
 | Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days); every item is tagged by source (**verified / auto / Bilibili**) with an option to **hide unverified auto items**; the detail sheet offers one-tap feedback (missing image / wrong time / other) |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline); sheets support swipe-down to close |
 | Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark event-start + ending-soon push (adjustable lead days, **optional evening re-ping**), Tailscale remote access |
@@ -102,7 +102,7 @@ Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for acces
 
 | Feature | Usage |
 |---|---|
-| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` to only receive the games you play (the settings panel builds and copies this URL for you) |
+| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` for specific games or `?cats=活动,签到` for specific categories (the settings panel builds and copies this URL for you) |
 | **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
 | **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark); a daily digest at `time` covers events starting within the next `lead_days+1` days (`lead_days` ∈ 0 / 1 / 3, default 1 = today & tomorrow), plus an "ending soon" section for events ending today/tomorrow |
 | **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |

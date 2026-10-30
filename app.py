@@ -680,9 +680,13 @@ def api_ics():
         events = list(_state['events'])
     # ?games=hsr,zzz:只订阅自己玩的游戏(逗号分隔;未知 id 自然筛不出事件,无需白名单)
     games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
+    # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
+    cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
     n = 0
     for e in events:
         if games and e.get('game_id') not in games:
+            continue
+        if cats and e.get('category') not in cats:
             continue
         if (e.get('kind') or 'event') != 'event':
             continue

@@ -31,11 +31,11 @@ def ics(events, qs=''):
 
 def main():
     evs = [
-        {'id': 'a', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '活动A',
+        {'id': 'a', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '活动A', 'category': '活动',
          'kind': 'event', 'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
-        {'id': 'b', 'game_id': 'zzz', 'game': '绝区零', 'title': '活动B',
+        {'id': 'b', 'game_id': 'zzz', 'game': '绝区零', 'title': '活动B', 'category': '活动',
          'kind': 'event', 'start': '2026-11-02T10:00', 'end': '2026-11-12T03:59'},
-        {'id': 'c', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '公告C',
+        {'id': 'c', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '公告C', 'category': '公告',
          'kind': 'info', 'start': None, 'end': None},
     ]
 
@@ -63,6 +63,26 @@ def main():
 
     st, body = ics(evs, '?games=,,')
     check("只有逗号视为不过滤", body.count('BEGIN:VEVENT'), 2)
+
+    # 分类筛选(?cats=)
+    evs2 = evs + [
+        {'id': 'd', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '签到E',
+         'kind': 'event', 'category': '签到',
+         'start': '2026-11-03T10:00', 'end': '2026-11-13T03:59'},
+    ]
+    st, body = ics(evs2, '?cats=%E6%B4%BB%E5%8A%A8')   # 活动
+    check("cats=活动 只留活动类", body.count('BEGIN:VEVENT'), 2)
+    check("cats=活动 不含签到", '签到E' in body, False)
+
+    st, body = ics(evs2, '?cats=%E7%AD%BE%E5%88%B0')   # 签到
+    check("cats=签到 只留签到类", body.count('BEGIN:VEVENT'), 1)
+    check("cats=签到 含签到E", '签到E' in body, True)
+
+    st, body = ics(evs2, '?games=hsr&cats=%E7%AD%BE%E5%88%B0')
+    check("games+cats 组合筛选", body.count('BEGIN:VEVENT'), 1)
+
+    st, body = ics(evs2, '?cats=')   # 空 = 不过滤
+    check("cats 空参数视为不过滤", body.count('BEGIN:VEVENT'), 3)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
