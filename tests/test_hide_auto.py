@@ -27,9 +27,9 @@ function grab(name) {
   throw new Error('unbalanced: ' + name);
 }
 // filtered() 依赖同名自由变量(DATA/q/activeGames/activeCats/calVisible/settings);
-// 本用例只测「隐藏自动条目」,q 为空,所以快捷词函数用桩即可(不会被实际调用)
+// 本用例只测「隐藏自动条目」,q 为空,所以快捷词/游戏前缀函数用桩即可(不会被实际调用)
 const runFiltered = new Function('DATA','q','activeGames','activeCats','calVisible','settings',
-  "const QUICK_WORDS=[];\nfunction isQuickWord(){return false}\nfunction quickMatch(){return false}\n"
+  "const QUICK_WORDS=[];\nfunction isQuickWord(){return false}\nfunction quickMatch(){return false}\nfunction gamePrefix(){return null}\n"
   + grab('filtered') + '\nreturn filtered();');
 const DATA = { events: [
   {id:'m', game_id:'zzz', title:'人工核实', category:'活动', src:'manual'},

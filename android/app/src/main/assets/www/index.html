@@ -208,6 +208,15 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .stat-total b{display:block; font-size:20px; color:var(--label)}
 .stat-total span{font-size:11px; color:var(--label3)}
 .stat-sec{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:14px 0 8px}
+/* 设置面板分组折叠:三个分组可独立收起,面板不再一眼看不到底 */
+.set-group{margin:0}
+.set-group>summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:6px}
+.set-group>summary::-webkit-details-marker{display:none}
+.set-group>summary::after{content:'›'; margin-left:auto; color:var(--label3); font-size:15px; transform:rotate(90deg); transition:.15s}
+.set-group[open]>summary::after{transform:rotate(-90deg)}
+/* 统计弹窗的「本周/本月新增」小字一行 */
+.stat-sub{font-size:12px; color:var(--label3); margin:-6px 0 14px}
+.stat-sub b{color:var(--label); font-weight:700}
 .stat-row{display:flex; align-items:center; gap:8px; margin:7px 0}
 .stat-row .sn{width:76px; flex:none; font-size:12px; color:var(--label2); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .stat-row .sb{flex:1; height:14px; background:var(--fill); border-radius:7px; overflow:hidden}
@@ -576,8 +585,18 @@ function quickMatch(e,w,now){
   if(w==='未开始')return s>now;
   return false;
 }
+/* 游戏前缀:输入 hsr: / zzz: 只看该游戏,冒号后可跟关键词或快捷词(如 hsr: 今天) */
+function gamePrefix(raw){
+  const m=/^([a-z0-9_]+):\s*(.*)$/i.exec(raw||'');
+  if(!m)return null;
+  const key=m[1].toLowerCase(), gs=(DATA&&DATA.games||[]);
+  const hit=gs.find(g=>String(g.id).toLowerCase()===key)
+        ||gs.find(g=>String(g.id).toLowerCase().startsWith(key));  // 允许 hs: 这类缩写前缀
+  return hit?{id:hit.id, rest:m[2].trim()}:null;
+}
 function filtered(){
-  const raw=q.trim(), k=raw.toLowerCase();
+  const gp=gamePrefix(q.trim());
+  const raw=gp?gp.rest:q.trim(), k=raw.toLowerCase();
   const quick=isQuickWord(raw);
   const now=new Date();
   return (DATA.events||[]).filter(e=>
@@ -585,6 +604,7 @@ function filtered(){
     &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
     &&(!settings.hideAuto||e.src==='manual'||e.src==='bilibili')  // 只留有来源保证的条目
     &&activeCats.has(e.category)
+    &&(!gp||e.game_id===gp.id)
     &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k))));
 }
 /* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
@@ -1364,7 +1384,8 @@ function openSettings(){
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body" style="padding-top:4px">
-      <div class="set-sec">日历</div>
+      <details class="set-group" open>
+      <summary class="set-sec">日历</summary>
       <div class="set-row">
         <div class="lbl">显示日历视图<span class="sub">关闭后隐藏「日历」页签,仅保留列表</span></div>
         <label class="switch"><input type="checkbox" ${settings.calOn?'checked':''} onchange="toggleCalOn(this.checked)"><span class="tr"></span></label>
@@ -1379,17 +1400,22 @@ function openSettings(){
         <div class="lbl">隐藏未核实的自动条目<span class="sub">只保留人工核实与 B站官方来源;当前 ${autoN} 条自动条目会被隐藏${autoMissN?`(其中 ${autoMissN} 条无图)`:''}</span></div>
         <label class="switch"><input type="checkbox" ${settings.hideAuto?'checked':''} onchange="toggleHideAuto(this.checked)" aria-label="隐藏未核实的自动条目"><span class="tr"></span></label>
       </div>
-      <div class="set-sec">提醒推送</div>
+      </details>
+      <details class="set-group" open>
+      <summary class="set-sec">提醒推送</summary>
       <div id="notifyCfg"><div class="sub" style="padding:4px 0 8px">正在读取服务端配置…</div></div>
-      <div class="set-sec">数据</div>
+      </details>
+      <details class="set-group" open>
+      <summary class="set-sec">数据</summary>
       <div class="set-row" style="cursor:pointer" onclick="openStats()" role="button" aria-label="打开数据统计">
         <div class="lbl">数据统计<span class="sub">各游戏活动密度 / 分类分布 / 时间跨度</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="cursor:pointer" onclick="copyIcsUrl()" role="button" aria-label="复制日历订阅链接">
-        <div class="lbl">日历订阅链接<span class="sub">只含当前显示的游戏,可粘到系统日历 / Google 日历订阅</span></div>
+        <div class="lbl">日历订阅链接<span class="sub">只含当前显示的游戏与分类,可粘到系统日历 / Google 日历订阅</span></div>
         <span class="chev">›</span>
       </div>
+      </details>
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
@@ -1441,6 +1467,13 @@ function openStats(){
   // 时间跨度:最近 30 天开过的活动
   const m30=new Date(now.getTime()-30*864e5);
   const recent=evs.filter(e=>{const s=evStart(e);return s&&s>=m30});
+  /* 本周(周一起算)/本月 开始的活动数:含本周内尚未开始的那几天 */
+  const wStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7));
+  const wEnd=new Date(wStart.getFullYear(),wStart.getMonth(),wStart.getDate()+7);
+  const mStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const mEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
+  const weekNew=evs.filter(e=>{const s=evStart(e);return s&&s>=wStart&&s<wEnd}).length;
+  const monthNew=evs.filter(e=>{const s=evStart(e);return s&&s>=mStart&&s<mEnd}).length;
   /* 未来 14 天时间线:横条长度=活动覆盖区间,可直接看出时间重叠与空窗 */
   const tlEnd=new Date(now.getTime()+14*864e5);
   const tl0=now.getTime(), tlSpan=tlEnd.getTime()-tl0;
@@ -1468,6 +1501,7 @@ function openStats(){
         <div><b>${soon.length}</b><span>即将开始</span></div>
         <div><b>${recent.length}</b><span>近30天开始</span></div>
       </div>
+      <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
       <div class="stat-sec">各游戏活动数</div>
       ${games.map(([g,v])=>bar(g,v.n,maxG,v.color,v.on?`<small style="color:var(--label3)"> (${v.on} 进行中)</small>`:'')).join('')}
       <div class="stat-sec">分类分布</div>

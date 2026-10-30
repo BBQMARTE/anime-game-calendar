@@ -44,6 +44,12 @@ const DATA = {
     // 40 天后开始 → 超出 14 天窗口,不应出现
     {id:'c', game_id:'hsr', game:'崩坏：星穹铁道', title:'远期活动', category:'活动',
      kind:'event', start:'2026-12-10T10:00', end:'2026-12-20T03:59'},
+    // 本月 10/5 开始(已结束):算「本月开始」,不算「本周开始」
+    {id:'d', game_id:'zzz', game:'绝区零', title:'月初活动', category:'活动',
+     kind:'event', start:'2026-10-05T10:00', end:'2026-10-10T03:59'},
+    // 本周 10/28 开始(已结束):本周与本月都算
+    {id:'e', game_id:'hsr', game:'崩坏：星穹铁道', title:'本周活动', category:'活动',
+     kind:'event', start:'2026-10-28T10:00', end:'2026-10-30T23:59'},
   ],
 };
 const captured = [];
@@ -63,6 +69,8 @@ console.log(JSON.stringify({
   names: [...out.matchAll(/class="tl-name"[^>]*>([^<]*)</g)].map(m => m[1]),
   badRange: [...out.matchAll(/left:([-\d.]+)%;width:([-\d.]+)%/g)]
       .some(m => +m[1] < 0 || +m[1] > 100 || +m[2] < 0 || +m[2] > 100),
+  weekNew: out.match(/本周开始 <b>(\d+)<\/b> 个/)[1],
+  monthNew: out.match(/本月开始 <b>(\d+)<\/b> 个/)[1],
 }));
 """
 
@@ -94,6 +102,8 @@ def main():
     check("甘特条数量(窗口内 2 条)", d['bars'], 2)
     check("窗口外的远期活动被排除", d['names'], ['进行中活动', '五天后活动'])
     check("条带百分比在 0~100 内", d['badRange'], False)
+    check("本周开始计数(10/26 起,含已结束的 10/28)", d['weekNew'], '1')
+    check("本月开始计数(10/1 起,含 10/5 与 10/28)", d['monthNew'], '2')
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
