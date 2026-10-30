@@ -170,6 +170,7 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .cal-view b{font-size:12px; font-weight:600; color:var(--label3); padding:3px 8px; border-radius:6px; cursor:pointer}
 .cal-view b.on{background:var(--card); color:var(--label); box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .cal-grid.week .cal-cell{min-height:74px; padding-top:6px; background:var(--fill); margin:2px; border-radius:12px}
+.cal-ev{display:block; max-width:100%; padding:0 3px; font-size:9.5px; line-height:1.25; color:var(--label2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .cal-dots{display:flex; gap:3px; height:5px; align-items:center}
 .cal-dots i{width:5px; height:5px; border-radius:50%}
 
@@ -760,6 +761,12 @@ function eventsOnDay(y,mo,d){
   }
   return {starts,ends,runs};
 }
+/* 周视图格内小标题:同一活动只取一次,最多 2 条(月视图仍只显示圆点) */
+function weekMiniNames(ev){
+  const arr=ev.starts.concat(ev.runs,ev.ends);
+  const seen=new Set();
+  return arr.filter(e=>{if(seen.has(e.id))return false;seen.add(e.id);return true}).slice(0,2).map(e=>e.title);
+}
 function calNav(n){
   if(calWeek){   // 周视图:按 7 天翻页
     const base=new Date((selDay||new Date()).getTime());
@@ -815,9 +822,11 @@ function renderCal(){
     const ev=eventsOnDay(d.getFullYear(),d.getMonth(),d.getDate());
     const colors=[...new Set(ev.starts.concat(ev.runs,ev.ends).map(e=>gameColor(e.game_id)))].slice(0,3);
     const cls=[!inM?'dim':'', sameDay(d,now)?'today':'', sameDay(d,selDay)?'sel':''].join(' ');
+    const mini=calWeek?weekMiniNames(ev):[];   // 周视图直接给出活动名,月视图保持只有圆点
     return `<div class="cal-cell ${cls}" onclick="pickDay(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
       <span class="d">${d.getDate()}</span>
       <span class="cal-dots">${colors.map(c=>`<i style="background:${c}"></i>`).join('')}</span>
+      ${mini.map(t=>`<span class="cal-ev">${esc(t)}</span>`).join('')}
     </div>`;
   }).join('')}
   </div></div>`;
