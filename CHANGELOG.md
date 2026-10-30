@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 缺图指标
+
+- **缺图可见**：数据统计弹窗新增「缺少封面图 N 条」,数据质量一眼可见;`/api/health` 增加 `missing_images` 字段,每日核查 / NPC 可据此安排补图
+- 扩展 `tests/test_health.py`、`tests/test_stats_timeline.py`；SW 缓存版本 v57→v58；README 接口说明同步
+
 ## 2026-10-31 · 修复弹层关闭选择器
 
 - **弹层堆叠修复**：`openSettingsRefresh` / 备忘模板 / 添加备忘 / Esc 原用 `.detail-overlay:last-of-type`,该选择器按标签类型匹配,多个弹层叠放时可能关错或残留。改为统一的 `closeTopOverlay()`(取最后一个 overlay)与设置刷新前清空全部弹层,反复切换开关不再堆叠

@@ -29,7 +29,7 @@ def main():
     orig = {k: app._state[k] for k in ('updated', 'events', 'sources', 'refreshing')}
     c = app.app.test_client()
     try:
-        app._state['events'] = [{'id': 'a'}, {'id': 'b'}, {'id': 'c'}]
+        app._state['events'] = [{'id': 'a', 'image': 'x.png'}, {'id': 'b'}, {'id': 'c'}]
         app._state['sources'] = {'hsr': {'ok': True, 'count': 10},
                                  'bilibili': {'ok': False, 'count': 0},
                                  '_system': {'ok': False, 'count': 0}}
@@ -40,6 +40,7 @@ def main():
         d = c.get('/api/health').get_json()
         check("ok 恒为 true", d['ok'], True)
         check("事件数", d['events'], 3)
+        check("缺图条数(有图的除外)", d['missing_images'], 2)
         check("新鲜数据不判陈旧", d['stale'], False)
         check("新鲜数据小时数约 0", d['stale_hours'], 0.0)
         check("刷新中状态", d['refreshing'], False)

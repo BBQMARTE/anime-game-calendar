@@ -1653,6 +1653,8 @@ function openStats(){
   const mEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
   const weekNew=evs.filter(e=>{const s=evStart(e);return s&&s>=wStart&&s<wEnd}).length;
   const monthNew=evs.filter(e=>{const s=evStart(e);return s&&s>=mStart&&s<mEnd}).length;
+  /* 缺封面图条数:数据质量一眼可见,也是每日核查的补图指标 */
+  const missingN=evs.filter(e=>!(e.image||'').trim()).length;
   /* 未来 14 天时间线:横条长度=活动覆盖区间,可直接看出时间重叠与空窗 */
   const tlEnd=new Date(now.getTime()+14*864e5);
   const tl0=now.getTime(), tlSpan=tlEnd.getTime()-tl0;
@@ -1681,6 +1683,7 @@ function openStats(){
         <div><b>${recent.length}</b><span>近30天开始</span></div>
       </div>
       <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
+      <div class="stat-sub">缺少封面图 <b>${missingN}</b> 条${missingN?' · 可在详情里点「缺图」反馈':''}</div>
       <div class="stat-sec">各游戏活动数</div>
       ${games.map(([g,v])=>bar(g,v.n,maxG,v.color,v.on?`<small style="color:var(--label3)"> (${v.on} 进行中)</small>`:'')).join('')}
       <div class="stat-sec">分类分布</div>

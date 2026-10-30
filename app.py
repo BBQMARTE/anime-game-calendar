@@ -761,6 +761,9 @@ def api_health():
         'stale_hours': round(hours, 1) if hours is not None else None,
         'refreshing': refreshing,
         'events': len(events),
+        'missing_images': sum(1 for e in events
+                              if (e.get('kind') or 'event') == 'event'
+                              and not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),
                         'count': (v or {}).get('count', 0)}
                     for k, v in sources.items() if not str(k).startswith('_')},

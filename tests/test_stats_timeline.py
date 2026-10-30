@@ -37,7 +37,7 @@ const DATA = {
   events: [
     // 进行中:9-20 至 11-10
     {id:'a', game_id:'hsr', game:'崩坏：星穹铁道', title:'进行中活动', category:'活动',
-     kind:'event', start:'2026-09-20T10:00', end:'2026-11-10T03:59'},
+     kind:'event', start:'2026-09-20T10:00', end:'2026-11-10T03:59', image:'cover.jpg'},
     // 5 天后开始,1 天后结束 → 落在时间线里
     {id:'b', game_id:'zzz', game:'绝区零', title:'五天后活动', category:'活动',
      kind:'event', start:'2026-11-05T10:00', end:'2026-11-06T23:59'},
@@ -71,6 +71,7 @@ console.log(JSON.stringify({
       .some(m => +m[1] < 0 || +m[1] > 100 || +m[2] < 0 || +m[2] > 100),
   weekNew: out.match(/本周开始 <b>(\d+)<\/b> 个/)[1],
   monthNew: out.match(/本月开始 <b>(\d+)<\/b> 个/)[1],
+  missing: out.match(/缺少封面图 <b>(\d+)<\/b> 条/)[1],
 }));
 """
 
@@ -104,6 +105,7 @@ def main():
     check("条带百分比在 0~100 内", d['badRange'], False)
     check("本周开始计数(10/26 起,含已结束的 10/28)", d['weekNew'], '1')
     check("本月开始计数(10/1 起,含 10/5 与 10/28)", d['monthNew'], '2')
+    check("缺图条数(5 条中 1 条有图)", d['missing'], '4')
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
