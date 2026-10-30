@@ -576,7 +576,7 @@ async function doRefresh(){
   }
 }
 /* 搜索快捷词:输入这些词直接按时间筛选(不用记活动名) */
-const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束'];
+const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];
 function isQuickWord(s){return QUICK_WORDS.indexOf(s)>=0}
 function quickMatch(e,w,now){
   const s=evStart(e); if(!s)return false;
@@ -606,6 +606,7 @@ function quickMatch(e,w,now){
   }
   if(w==='未开始')return s>now;
   if(w==='已结束')return hasEnd&&t<now;
+  if(w==='即将结束')return hasEnd&&t>=now&&(t-now)<=3*864e5;   // 3 天内截止:提醒别漏最后一天
   return false;
 }
 /* 游戏前缀:输入 hsr: / zzz: 只看该游戏,冒号后可跟关键词或快捷词(如 hsr: 今天) */

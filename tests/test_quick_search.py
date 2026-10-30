@@ -30,7 +30,7 @@ const EVENTS = {events: __EVENTS__, games: [
   {id:'hsr', name:'崩坏：星穹铁道'}, {id:'zzz', name:'绝区零'}, {id:'wuwa', name:'鸣潮'}]};
 function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
-    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束'];\nfunction isDone(){return false}\n"
+    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];\nfunction isDone(){return false}\n"
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')
     (EVENTS, w, new Set(['hsr','zzz','wuwa']),
@@ -44,7 +44,8 @@ console.log(JSON.stringify({
   prefixHsr: run('hsr:'), prefixHsrAbbr: run('hs:'),
   prefixZzzWord: run('zzz: 活动'), prefixHsrToday: run('hsr: 今天'),
   prefixUnknown: run('xxx:'),
-  nextWeek: run('下周'), ended: run('已结束'),
+  nextWeek: run('下周'), ended: run('已结束'), ending: run('即将结束'),
+  prefixHsrEnding: run('hsr: 即将结束'),
 }));
 """
 
@@ -73,6 +74,9 @@ EV = [
     # 很久以前开始、未写结束时间:日期筛选只认开始日,不能永远出现在今天/本周/下周
     {'id': 'h', 'game_id': 'zzz', 'title': '旧签到H', 'category': '签到',
      'start': '2026-10-05T10:00'},
+    # 两天后结束(3 天内) → 命中「即将结束」
+    {'id': 'i', 'game_id': 'hsr', 'title': '活动I', 'category': '活动',
+     'start': '2026-10-29T10:00', 'end': '2026-11-02T23:59'},
 ]
 
 bad = 0
@@ -98,20 +102,22 @@ def main():
         print('FAIL: node 执行失败\n' + r.stderr[:800])
         return 1
     d = json.loads(r.stdout.strip().splitlines()[-1])
-    check("今天:含进行中+今天结束+无结束时间", d['today'], ['a', 'b', 'g'])
+    check("今天:含进行中+今天结束+无结束时间", d['today'], ['a', 'b', 'g', 'i'])
     check("明天:含明天开始", d['tomorrow'], ['c'])
-    check("本周(周一起算):含进行中与本周开始", d['week'], ['a', 'b', 'c', 'g'])
-    check("周末:11/1(周日)开始的活动", d['weekend'], ['a', 'b', 'c', 'g'])
+    check("本周(周一起算):含进行中与本周开始", d['week'], ['a', 'b', 'c', 'g', 'i'])
+    check("周末:11/1(周日)开始的活动", d['weekend'], ['a', 'b', 'c', 'g', 'i'])
     check("未开始:开始时间晚于此刻", d['notStarted'], ['c', 'd', 'e'])
     check("普通关键词仍按文本匹配", d['plain'], ['a'])
-    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd', 'g'])
-    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd', 'g'])
+    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd', 'g', 'i'])
+    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd', 'g', 'i'])
     check("游戏前缀+关键词 zzz: 活动", d['prefixZzzWord'], ['b', 'e'])
-    check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g'])
+    check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g', 'i'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
-    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd'])
+    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd', 'i'])
     check("无结束时间的老条目不进日期筛选", 'h' in (d['today'] + d['week'] + d['weekend'] + d['nextWeek']), False)
     check("已结束:必须真有结束时间", d['ended'], ['f'])
+    check("即将结束:3 天内截止且未结束", d['ending'], ['b', 'i'])
+    check("游戏前缀+即将结束", d['prefixHsrEnding'], ['i'])
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
