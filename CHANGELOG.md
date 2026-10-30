@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 一键测试 + GitHub Actions
+
+- 新增 `run_tests.py`:一条命令跑 `tests/` 全部用例并汇总失败项(`python run_tests.py notify` 可只跑文件名含 notify 的子集)
+- 新增 `.github/workflows/tests.yml`:push / PR 时自动安装 Python + Node 依赖并跑全套测试,防止合并回退
+
 ## 2026-10-31 · 运行状态接口 /api/health
 
 - **健康检查**：新增 `GET /api/health`,一次返回更新时间、`stale`(超过 24 小时未更新)、`stale_hours`、事件数、各数据源成败与 `refreshing`;内部错误源不对外暴露。每日自动化 / 云端 NPC / 外部监控不必再拉全量 `/api/events`
