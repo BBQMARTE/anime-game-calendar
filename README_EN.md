@@ -103,6 +103,7 @@ Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for acces
 | Feature | Usage |
 |---|---|
 | **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` for specific games or `?cats=活动,签到` for specific categories (the settings panel builds and copies this URL for you) |
+| **Health endpoint** | `GET http://<server>:5000/api/health` returns the update time, staleness (>24h), event count, per-source status and refreshing flag — handy for automation / monitoring |
 | **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
 | **Event-start reminders** | Edit `data/notify.json` with a webhook (Feishu group bot / Bark / Server酱 / PushPlus); a daily digest at `time` covers events starting within the next `lead_days+1` days (`lead_days` ∈ 0 / 1 / 3, default 1 = today & tomorrow), plus an "ending soon" section for events ending today/tomorrow |
 | **Access away from home** | Install [Tailscale](https://tailscale.com) on the PC and tablet with the same account, then reach the server via `http://100.x.x.x:5000` anywhere |

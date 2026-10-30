@@ -740,6 +740,34 @@ def api_ics():
     return Response(body + '\r\n', mimetype='text/calendar; charset=utf-8')
 
 
+@app.route('/api/health')
+def api_health():
+    """运行状态:给自动化脚本 / 云端 NPC / 外部监控一次拿到更新时间、事件数与各源成败"""
+    with _lock:
+        updated = _state['updated']
+        events = list(_state['events'])
+        sources = dict(_state['sources'] or {})
+        refreshing = _state['refreshing']
+    hours = None
+    if updated:
+        try:
+            hours = max(0.0, (datetime.now() - datetime.fromisoformat(str(updated))).total_seconds() / 3600)
+        except (ValueError, TypeError):
+            hours = None
+    return jsonify({
+        'ok': True,
+        'updated': updated,
+        'stale': bool(hours is not None and hours >= 24),
+        'stale_hours': round(hours, 1) if hours is not None else None,
+        'refreshing': refreshing,
+        'events': len(events),
+        'sources': {k: {'ok': bool((v or {}).get('ok')),
+                        'count': (v or {}).get('count', 0)}
+                    for k, v in sources.items() if not str(k).startswith('_')},
+        'server_time': datetime.now().isoformat(timespec='seconds'),
+    })
+
+
 @app.route('/api/export.csv')
 def api_export_csv():
     """导出 CSV(Excel 直接打开):按 ?games= / ?cats= 筛选,与订阅同口径。
