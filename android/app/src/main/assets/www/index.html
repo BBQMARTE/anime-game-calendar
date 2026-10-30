@@ -1591,6 +1591,7 @@ async function loadNotifyCfgUI(){
       <div class="lbl" style="font-size:14px">Webhook 推送地址<span class="sub">${NC.has_webhook?'已配置;填写新地址保存可覆盖,清空保存即停用':'未配置 — 支持飞书群机器人 / Bark / 通用 {title,body}'}</span></div>
       <input id="ncWebhook" class="note-input" style="margin:10px 0 6px;font-size:13px" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/… 或 https://api.day.app/你的key">
       <button class="detail-btn" style="width:100%;padding:9px 0" onclick="saveNotifyWebhook()">保存推送地址</button>
+      ${NC.has_webhook?`<button class="detail-btn" style="width:100%;padding:9px 0;margin-top:8px;background:var(--fill);color:var(--label)" onclick="testNotify()">发送测试消息</button>`:''}
     </div>
     <div class="set-row" style="border-bottom:none;padding:12px 0 2px">
       <div class="lbl">每日推送时刻</div>
@@ -1627,6 +1628,15 @@ async function saveNotifyCfg(patch){
     if(!d.ok){alert('保存失败: '+(d.error||''));return}
     loadNotifyCfgUI();
   }catch(e){alert('保存失败: 服务端不可达')}
+}
+/* 发送测试消息:不用等到每日推送时刻才知道 webhook 通不通 */
+async function testNotify(){
+  try{
+    const r=await fetch('/api/notify-test',{method:'POST',headers:{'X-Requested-With':'ycal'}});
+    const d=await r.json();
+    if(d.ok)alert('测试消息已发出 ✅\n请查看飞书 / Bark 是否收到('+(d.detail||'')+')');
+    else alert('发送失败: '+(d.error||d.detail||'未知错误'));
+  }catch(e){alert('发送失败: 服务端不可达')}
 }
 function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFilters()}
 function toggleHideAuto(on){

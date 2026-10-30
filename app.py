@@ -602,6 +602,26 @@ def api_notify_config():
                     'has_webhook': bool((cfg.get('webhook') or '').strip())})
 
 
+@app.route('/api/notify-test', methods=['POST'])
+def api_notify_test():
+    """设置面板的「发送测试消息」:立刻向已保存的 webhook 推一条,并回传可读结果。
+
+    单靠每日定时推送排查成本太高(要等到点才知道通不通),这个接口让用户当场
+    确认飞书/Bark 是否收到。只读已保存的地址,不允许把任意 URL 借道转发。
+    """
+    if request.headers.get('X-Requested-With') != 'ycal':
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    url = (_notify_config().get('webhook') or '').strip()
+    if not url:
+        return jsonify({'ok': False, 'error': '还没有填写推送地址'}), 400
+    now = _bj_now()
+    ok, detail = _post_webhook(
+        url, '二游活动日历',
+        '这是一条测试消息 ✅ 如果收到说明推送配置正常。\n'
+        f'发送时间:{now.strftime("%Y-%m-%d %H:%M")}')
+    return jsonify({'ok': ok, 'detail': detail, 'time': now.strftime('%H:%M')})
+
+
 # ================= ICS 日历订阅 =================
 _CST = timezone(timedelta(hours=8))  # 数据时间为北京时间
 
@@ -894,22 +914,44 @@ def _notify_config():
         return {}
 
 
+def _post_webhook(url, title, body):
+    """推送一次并返回 (是否成功, 可读说明)。
+
+    webhook 常见失败是「HTTP 200 但业务 code 非 0」(飞书 token 失效、Bark key 错),
+    只看状态码会把这类错误当成成功;这里同时核对常见返回体的 code / statusCode,Bark
+    的 200 视为成功。
+    """
+    try:
+        if 'feishu' in url or 'larksuite' in url:
+            r = requests.post(url, json={'msg_type': 'text',
+                                         'content': {'text': f'{title}\n{body}'}}, timeout=10)
+        else:
+            r = requests.post(url, json={'title': title, 'body': body}, timeout=10)
+    except Exception as e:  # noqa: BLE001
+        return False, f'网络错误: {str(e)[:120]}'
+    data = None
+    try:
+        data = r.json()
+    except Exception:  # noqa: BLE001
+        pass
+    if isinstance(data, dict):
+        for key in ('code', 'StatusCode', 'status'):
+            if data.get(key) not in (None, 0, 200):
+                msg = str(data.get('msg') or data.get('message') or '')[:80]
+                return False, f'{key}={data.get(key)} {msg}'.strip()
+    if r.status_code >= 400:
+        return False, f'HTTP {r.status_code}'
+    return True, f'HTTP {r.status_code}'
+
+
 def _send_notify(title, body):
     """推送 webhook:支持飞书群机器人 / Bark / 通用 JSON {title,body}"""
     url = (_notify_config().get('webhook') or '').strip()
     if not url:
         return False
-    try:
-        if 'feishu' in url or 'larksuite' in url:
-            requests.post(url, json={'msg_type': 'text',
-                                     'content': {'text': f'{title}\n{body}'}}, timeout=10)
-        else:
-            requests.post(url, json={'title': title, 'body': body}, timeout=10)
-        print(f'[提醒] 已推送: {title}')
-        return True
-    except Exception as e:  # noqa: BLE001
-        print(f'[提醒] 推送失败: {e}')
-        return False
+    ok, detail = _post_webhook(url, title, body)
+    print(f'[提醒] {"已推送" if ok else "推送失败"}: {title} ({detail})')
+    return ok
 
 
 def _bj_now():

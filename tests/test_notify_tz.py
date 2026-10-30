@@ -101,10 +101,14 @@ app._send_notify = _REAL_SEND   # 前面几段用 lambda 注入过，这里恢�
 class _Resp:
     def __init__(self):
         self.calls = []
+        self.status_code = 200
 
     def post(self, url, json=None, timeout=None):
         self.calls.append((url, json))
         return self
+
+    def json(self):
+        return {}   # 无业务码 = 只看 HTTP 状态,视为成功
 
 
 _resp = _Resp()
