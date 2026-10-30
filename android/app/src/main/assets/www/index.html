@@ -889,6 +889,7 @@ function showDetail(e){
       <a class="detail-btn" href="#" style="${isFav(e)?'background:var(--orange);color:#fff':'color:var(--orange)'}" onclick="event.preventDefault();toggleFav(event,'${e.id}');favBtnState(this,'${e.id}')">${isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶'}</a>
       ${e.link?`<a class="detail-btn blue" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
       <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();shareCard('${e.id}')">生成分享卡（图片）</a>
+      <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();addToCalendar('${e.id}')">添加到系统日历（.ics）</a>
       <div class="report-row">
         <span class="report-lbl">这条有问题?</span>
         <span class="chip" style="--c:var(--red)" onclick="reportEv('${e.id}','missing-image')">缺图</span>
@@ -901,6 +902,65 @@ function showDetail(e){
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(overlay);
   attachSwipeClose(overlay);
+}
+/* ── 单条活动加入系统日历:生成只含这一条、带提前 30 分钟提醒的 .ics ── */
+function icsEsc(s){
+  return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/;/g,'\\;')
+    .replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+}
+function icsUtc(d){return d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'')}
+function icsDate(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())}
+function _u8len(ch){const c=ch.codePointAt(0);return c<0x80?1:c<0x800?2:c<0x10000?3:4}
+function icsFold(line){
+  // RFC5545 §3.1:按 75 字节折行,续行以单个空格开头(中文标题很容易超长)
+  const out=[];let cur='',n=0;
+  for(const ch of String(line)){
+    const l=_u8len(ch);
+    if(n+l>74){out.push(cur);cur=' '+ch;n=1+l}
+    else{cur+=ch;n+=l}
+  }
+  out.push(cur);
+  return out.join('\r\n');
+}
+function buildEventIcs(e){
+  const s=evStart(e);
+  if(!s)return '';
+  const t=evEnd(e)||s;
+  const allDay=/^\d{4}-\d{2}-\d{2}$/.test(String(e.start||''));  // 纯日期活动按全天事件
+  const lines=[
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//YOYUXI//Anime Game Calendar//CN',
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT',
+    'UID:'+icsEsc((e.game_id||'event')+'-'+(e.id||s.getTime())+'@yoyuxi'),
+    'DTSTAMP:'+icsUtc(new Date()),
+  ];
+  if(allDay){
+    lines.push('DTSTART;VALUE=DATE:'+icsDate(s));
+    lines.push('DTEND;VALUE=DATE:'+icsDate(new Date(s.getTime()+864e5)));  // DTEND 为排他日期
+  }else{
+    lines.push('DTSTART:'+icsUtc(s));
+    lines.push('DTEND:'+icsUtc(t));
+  }
+  lines.push('SUMMARY:'+icsEsc(e.title||'活动'));
+  const desc=[e.game,e.category,e.link].filter(Boolean).join('\n');
+  if(desc)lines.push('DESCRIPTION:'+icsEsc(desc));
+  if(e.link)lines.push('URL:'+icsEsc(e.link));
+  if(!allDay)
+    lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(e.title||'活动'),
+               'TRIGGER:-PT30M','END:VALARM');
+  lines.push('END:VEVENT','END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n')+'\r\n';
+}
+function addToCalendar(id){
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  if(!evStart(e)){alert('这条活动的开始时间还没确定,暂时不能加入日历');return}
+  const ics=buildEventIcs(e);
+  const name=((e.title||'活动').replace(/[\\/:*?"<>|\r\n]/g,'_').slice(0,60))+'.ics';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
 /* ── 分享卡:把活动画成 1080×1350 的图,直接下载 ── */
 function rrect(g,x,y,w,h,r){
