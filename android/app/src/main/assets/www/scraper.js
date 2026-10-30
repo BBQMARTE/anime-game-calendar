@@ -959,7 +959,10 @@ const Scraper = (() => {
   /* ---------- 手动事件(安卓端从 localStorage 读) ---------- */
   function manualEvents() {
     try {
-      const arr = JSON.parse(localStorage.getItem('ycal_manual') || '[]');
+      let arr = JSON.parse(localStorage.getItem('ycal_manual') || '[]');
+      // APK 离线模式没有服务端:人工核实的活动随包放在 manual-data.js(window.YCAL_MANUAL)
+      if ((!Array.isArray(arr) || !arr.length) && typeof window !== 'undefined' && Array.isArray(window.YCAL_MANUAL))
+        arr = window.YCAL_MANUAL;
       const names = Object.fromEntries(GAMES.map(g => [g.id, g.name]));
       // 与 Python 端一致:无 title 的说明性条目跳过
       return (arr || []).filter(e => e && e.title).map((e, i) => {

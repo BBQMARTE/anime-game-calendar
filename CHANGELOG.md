@@ -1,5 +1,10 @@
 # 更新日志
 
+## 2026-10-31 · 安卓离线模式带上人工核实活动
+
+- **离线不再只剩爬虫数据**：APK 连不上服务器时走 file:// 离线模式，此前看不到 `data/manual.json` 里 197 条人工核实活动。现在打包时生成 `manual-data.js`（`window.YCAL_MANUAL`），前端在 localStorage 无数据时回退读取；服务端新增 `/manual-data.js` 路由
+- 新增 `tools/make_manual_bundle.py`（生成 static 与 android assets 两份），`构建APK.bat` 构建前自动执行；新增 `tests/test_manual_offline.py`；三语 README 同步；SW 缓存版本 v69→v70
+
 ## 2026-10-31 · B站动态标题去掉正文链接
 
 - **标题不再是一串网址**：动态首行夹带视频/专栏链接时，此前会生成「互动抽奖 https://www.bilibili.com/video/BV…」这类无效标题；现在生成标题先剥离 URL，再按原有「首行太短补第二行 / 38 码元截断」规则，这类条目会显示后续正文（如「《绝区零》先导演示丨挽昼」）

@@ -292,6 +292,11 @@ def scraper_js():
     return send_from_directory(app.static_folder, 'scraper.js')
 
 
+@app.route('/manual-data.js')
+def manual_data_js():
+    return send_from_directory(app.static_folder, 'manual-data.js', mimetype='text/javascript')
+
+
 @app.route('/manifest.webmanifest')
 def manifest():
     return send_from_directory(app.static_folder, 'manifest.webmanifest',

@@ -39,6 +39,14 @@ if not exist "%GRADLE_HOME%\bin\gradle.bat" (
 echo [3/5] 配置工程...
 >"%PROJ%\local.properties" echo sdk.dir=D:\\Android\\Sdk
 
+echo [3.5/5] 生成离线手动活动数据(manual.json 到 manual-data.js)...
+where py >nul 2>nul
+if errorlevel 1 (
+  python "%~dp0tools\make_manual_bundle.py"
+) else (
+  py "%~dp0tools\make_manual_bundle.py"
+)
+
 echo [4/5] 准备正式签名密钥(仅首次生成,请务必备份)...
 rem 密钥文件丢失但配置还在时,清掉配置回退 debug,避免构建报错
 if exist "%PROJ%\keystore.properties" (
