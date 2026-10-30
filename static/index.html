@@ -135,6 +135,13 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .prog{height:3px; background:var(--fill); border-radius:2px; margin-top:5px; overflow:hidden}
 .prog i{display:block; height:100%; background:var(--c); border-radius:2px}
 .empty{color:var(--label3); text-align:center; padding:36px 0; font-size:13px}
+/* 今日摘要:今天开始 / 今天结束 / 进行中,点一下跳到今天的月历详情 */
+.todaybar{display:flex; gap:8px; margin:2px 0 10px}
+.todaybar:empty{display:none}
+.tb{flex:1; text-align:center; padding:8px 4px; border-radius:12px; background:var(--fill); cursor:pointer; transition:.15s}
+.tb:active{opacity:.7}
+.tb b{display:block; font-size:19px; font-weight:700; color:var(--label); line-height:1.2}
+.tb span{font-size:11px; color:var(--label3)}
 
 /* ---------- 月历视图 ---------- */
 .cal-card{background:var(--card); border-radius:16px; padding:12px 6px 8px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -155,6 +162,11 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .cal-cell.dim .d{color:var(--label3); font-weight:400}
 .cal-cell.sel .d{background:var(--blue); color:#fff}
 .cal-cell.today .d{background:var(--red); color:#fff; font-weight:700}
+/* 月/周视图切换(右上角小分段控件)与周视图加高格 */
+.cal-view{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; margin-left:2px}
+.cal-view b{font-size:12px; font-weight:600; color:var(--label3); padding:3px 8px; border-radius:6px; cursor:pointer}
+.cal-view b.on{background:var(--card); color:var(--label); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.cal-grid.week .cal-cell{min-height:74px; padding-top:6px; background:var(--fill); margin:2px; border-radius:12px}
 .cal-dots{display:flex; gap:3px; height:5px; align-items:center}
 .cal-dots i{width:5px; height:5px; border-radius:50%}
 
@@ -347,6 +359,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 </div>
 
 <main>
+  <div id="todayBar" class="todaybar" aria-live="polite"></div>
   <div class="seg" id="seg">
     <button class="on" data-tab="cal" onclick="setTab('cal')">日历</button>
     <button data-tab="ongoing" onclick="setTab('ongoing')">进行中</button>
@@ -646,8 +659,8 @@ function dayLabel(d){
   return `${md} ${wd}`;
 }
 /* ================= 月历视图 ================= */
-let calY=null, calM=0, selDay=null;
-function sameDay(a,b){return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+let calY=null, calM=0, selDay=null, calWeek=false;
+function sameDay(a,b){return a&&a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
 /* 某日的活动:starts 当天开始 / runs 当天进行中(跨越) / ends 当天结束 */
 function eventsOnDay(y,mo,d){
   const day0=new Date(y,mo,d), day1=new Date(y,mo,d+1);
@@ -664,7 +677,18 @@ function eventsOnDay(y,mo,d){
   }
   return {starts,ends,runs};
 }
-function calNav(n){calM+=n; if(calM<0){calM=11;calY--} if(calM>11){calM=0;calY++} renderCal()}
+function calNav(n){
+  if(calWeek){   // 周视图:按 7 天翻页
+    const base=new Date((selDay||new Date()).getTime());
+    base.setDate(base.getDate()+7*n); selDay=base;
+    calY=base.getFullYear(); calM=base.getMonth(); renderCal(); return;
+  }
+  calM+=n; if(calM<0){calM=11;calY--} if(calM>11){calM=0;calY++} renderCal();
+}
+function setCalView(v){
+  calWeek=(v==='week'); saveFilters(); renderCal();
+  try{localStorage.setItem('ycal_calview',calWeek?'week':'month')}catch(e){}
+}
 function calToday(){const n=new Date(); calY=n.getFullYear(); calM=n.getMonth(); selDay=n; renderCal()}
 function pickDay(y,mo,d){
   if(y!==calY||mo!==calM){calY=y;calM=mo}  // 点击前后月灰格自动翻月
@@ -673,20 +697,38 @@ function pickDay(y,mo,d){
 }
 function renderCal(){
   const now=new Date();
-  if(calY===null){calY=now.getFullYear(); calM=now.getMonth(); selDay=now}
-  /* 42 格网格:从本月第一周周日开始 */
-  const first=new Date(calY,calM,1);
-  const cells=[]; const start=new Date(first); start.setDate(1-first.getDay());
-  for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); cells.push(d)}
+  if(calY===null){
+    calY=now.getFullYear(); calM=now.getMonth(); selDay=now;
+    try{calWeek=localStorage.getItem('ycal_calview')==='week'}catch(e){}   // 记住月/周视图偏好
+  }
+  /* 月视图 42 格 / 周视图 7 格:都以周日为一周起点,与表头「日一二三四五六」对齐 */
+  const cells=[];
+  let title;
+  if(calWeek){
+    const base=selDay||now;
+    const s0=new Date(base.getFullYear(),base.getMonth(),base.getDate()-base.getDay());
+    for(let i=0;i<7;i++){const d=new Date(s0); d.setDate(s0.getDate()+i); cells.push(d)}
+    const e0=cells[6];
+    title=`${s0.getMonth()+1}月${s0.getDate()}日 – ${e0.getMonth()+1}月${e0.getDate()}日`;
+  }else{
+    const first=new Date(calY,calM,1);
+    const start=new Date(first); start.setDate(1-first.getDay());
+    for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); cells.push(d)}
+    title=`${calY}年${calM+1}月`;
+  }
   let h=`<div class="cal-card"><div class="cal-head">
     <button class="cal-nav" onclick="calNav(-1)">‹</button>
-    <div class="cal-title">${calY}年${calM+1}月</div>
+    <div class="cal-title">${title}</div>
     <button class="cal-nav" onclick="calNav(1)">›</button>
     <button class="cal-today" onclick="calToday()">今天</button>
-  </div><div class="cal-grid">
+    <span class="cal-view" role="group" aria-label="日历视图切换">
+      <b class="${calWeek?'':'on'}" onclick="setCalView('month')" role="button" aria-label="月视图">月</b>
+      <b class="${calWeek?'on':''}" onclick="setCalView('week')" role="button" aria-label="周视图">周</b>
+    </span>
+  </div><div class="cal-grid${calWeek?' week':''}">
   ${'日一二三四五六'.split('').map(w=>`<div class="cal-wd">${w}</div>`).join('')}
   ${cells.map(d=>{
-    const inM=d.getMonth()===calM;
+    const inM=calWeek||d.getMonth()===calM;
     const ev=eventsOnDay(d.getFullYear(),d.getMonth(),d.getDate());
     const colors=[...new Set(ev.starts.concat(ev.runs,ev.ends).map(e=>gameColor(e.game_id)))].slice(0,3);
     const cls=[!inM?'dim':'', sameDay(d,now)?'today':'', sameDay(d,selDay)?'sel':''].join(' ');
@@ -800,6 +842,7 @@ function showDetail(e){
       <a class="detail-btn ${isDone(e)?'isdone':'done-btn'}" href="#" onclick="event.preventDefault();toggleDone(event,'${e.id}')">${isDone(e)?'✓ 已标记做完 · 点击取消':'标记这个活动做完 ✓'}</a>
       <a class="detail-btn" href="#" style="${isFav(e)?'background:var(--orange);color:#fff':'color:var(--orange)'}" onclick="event.preventDefault();toggleFav(event,'${e.id}');favBtnState(this,'${e.id}')">${isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶'}</a>
       ${e.link?`<a class="detail-btn blue" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
+      <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();shareCard('${e.id}')">生成分享卡（图片）</a>
       <div class="report-row">
         <span class="report-lbl">这条有问题?</span>
         <span class="chip" style="--c:var(--red)" onclick="reportEv('${e.id}','missing-image')">缺图</span>
@@ -812,6 +855,87 @@ function showDetail(e){
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(overlay);
   attachSwipeClose(overlay);
+}
+/* ── 分享卡:把活动画成 1080×1350 的图,直接下载 ── */
+function rrect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.quadraticCurveTo(x+w,y,x+w,y+r);
+  g.lineTo(x+w,y+h-r);g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  g.lineTo(x+r,y+h);g.quadraticCurveTo(x,y+h,x,y+h-r);
+  g.lineTo(x,y+r);g.quadraticCurveTo(x,y,x+r,y);
+  g.closePath();
+}
+function wrapText(g,text,maxW,maxLines){
+  const lines=[];let cur='';
+  for(const ch of String(text||'')){
+    if(g.measureText(cur+ch).width>maxW&&cur){
+      lines.push(cur);cur=ch;
+      if(lines.length>=maxLines)return lines;
+    }else cur+=ch;
+  }
+  if(cur)lines.push(cur);
+  return lines.slice(0,maxLines);
+}
+function loadImageAsync(src){
+  return new Promise((res,rej)=>{
+    const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src;
+  });
+}
+async function shareCard(id){
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  const W=1080,H=1350,pad=64,coverH=600,c=gameColor(e.game_id);
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const g=cv.getContext('2d');
+  const FONT='-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+  // 背景:近黑 + 游戏色渐变,右上角一团柔光
+  const bg=g.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#0b0b0f');bg.addColorStop(1,c+'33');
+  g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const rg=g.createRadialGradient(W*0.88,H*0.12,30,W*0.88,H*0.12,560);
+  rg.addColorStop(0,c+'66');rg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=rg;g.fillRect(0,0,W,H);
+  // 封面(拿不到图就用游戏色块 + 短名)
+  let img=null;
+  if(e.image){try{img=await loadImageAsync(imgUrl(e.image))}catch(_){}}
+  if(img){
+    g.save();rrect(g,pad,pad,W-pad*2,coverH,28);g.clip();
+    g.drawImage(img,pad,pad,W-pad*2,coverH);g.restore();
+  }else{
+    g.fillStyle=c;rrect(g,pad,pad,W-pad*2,coverH,28);g.fill();
+    g.fillStyle='#fff';g.textAlign='center';
+    g.font=`bold 104px ${FONT}`;
+    g.fillText(gameShort(e.game_id),W/2,pad+coverH/2+36);
+    g.textAlign='left';
+  }
+  // 标题(最多 3 行)
+  g.fillStyle='#fff';g.font=`bold 56px ${FONT}`;
+  let y=pad+coverH+92;
+  for(const line of wrapText(g,e.title,W-pad*2,3)){
+    g.fillText(line,pad,y);y+=72;
+  }
+  // 游戏 · 分类
+  g.fillStyle=c;g.font=`600 34px ${FONT}`;
+  g.fillText(`${e.game||gameName(e.game_id)} · ${e.category||'活动'}`,pad,y+6);
+  // 时间
+  g.fillStyle='rgba(255,255,255,.72)';g.font=`400 32px ${FONT}`;
+  g.fillText(fmtRange(e),pad,y+62);
+  // 状态/倒计时
+  const cd=cdText(e);
+  if(cd&&cd.txt){g.fillStyle=cd.urgent?'#ff453a':'rgba(255,255,255,.9)';g.font=`600 30px ${FONT}`;g.fillText(cd.txt,pad,y+112)}
+  // 页脚品牌
+  g.fillStyle='rgba(255,255,255,.35)';g.font=`400 26px ${FONT}`;
+  g.fillText('二游活动日历 · ycal',pad,H-56);
+  // 导出下载
+  cv.toBlob(function(blob){
+    if(!blob){alert('生成失败,请重试');return}
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=(e.title||'活动').replace(/[\\/:*?"<>|]/g,'').slice(0,24)+'.png';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    alert('分享卡已生成,可在下载里查看');
+  },'image/png');
 }
 /* ── 一键反馈:写入服务端待核查清单(data/reports.json),每日核查优先处理 ── */
 const REPORT_LABEL={'missing-image':'缺图','wrong-time':'时间不对','other':'其他'};
@@ -936,7 +1060,30 @@ async function showMihoyoDetail(e){
 }
 
 function renderView(){
+  renderTodayBar();
   tab==='cal'?renderCal():renderList();
+}
+/* 今日摘要:今天开始 / 今天结束 / 进行中 三个计数,点一下跳到今天的月历详情 */
+function renderTodayBar(){
+  const el=$('#todayBar'); if(!el)return;
+  const now=new Date();
+  const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const t1=new Date(t0.getTime()+864e5);
+  let start=0,end=0,run=0;
+  for(const e of filteredEvents()){
+    const s=evStart(e); if(!s)continue;
+    const t=evEnd(e)||s;
+    if(s>=t0&&s<t1)start++;
+    if(t>=t0&&t<t1)end++;
+    if(s<=now&&t>=now)run++;
+  }
+  el.innerHTML=`<div class="tb" onclick="jumpToday()" role="button" aria-label="今天开始 ${start} 个活动"><b>${start}</b><span>今天开始</span></div>`
+    +`<div class="tb" onclick="jumpToday()" role="button" aria-label="今天结束 ${end} 个活动"><b>${end}</b><span>今天结束</span></div>`
+    +`<div class="tb" onclick="jumpToday()" role="button" aria-label="进行中 ${run} 个活动"><b>${run}</b><span>进行中</span></div>`;
+}
+function jumpToday(){
+  settings.calOn=true;saveSettings();applySettings();
+  setTab('cal');calToday();   // 顺带把月历滚到「今天」并展开当天详情
 }
 function render(){renderMeta();applySettings();mountNotes();renderView()}
 /* ================= 活动打钩(做完的活动标记完成) ================= */
@@ -1326,6 +1473,14 @@ async function loadNotifyCfgUI(){
       <div class="lbl">每日推送时刻</div>
       <input type="time" value="${esc(NC.time)}" onchange="saveNotifyCfg({time:this.value})"
         style="padding:6px 10px;border-radius:9px;border:1px solid var(--sep);background:var(--fill);color:var(--label);font-family:inherit;font-size:13px">
+    </div>
+    <div class="set-row" style="border-bottom:none;padding:10px 0 2px">
+      <div class="lbl">晚间二次提醒<span class="sub">${NC.evening?'只推「明天开始」与「今天结束」,不和早间重复':'未开启;留空即关闭'}</span></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="time" value="${esc(NC.evening||'')}" onchange="saveNotifyCfg({evening:this.value})"
+          style="padding:6px 10px;border-radius:9px;border:1px solid var(--sep);background:var(--fill);color:var(--label);font-family:inherit;font-size:13px">
+        ${NC.evening?`<span class="chip" style="--c:var(--red)" onclick="saveNotifyCfg({evening:''})">关闭</span>`:''}
+      </div>
     </div>
     <div style="padding:2px 0 12px">
       <div class="lbl" style="font-size:14px">提前量<span class="sub">推送时汇总未来 N 天内开始的活动</span></div>

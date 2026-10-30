@@ -76,7 +76,8 @@ if os.path.exists(EXAMPLE):
     sys.path.insert(0, ROOT)
     import app
     check('示例 lead_days 在合法取值域', cfg.get('lead_days', 1) in app._LEAD_CHOICES, True)
-    check('示例字段无多余项', set(cfg) - {'webhook', 'time', 'lead_days', '_说明'}, set())
+    check('示例字段无多余项', set(cfg) - {'webhook', 'time', 'lead_days', 'evening', '_说明'}, set())
+    check('示例含 evening 字段(晚间提醒开关)', 'evening' in cfg, True)
 
 print('\nALL PASS' if bad == 0 else '\n%d FAILED' % bad)
 sys.exit(0 if bad == 0 else 1)

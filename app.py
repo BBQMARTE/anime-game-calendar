@@ -555,6 +555,7 @@ def api_notify_config():
     if request.method == 'GET':
         return jsonify({'time': cfg.get('time') or '08:30',
                         'lead_days': _lead_days(cfg),
+                        'evening': cfg.get('evening') or '',
                         'has_webhook': bool((cfg.get('webhook') or '').strip())})
     if request.headers.get('X-Requested-With') != 'ycal':
         return jsonify({'ok': False, 'error': 'forbidden'}), 403
@@ -571,6 +572,18 @@ def api_notify_config():
     # 提前量:只放行 0/1/3
     if 'lead_days' in body:
         cfg['lead_days'] = _lead_days({'lead_days': body.get('lead_days')})
+    # 晚间二次提醒:HH:MM 或空串(空 = 关闭)
+    if 'evening' in body:
+        t = str(body.get('evening') or '').strip()
+        if t:
+            try:
+                hh, mm = map(int, t.split(':'))
+                assert 0 <= hh <= 23 and 0 <= mm <= 59
+            except Exception:  # noqa: BLE001
+                return jsonify({'ok': False, 'error': 'bad evening'}), 400
+            cfg['evening'] = f'{hh:02d}:{mm:02d}'
+        else:
+            cfg['evening'] = ''
     # webhook:空串=清除;http(s) 才收(防 file:// 等奇形怪状值)
     if 'webhook' in body:
         w = str(body.get('webhook') or '').strip()
@@ -585,6 +598,7 @@ def api_notify_config():
         return jsonify({'ok': False, 'error': 'io'}), 500
     return jsonify({'ok': True, 'time': cfg.get('time') or '08:30',
                     'lead_days': _lead_days(cfg),
+                    'evening': cfg.get('evening') or '',
                     'has_webhook': bool((cfg.get('webhook') or '').strip())})
 
 
@@ -862,7 +876,7 @@ NOTIFY_FILE = os.path.join(DATA_DIR, 'notify.json')
 def _ensure_notify_file():
     if not os.path.exists(NOTIFY_FILE):
         with open(NOTIFY_FILE, 'w', encoding='utf-8') as f:
-            json.dump({'webhook': '', 'time': '08:30', 'lead_days': 1},
+            json.dump({'webhook': '', 'time': '08:30', 'lead_days': 1, 'evening': ''},
                       f, ensure_ascii=False, indent=2)
 
 
@@ -912,8 +926,8 @@ def _lead_days(cfg):
     return n if n in _LEAD_CHOICES else 1
 
 
-def _daily_notify(now=None):
-    """未来 lead_days+1 天内开始的活动 + 今天/明天结束的活动汇总推送(now 可注入,便于测试)"""
+def _daily_notify(now=None, evening=False):
+    """早间:未来 lead_days+1 天开始 + 今天/明天结束;晚间:只推明天开始 + 今天结束(now 可注入,便于测试)"""
     cfg = _notify_config()
     if not (cfg.get('webhook') or '').strip():
         return
@@ -927,6 +941,9 @@ def _daily_notify(now=None):
     today = now.strftime('%Y-%m-%d')
     tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
     naive_now = now.replace(tzinfo=None)   # 条目时间是北京时间裸值,比较前去掉时区
+    # 晚安提醒只覆盖「明天开始」与「今天结束」,避免与早间推送重复刷屏
+    start_days = {tomorrow: 1} if evening else days
+    end_days = (today,) if evening else (today, tomorrow)
     starting, ending = [], []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
@@ -935,20 +952,21 @@ def _daily_notify(now=None):
         if e.get('_nodate'):
             continue
         s = str(e.get('start') or e.get('date') or '')
-        if s[:10] in days:
+        if s[:10] in start_days:
             starting.append((s, e))
-        # 结束提醒:今天/明天结束且尚未结束(限时活动最后一天最容易漏)
+        # 结束提醒:即将结束且尚未结束(限时活动最后一天最容易漏)
         ed = str(e.get('end') or '')
-        if ed[:10] in (today, tomorrow):
+        if ed[:10] in end_days:
             try:
                 if datetime.fromisoformat(ed) <= naive_now:
                     continue
             except ValueError:
                 pass
             ending.append((ed, e))
-    span = {0: '今天', 1: '今明两天'}.get(lead) or f'未来 {lead + 1} 天'
+    span = '明天' if evening else ({0: '今天', 1: '今明两天'}.get(lead) or f'未来 {lead + 1} 天')
     if not starting and not ending:
-        _send_notify('二游活动日历', f'{span}没有新活动开始。')
+        _send_notify('二游活动日历',
+                     '今晚没有需要注意的活动。' if evening else f'{span}没有新活动开始。')
         return
     parts = []
     if starting:
@@ -957,7 +975,7 @@ def _daily_notify(now=None):
         parts.append(f'{len(ending)} 个活动即将结束')
     lines = []
     for s, e in sorted(starting, key=lambda x: x[0]):
-        i = days[s[:10]]
+        i = start_days[s[:10]]
         when = _DAY_LABELS.get(i) or f'{i}天后'
         tm = s[11:16] if len(s) >= 16 else ''
         lines.append(f'· {when}{tm and " " + tm} 【{e.get("game") or ""}】{e.get("title", "")}')
@@ -969,7 +987,7 @@ def _daily_notify(now=None):
             when = '今天' if ed[:10] == today else '明天'
             tm = ed[11:16] if len(ed) >= 16 else ''
             lines.append(f'· {when}{tm and " " + tm} 截止 【{e.get("game") or ""}】{e.get("title", "")}')
-    _send_notify('二游活动提醒:' + ' / '.join(parts), '\n'.join(lines))
+    _send_notify(('晚安提醒:' if evening else '二游活动提醒:') + ' / '.join(parts), '\n'.join(lines))
 
 
 def _notify_due(now, cfg_time):
@@ -982,14 +1000,22 @@ def _notify_due(now, cfg_time):
 
 
 def _notify_loop():
-    """每天到点推送一次(配置在 data/notify.json,改完下一轮生效)"""
-    sent_day = None
+    """每天到点推送:早间汇总(lead_days) + 可选的晚间「晚安提醒」(evening,只推明天开始/今天结束)"""
+    sent = set()   # {'YYYY-MM-DD:slot'} 已发标记,跨日自动失效
     while True:
         now = _bj_now()
-        key = _notify_due(now, _notify_config().get('time'))
-        if key and sent_day != key:
-            _daily_notify(now)
-            sent_day = key
+        cfg = _notify_config()
+        for slot, field in (('main', 'time'), ('evening', 'evening')):
+            t = cfg.get(field)
+            if slot == 'evening' and not (str(t or '').strip()):
+                continue   # 未配置晚间时刻 = 关闭
+            day = _notify_due(now, t)
+            key = f'{day}:{slot}' if day else ''
+            if key and key not in sent:
+                sent.add(key)
+                if len(sent) > 30:            # 只留最近几天的标记
+                    sent = {k for k in sent if k.split(':')[0] >= (now - timedelta(days=7)).strftime('%Y-%m-%d')}
+                _daily_notify(now, evening=(slot == 'evening'))
         time.sleep(60)
 
 

@@ -14,15 +14,15 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 |---|---|
 | 7 games aggregated | Honkai: Star Rail, Zenless Zone Zero, Arknights: Endfield, Arknights, Wuthering Waves, Ananta, Reverse: 1999 + official Bilibili posts |
 | Dual-engine data | scrapers fetch official APIs every 30 min for freshness; an AI agent web-verifies & corrects twice a week for accuracy |
-| Monthly calendar | iOS-style event calendar — tap any day to see events starting / ongoing / ending that day |
+| Monthly calendar | iOS-style event calendar with **month / week toggle** — tap any day to see events starting / ongoing / ending that day; the home strip shows today's start / end / ongoing counts |
 | Image-only schedules | schedules published only as images (e.g. Endfield) are read via browser screenshots + multimodal vision |
 | Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails via vision-guided cropping |
 | Memo & check-off | weekly to-do memo pinned on top (weekly templates one-tap import, auto-reset each Monday); mark events as "done" or "★ favorite to top" — **state is stored server-side, so it survives device or browser changes** |
 | Search & stats | search history dropdown; data stats in settings (per-game density / category mix) |
 | Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days); every item is tagged by source (**verified / auto / Bilibili**) with an option to **hide unverified auto items**; the detail sheet offers one-tap feedback (missing image / wrong time / other) |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline); sheets support swipe-down to close |
-| Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark event-start + ending-soon push (adjustable lead days), Tailscale remote access |
-| Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |
+| Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark event-start + ending-soon push (adjustable lead days, **optional evening re-ping**), Tailscale remote access |
+| Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link; **generate a 1080×1350 share card and download the PNG** |
 | NPC automation | cloud NPCs on CNB work in shifts (patrol → dev → review → merge) to iterate the code autonomously, driven by a free model |
 
 ## Contents
