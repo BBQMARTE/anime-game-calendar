@@ -934,6 +934,8 @@ function showDetail(e){
       ${e.link?`<a class="detail-btn blue" href="${esc(e.link)}" onclick="event.preventDefault();openUrl(this.href)">查看原帖详情 ›</a>`:''}
       <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();shareCard('${e.id}')">生成分享卡（图片）</a>
       <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();addToCalendar('${e.id}')">添加到系统日历（.ics）</a>
+      <a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();copyEventText('${e.id}')">复制活动信息</a>
+      ${e.game_id?`<a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();onlyThisGame('${e.game_id}')">只看「${esc(e.game||e.game_id)}」的活动</a>`:''}
       <div class="report-row">
         <span class="report-lbl">这条有问题?</span>
         <span class="chip" style="--c:var(--red)" onclick="reportEv('${e.id}','missing-image')">缺图</span>
@@ -1011,6 +1013,34 @@ function addToCalendar(id){
   a.download=name;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+/* ── 复制活动信息:整理成可直接粘贴到群聊的纯文本 ── */
+function eventText(e){
+  const lines=['【'+(e.game||e.game_id||'活动')+'】'+(e.title||'')];
+  lines.push('时间:'+(evStart(e)?fmtRange(e):'待定'));
+  if(e.category)lines.push('分类:'+e.category);
+  if(e.link)lines.push('链接:'+e.link);
+  return lines.join('\n');
+}
+function copyEventText(id){
+  const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
+  if(!e)return;
+  const text=eventText(e);
+  const fallback=()=>alert('活动信息(复制后粘贴到群聊):\n\n'+text);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(()=>alert('已复制活动信息,可直接粘贴分享'))
+      .catch(fallback);
+  }else fallback();
+}
+/* ── 从详情页一键只看该游戏:收起弹窗并把顶部筛选切到单游戏 ── */
+function onlyThisGame(id){
+  if(!id)return;
+  activeGames=new Set([id]);
+  saveFilters();
+  document.querySelectorAll('.detail-overlay').forEach(o=>o.remove());
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 /* ── 分享卡:把活动画成 1080×1350 的图,直接下载 ── */
 function rrect(g,x,y,w,h,r){
@@ -1564,18 +1594,22 @@ function filterQuery(){
   return q.length?'?'+q.join('&'):'';
 }
 function apiOrigin(){
-  return location.origin.indexOf('http')===0?location.origin:'http://127.0.0.1:5000';
+  // APK 本地离线模式是 file://,没有服务端;返回空串让调用方提示,而不是拼一个打不开的地址
+  return location.origin.indexOf('http')===0?location.origin:'';
 }
-function icsUrl(){ return apiOrigin()+'/api/calendar.ics'+filterQuery(); }
+function icsUrl(){ return apiOrigin()?apiOrigin()+'/api/calendar.ics'+filterQuery():''; }
 /* 导出 CSV:直接下载,Excel/Numbers 打开即可透视 */
 function exportCsv(){
+  const o=apiOrigin();
+  if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
   const a=document.createElement('a');
-  a.href=apiOrigin()+'/api/export.csv'+filterQuery();
+  a.href=o+'/api/export.csv'+filterQuery();
   a.download='二游活动日历.csv';
   document.body.appendChild(a);a.click();a.remove();
 }
 function copyIcsUrl(){
   const u=icsUrl();
+  if(!u){alert('离线模式无法生成订阅链接,请先在 APK 里连接电脑上的服务端');return}
   const fallback=()=>alert('日历订阅链接(复制后粘到系统日历/Google 日历):\n\n'+u);
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(u)
@@ -1740,6 +1774,23 @@ function openSettingsRefresh(){  // 重开面板刷新勾选态,并同步月历+
   const o=document.querySelector('.detail-overlay:last-of-type'); if(o)o.remove();
   render();openSettings();
 }
+
+/* 键盘快捷键(桌面):Esc 关弹窗,「/」或 Ctrl/Cmd+K 聚焦搜索 */
+function isTypingTag(tag){return /^(INPUT|TEXTAREA|SELECT)$/.test(String(tag||''))}
+function hotkeyGo(e){
+  if(e.key==='Escape'){
+    const o=document.querySelector('.detail-overlay:last-of-type');
+    if(o){o.remove();return true}
+  }
+  const slash=e.key==='/';
+  const cmdK=(e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==='k';
+  if((slash||cmdK)&&!isTypingTag(document.activeElement&&document.activeElement.tagName)){
+    const i=$('#q');
+    if(i){e.preventDefault();i.focus();i.select();return true}
+  }
+  return false;
+}
+document.addEventListener('keydown',hotkeyGo);
 
 load();
 loadNotes().then(mountNotes);   // 备忘录数据加载后置顶渲染
