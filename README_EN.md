@@ -19,7 +19,7 @@ Anime Game Event Calendar (动漫游戏活动日历) aggregates event schedules 
 | Event-card cropping | official ultra-tall teaser images cut into per-event thumbnails via vision-guided cropping |
 | Memo & check-off | weekly to-do memo pinned on top (weekly templates one-tap import, auto-reset each Monday); mark events as "done" or "★ favorite to top" — **state is stored server-side, so it survives device or browser changes** |
 | Search & stats | search history dropdown; data stats in settings (per-game density / category mix) |
-| Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days) |
+| Personal settings | toggle the calendar tab; games unchecked in settings are hidden from both the calendar and the top filter; imageless crawler items show brand-color placeholder cards; visual reminder config (webhook / time / lead days); every item is tagged by source (**verified / auto / Bilibili**), and the detail sheet offers one-tap feedback (missing image / wrong time / other) |
 | Multi-platform | PC web / Android APK / PWA ("Add to Home Screen", works offline); sheets support swipe-down to close |
 | Subscriptions & reminders | ICS calendar feed (RFC5545 folding, filterable per game), Feishu/Bark event-start + ending-soon push (adjustable lead days), Tailscale remote access |
 | Event detail popup | thumbnails in the list; tap for the full schedule image, countdown, official link |

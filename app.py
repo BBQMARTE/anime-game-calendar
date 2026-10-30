@@ -477,6 +477,71 @@ def api_userstate():
     return jsonify({'ok': ok, 'done': cur['done'], 'fav': cur['fav']})
 
 
+# ================= 用户报错/缺图反馈 =================
+REPORT_FILE = os.path.join(DATA_DIR, 'reports.json')
+_report_lock = threading.Lock()
+_REPORT_MAX = 300
+_REPORT_KINDS = ('missing-image', 'wrong-time', 'other')
+
+
+def _load_reports():
+    try:
+        with open(REPORT_FILE, 'r', encoding='utf-8-sig') as f:
+            d = json.load(f)
+        items = d.get('items') if isinstance(d, dict) else None
+        return items if isinstance(items, list) else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+@app.route('/api/report', methods=['GET', 'POST'])
+def api_report():
+    """用户反馈:GET 读待核查清单,POST 追加一条(同游戏同标题同类型 10 分钟内不重复记)"""
+    if request.method == 'GET':
+        with _report_lock:
+            return jsonify({'items': _load_reports()})
+    # 与 /api/refresh、/api/todo 同样的简单 CSRF 防护
+    if request.headers.get('X-Requested-With') != 'ycal':
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    body = request.get_json(silent=True) or {}
+    title = str(body.get('title') or '').strip()[:120]
+    if not title:
+        return jsonify({'ok': False, 'error': 'title required'}), 400
+    kind = body.get('kind') if body.get('kind') in _REPORT_KINDS else 'other'
+    now = datetime.now()
+    item = {
+        'game_id': str(body.get('game_id') or '')[:20],
+        'title': title,
+        'kind': kind,
+        'note': str(body.get('note') or '').strip()[:200],
+        'start': str(body.get('start') or '')[:19],
+        'end': str(body.get('end') or '')[:19],
+        'link': str(body.get('link') or '')[:300],
+        'at': now.isoformat(timespec='seconds'),
+        'done': False,
+    }
+    with _report_lock:
+        items = _load_reports()
+        for old in items:
+            if (old.get('game_id') == item['game_id'] and old.get('title') == title
+                    and old.get('kind') == kind and not old.get('done')):
+                try:
+                    if (now - datetime.fromisoformat(str(old.get('at')))).total_seconds() < 600:
+                        return jsonify({'ok': True, 'duplicate': True})
+                except ValueError:
+                    pass
+        items.append(item)
+        items = items[-_REPORT_MAX:]
+        try:
+            with open(REPORT_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'items': items}, f, ensure_ascii=False, indent=1)
+            ok = True
+        except Exception as e:  # noqa: BLE001
+            print(f'[反馈] 保存失败: {e}')
+            ok = False
+    return jsonify({'ok': ok, 'count': len(items)})
+
+
 # ================= 提醒配置(notify.json 的 API 化) =================
 def _save_notify_cfg(cfg):
     with open(NOTIFY_FILE, 'w', encoding='utf-8') as f:
