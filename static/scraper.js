@@ -778,11 +778,12 @@ const Scraper = (() => {
       } else {
         kind = (cat === '活动' || cat === '角色与专武') && !NOISE_RE.test(title) ? 'event' : 'info';
       }
-      let start = null, end = null;
+      let start = null, end = null, img = '';
       if (kind === 'event' && dayDiff(now, pub.getTime()) <= 30 && fetched < 12) {
         fetched++;
         try {
           const raw = await httpText(link);
+          img = firstImg(raw);   // 官网详情页首图作封面
           const txt = raw.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, ' ')
                          .replace(/<[^>]+>/g, '\n').replace(/&\w+;/g, ' ');
           [start, end] = akParseRange(txt, pub);
@@ -793,7 +794,7 @@ const Scraper = (() => {
       if (stop && dayDiff(now, stop.getTime()) > 30) continue;
       // 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底不可靠)
       if (kind === 'event' && !start && dayDiff(now, pub.getTime()) > 14) kind = 'info';
-      out.push(ev(gid, gname, title, cat, pub, start, end, link, '', kind));
+      out.push(ev(gid, gname, title, cat, pub, start, end, link, img, kind));
     }
     return out;
   }

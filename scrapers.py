@@ -653,11 +653,13 @@ def _arknights(gid, gname):
         else:
             kind = 'event' if cat in ('活动', '角色与专武') and not _NOISE_RE.search(title) else 'info'
         start, end = None, None
+        img = ''
         # 活动/卡池类抓详情页解析起止时间(限近30天+预算12次)
         if kind == 'event' and _day_diff(now, pub) <= 30 and fetched < 12:
             fetched += 1
             try:
                 raw = _get(link, timeout=12).text
+                img = _first_img(raw)   # 官网详情页首图作封面
                 raw = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', raw, flags=re.S)
                 text = re.sub(r'&\w+;', ' ', re.sub(r'<[^>]+>', '\n', raw))
                 start, end = _ak_parse_range(text, pub)
@@ -670,7 +672,7 @@ def _arknights(gid, gname):
         # 超两周仍无准确时间的旧预告降为资讯(pub+2 兜底日期不可靠,真实排期由每日核查核实)
         if kind == 'event' and start is None and _day_diff(now, pub) > 14:
             kind = 'info'
-        out.append(_ev(gid, gname, title, cat, pub, start, end, link, '', kind))
+        out.append(_ev(gid, gname, title, cat, pub, start, end, link, img, kind))
     return out
 
 
