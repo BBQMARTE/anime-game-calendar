@@ -344,6 +344,14 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 .detail-btn.done-btn{background:var(--fill); color:var(--label)}
 .detail-btn.isdone{background:var(--green); color:#fff}
 .detail-btn.blue{background:var(--blue); color:#fff}
+/* ---------- 详情页「同游戏其他活动」 ---------- */
+.rel-sec{font-size:12px; font-weight:600; color:var(--label3); text-transform:uppercase; letter-spacing:.06em; margin:16px 0 4px}
+.rel-row{display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:.5px solid var(--sep); cursor:pointer}
+.rel-row:last-child{border-bottom:none}
+.rel-row:active{opacity:.65}
+.rel-dot{display:block; width:7px; height:7px; border-radius:50%; flex:none}
+.rel-t{flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rel-d{flex:none; font-size:11px; color:var(--label3)}
 </style>
 </head>
 <body>
@@ -876,12 +884,23 @@ function openEv(id){
   // 其余:详情弹窗(完整活动图片 + 文字公告 + 原文入口)
   return showDetail(e);
 }
+/* 详情页「同游戏其他活动」:未结束的真活动按开始时间排序,最多 3 条 */
+function relatedEvents(e, now){
+  now=now||new Date();
+  return (DATA&&DATA.events||[]).filter(x=>
+    (x.kind||'event')==='event'
+    &&x.id!==e.id
+    &&x.game_id===e.game_id
+    &&(evEnd(x)>=now)              // 已结束的不推(evEnd 对无结束条目补 2 天窗口)
+  ).sort((a,b)=>evStart(a)-evStart(b)).slice(0,3);
+}
 /* 通用活动详情弹窗:完整活动图片 + 文字公告 + 原文链接 */
 function showDetail(e){
   const overlay=document.createElement('div');
   overlay.className='detail-overlay';
   const c=gameColor(e.game_id), cd=cdText(e);
   const short=gameShort(e.game_id);
+  const rel=relatedEvents(e,new Date());
   const fsD=short.length>3?'8.5px':short.length>2?'10px':'12px';
   overlay.innerHTML=`<div class="detail-sheet">
     <div class="detail-header" style="--c:${c}">
@@ -906,6 +925,12 @@ function showDetail(e){
         <span class="chip" style="--c:var(--orange)" onclick="reportEv('${e.id}','wrong-time')">时间不对</span>
         <span class="chip" style="--c:var(--blue)" onclick="reportEv('${e.id}','other')">其他</span>
       </div>
+      ${rel.length?`<div class="rel-sec">同游戏其他活动</div>${rel.map(r=>
+        `<div class="rel-row" onclick="this.closest('.detail-overlay').remove();openEv('${r.id}')">
+          <i class="rel-dot" style="background:${gameColor(r.game_id)}"></i>
+          <span class="rel-t">${esc(r.title)}</span>
+          <span class="rel-d">${esc(fmtRange(r))}</span>
+        </div>`).join('')}`:''}
       <div class="detail-src">${e.src==='manual'?'已核实 · AI Agent 搜索录入':e.src==='bilibili'?'来源 · B站官方动态':'来源 · 游戏官方接口自动抓取(未经人工核实)'}</div>
     </div>
   </div>`;
