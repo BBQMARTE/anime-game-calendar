@@ -373,7 +373,7 @@ try{
 }catch(e){}
 function saveFilters(){try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
-let settings={calOn:true,calGames:null};
+let settings={calOn:true,calGames:null,hideAuto:false};
 try{settings=Object.assign(settings,JSON.parse(localStorage.getItem('ycal_settings')||'{}'))}catch(e){}
 function saveSettings(){try{localStorage.setItem('ycal_settings',JSON.stringify(settings))}catch(e){}}
 function calGamesSet(){
@@ -544,6 +544,7 @@ function filtered(){
   return (DATA.events||[]).filter(e=>
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
     &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
+    &&(!settings.hideAuto||e.src==='manual'||e.src==='bilibili')  // 只留有来源保证的条目
     &&activeCats.has(e.category)
     &&(!k||((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k)));
 }
@@ -751,7 +752,11 @@ function renderList(){
     if(tab==='all'&&_allLimit<all.length)
       html+=`<div id="listMore" class="empty" role="status" aria-label="上滑加载更多">上滑加载更多(${all.length-_allLimit} 条)…</div>`;
   }
-  $('#list').innerHTML=html||'<div class="empty">暂无数据</div>';
+  // 空状态:区分「真的没数据」与「被隐藏未核实条目筛空了」,否则用户会以为功能坏了
+  const emptyHint=settings.hideAuto&&(DATA&&DATA.events||[]).length
+    ? '已隐藏未核实的自动条目<br>可在设置里关闭「隐藏未核实的自动条目」'
+    : '暂无数据';
+  $('#list').innerHTML=html||`<div class="empty">${emptyHint}</div>`;
 }
 let _loadingMore=false;
 window.addEventListener('scroll',()=>{  // 接近底部追加下一批(节流)
@@ -1193,6 +1198,10 @@ function openSettings(){
           <span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleCalAllGames()">全部</span>${games}
         </div>
       </div>
+      <div class="set-row">
+        <div class="lbl">隐藏未核实的自动条目<span class="sub">只保留人工核实与 B站官方来源,自动抓取的条目不再显示</span></div>
+        <label class="switch"><input type="checkbox" ${settings.hideAuto?'checked':''} onchange="toggleHideAuto(this.checked)" aria-label="隐藏未核实的自动条目"><span class="tr"></span></label>
+      </div>
       <div class="set-sec">提醒推送</div>
       <div id="notifyCfg"><div class="sub" style="padding:4px 0 8px">正在读取服务端配置…</div></div>
       <div class="set-sec">数据</div>
@@ -1338,6 +1347,10 @@ async function saveNotifyCfg(patch){
   }catch(e){alert('保存失败: 服务端不可达')}
 }
 function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFilters()}
+function toggleHideAuto(on){
+  settings.hideAuto=!!on;saveSettings();
+  render();openSettingsRefresh();   // 列表与月历立即按新口径重绘
+}
 function toggleCalGame(id){
   const cur=calGamesSet(); const ids=(DATA&&DATA.games||[]).map(g=>g.id);
   cur.has(id)?cur.delete(id):cur.add(id);
