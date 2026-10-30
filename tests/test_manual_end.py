@@ -62,12 +62,18 @@ check('起点在 9999 年补窗越界 → 放弃结束时间、不抛异常',
 check('非法起点返回 None', app._default_end(''), None)
 check('None 起点返回 None', app._default_end(None), None)
 
-# ---- 2. _manual_events 不补 end，ICS 端兜底后无零时长 ----
+# ---- 2. _manual_events 不补合成 end，ICS 端兜底后无零时长 ----
 events = app._manual_events()
 ne = [e for e in events if e['start'] and not e['end']]
 check('manual.json 无 end 条目数 > 0（样本有效）', no_end_count() > 0, True)
-# 读取入口必须保持 end=None：补合成值会让深夜条目被时长校验降级
-check('_manual_events 不补 end（与 manual.json 一致）', len(ne), no_end_count())
+# 例外:标题写明「签到（N日）」的条目按 N 天补真实结束(见 test_signin_end.py);
+# 其余无 end 条目必须保持 None —— 补合成值会让深夜条目被时长校验降级
+inferred = 0
+for x in json.load(open(MANUAL, encoding='utf-8')):
+    if isinstance(x, dict) and x.get('title') and x.get('start') and not x.get('end') \
+            and app.scrapers._signin_days(x['title']):
+        inferred += 1
+check('_manual_events 只为签到（N日）条目补 end', len(ne), no_end_count() - inferred)
 
 app._state['events'] = events
 raw = app.app.test_client().get('/api/calendar.ics').get_data(as_text=True)

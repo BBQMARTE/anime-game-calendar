@@ -208,10 +208,24 @@ const Scraper = (() => {
   const dayDiff = (a, b) => (a - b) / 864e5;
 
   let _uid = 0;
+  /* 签到天数:标题里的「（7日）」「七日签到」就是活动时长,据此补真实结束时间。
+     只认带「签到」字样且 2~30 天,与 Python scrapers.py::_signin_days 逐字同口径 */
+  const SIGNIN_DAYS_RE = /(?:[（(]\s*(\d{1,2}|[一二三四五六七八九十])\s*日\s*[)）]|(\d{1,2}|[一二三四五六七八九十])\s*日\s*签到)/;
+  const CN_DIGIT = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  function signinDays(title) {
+    const t = title || '';
+    if (t.indexOf('签到') < 0) return 0;
+    const m = SIGNIN_DAYS_RE.exec(t);
+    if (!m) return 0;
+    const raw = m[1] || m[2] || '';
+    const n = /^\d/.test(raw) ? parseInt(raw, 10) : (CN_DIGIT[raw] || 0);
+    return n >= 2 && n <= 30 ? n : 0;
+  }
   function ev(gid, gname, title, category, pub, start, end, link, img, kind, ext) {
     title = (title || '').replace(/\s+/g, ' ').trim();
     // 每日签到/累计登录类活动单列「签到」分类(与 scrapers.py 一致)
     if (category === '活动' && CHECKIN_RE.test(title)) category = '签到';
+    const signin = signinDays(title);   // 用完整标题判断:短标题可能已去掉「（7日）」
     let nodate = false;
     if ((kind || 'event') === 'event') {
       title = shortTitle(title, category);  // 月历条目用短标题
@@ -221,7 +235,11 @@ const Scraper = (() => {
       // 无 start 时打 _nodate:前端显示「时间待定」、ICS 不产出 VEVENT。
       if (start) {
         const pe = end ? end.getTime() : 0;
-        if (!end || pe < start.getTime()) [start, end] = withTwoDayDefault(start, null);
+        if (signin && (!end || pe < start.getTime())) {
+          end = new Date(start.getTime() + signin * 864e5);   // 签到（N日）:按标注天数补真实结束
+        } else if (!end || pe < start.getTime()) {
+          [start, end] = withTwoDayDefault(start, null);
+        }
       } else {
         nodate = true;
       }
@@ -943,20 +961,29 @@ const Scraper = (() => {
       const arr = JSON.parse(localStorage.getItem('ycal_manual') || '[]');
       const names = Object.fromEntries(GAMES.map(g => [g.id, g.name]));
       // 与 Python 端一致:无 title 的说明性条目跳过
-      return (arr || []).filter(e => e && e.title).map((e, i) => ({
-        id: `manual-${i}`,
-        game_id: e.game_id || '',
-        game: names[e.game_id] || e.game || '自定义',
-        title: e.title || '未命名事件',
-        category: e.category || '活动',
-        start: e.start || null,
-        end: e.end || null,
-        date: e.start || iso(new Date()),
-        link: e.link || '',
-        image: e.image || '',
-        src: 'manual',
-        kind: e.kind || 'event',  // 手动填入默认上月历
-      }));
+      return (arr || []).filter(e => e && e.title).map((e, i) => {
+        // 签到（N日）类手动条目:标题已写明时长,补出真实结束时间(与 app._manual_events 同口径)
+        let end = e.end || null;
+        if (!end && e.start) {
+          const sd = signinDays(e.title || '');
+          const d = new Date(e.start);
+          if (sd && !isNaN(d.getTime())) end = iso(new Date(d.getTime() + sd * 864e5));
+        }
+        return {
+          id: `manual-${i}`,
+          game_id: e.game_id || '',
+          game: names[e.game_id] || e.game || '自定义',
+          title: e.title || '未命名事件',
+          category: e.category || '活动',
+          start: e.start || null,
+          end,
+          date: e.start || iso(new Date()),
+          link: e.link || '',
+          image: e.image || '',
+          src: 'manual',
+          kind: e.kind || 'event',  // 手动填入默认上月历
+        };
+      });
     } catch (e) { return []; }
   }
 
@@ -1122,6 +1149,6 @@ const Scraper = (() => {
     return [s, e];
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent,
+  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent, signinDays,
            extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();

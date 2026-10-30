@@ -842,16 +842,30 @@ function topVersionNodes(arr){  // 每游戏取最近一条未来版本节点,�
   }
   return out.sort((a,b)=>evStart(a)-evStart(b));
 }
+/* 进行中分组:有真实结束时间的算「进行中」;结束时间未知的单列,避免与已知截止的混排 */
+function ongoingGroups(evs,now){
+  const live=[],unknown=[];
+  for(const e of evs){
+    const s=evStart(e); if(!s||s>now)continue;
+    if(e.end){if(evEnd(e)>=now)live.push(e)}
+    else unknown.push(e);
+  }
+  const fav=(a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0));
+  live.sort((a,b)=>fav(a,b)||(evEnd(a)-evEnd(b)));
+  unknown.sort((a,b)=>fav(a,b)||(evStart(b)-evStart(a)));  // 最近开始的在前
+  return {live,unknown};
+}
 function renderList(){
   const now=new Date();
   document.querySelectorAll('#seg button').forEach(el=>el.classList.toggle('on',el.dataset.tab===tab));
   let html='';
   if(tab==='ongoing'){
-    const arr=filteredEvents().filter(e=>{const s=evStart(e),t=e.end?evEnd(e):null;return s&&s<=now&&(!t||t>=now)})
-      .sort((a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0))
-        ||((a.end?evEnd(a):new Date(8.64e15))-(b.end?evEnd(b):new Date(8.64e15))));  // 收藏置顶;无结束时间的排最后
-    html=`<div class="sec-title">进行中 · ${arr.length}</div>`
-      +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`:'');
+    const g=ongoingGroups(filteredEvents(),now);
+    html=`<div class="sec-title">进行中 · ${g.live.length}</div>`
+      +(g.live.length?`<div class="group">${g.live.map(rowHtml).join('')}</div>`:'');
+    if(g.unknown.length)
+      html+=`<div class="sec-title" title="来源只给了开始时间,没有结束时间,无法计算倒计时">已开始 · 结束未知 · ${g.unknown.length}</div>`
+        +`<div class="group">${g.unknown.map(rowHtml).join('')}</div>`;
   }else{
     const all=filteredAll();
     const arr=(tab==='soon'
@@ -933,6 +947,7 @@ function showDetail(e){
     <div class="detail-body">
       ${e.image?`<img src="${esc(imgUrl(e.image))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
+      ${!e.end&&e.start?`<div class="detail-cd" style="color:var(--label2)">已开始 · 结束时间未知</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>
       <a class="detail-btn ${isDone(e)?'isdone':'done-btn'}" href="#" onclick="event.preventDefault();toggleDone(event,'${e.id}')">${isDone(e)?'✓ 已标记做完 · 点击取消':'标记这个活动做完 ✓'}</a>
       <a class="detail-btn" href="#" style="${isFav(e)?'background:var(--orange);color:#fff':'color:var(--orange)'}" onclick="event.preventDefault();toggleFav(event,'${e.id}');favBtnState(this,'${e.id}')">${isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶'}</a>

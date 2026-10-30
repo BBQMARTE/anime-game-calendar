@@ -107,6 +107,7 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
     """kind: 'event'=真活动/卡池(上月历,用短标题)  'info'=公告/资讯(仅进资讯列表)
     ext: 可选 {'ann_id','api','params'},前端点击时用它拉取公告正文弹窗展示"""
     title, category = normalize_title_cat(title, category)
+    signin = _signin_days(title)   # 用完整标题判断:短标题可能已去掉「（7日）」
     nodate = False
     if kind == 'event':
         title = _short(title, category)
@@ -116,7 +117,9 @@ def _ev(game_id, game, title, category, pub, start, end, link, img='', kind='eve
         # 无 start 时保持 None 并打 _nodate 标记:前端显示「时间待定」、ICS 不产出 VEVENT。
         # (走 with_two_day_default:起点在 9999 年时它不抛 OverflowError,与 scraper.js 同口径)
         if start is not None:
-            if end is None or end < start:
+            if signin and (end is None or end < start):
+                end = start + timedelta(days=signin)   # 签到（N日）:按标注天数补真实结束
+            elif end is None or end < start:
                 _s2, end = with_two_day_default(start, None)
                 start = _s2
         else:
@@ -256,6 +259,28 @@ _WEB_RE = re.compile(r'米游社|网页活动|H5')
 _ACT_TITLE_RE = re.compile(r'活动[:：]|活动开启|活动现已|活动进行中|限时双倍|双倍掉落|登录领取|签到')
 # 每日签到/累计登录类活动(单独「签到」分类,方便一键筛选)
 _CHECKIN_RE = re.compile(r'签到|打卡|累计登录|累登|每日登录|登录(?:奖励|领取|福利)', re.I)
+# 签到天数:标题里的「（7日）」「七日签到」本身就是活动时长,据此补真实结束时间。
+# 只认带「签到」字样且天数 2~30 的标题,避免把「第7日」「7日内」之类误当时长。
+_SIGNIN_DAYS_RE = re.compile(
+    r'(?:[（(]\s*(\d{1,2}|[一二三四五六七八九十])\s*日\s*[)）]'
+    r'|(\d{1,2}|[一二三四五六七八九十])\s*日\s*签到)')
+_CN_DIGIT = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+             '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+
+
+def _signin_days(title):
+    """标题是「签到（N日）」类活动时返回 N,否则 0(与 scraper.js signinDays 同口径)"""
+    t = title or ''
+    if '签到' not in t:
+        return 0
+    m = _SIGNIN_DAYS_RE.search(t)
+    if not m:
+        return 0
+    raw = m.group(1) or m.group(2) or ''
+    n = int(raw) if raw.isdigit() else _CN_DIGIT.get(raw, 0)
+    return n if 2 <= n <= 30 else 0
+
+
 # 版本更新说明文(内含完整活动/卡池排期,需拆全文)
 _VER_NOTE_RE = re.compile(r'版本更新说明|版本内容说明|更新说明')
 

@@ -157,6 +157,14 @@ def _manual_events():
                 continue  # 跳过说明性条目
             gid = e.get('game_id', '')
             start = e.get('start') or None
+            end = e.get('end') or None
+            # 签到（N日）类手动条目:标题已写明时长,补出真实结束时间(与 scrapers._ev 同口径)
+            n = scrapers._signin_days(e.get('title', ''))
+            if start and not end and n:
+                try:
+                    end = (datetime.fromisoformat(str(start)) + timedelta(days=n)).isoformat(timespec='seconds')
+                except ValueError:
+                    pass
             out.append({
                 'id': _manual_id(e),
                 'game_id': gid,
@@ -164,7 +172,7 @@ def _manual_events():
                 'title': e.get('title', '未命名事件'),
                 'category': e.get('category', '活动'),
                 'start': start,
-                'end': e.get('end') or None,
+                'end': end,
                 'date': start or datetime.now().isoformat(timespec='seconds'),
                 'link': e.get('link', ''),
                 'image': e.get('image', ''),
