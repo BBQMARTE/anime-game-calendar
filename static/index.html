@@ -710,6 +710,13 @@ function imgUrl(u){
   if(location.protocol==='file:')return u;
   return '/api/img?url='+encodeURIComponent(u);
 }
+/* 列表/详情头的小缩略图:本地封面图交给服务端按需压到 200px(原图几百 KB);
+   安卓离线模式用随包生成的 www/thumb/ 小图,避免 99MB 原图进 APK */
+function thumbUrl(u){
+  if(!u||!/^\/static\/img\//i.test(u))return imgUrl(u);   // 远程图仍走原代理
+  if(location.protocol==='file:')return 'thumb'+u.slice(7); // /static/img/x -> thumb/img/x
+  return '/api/thumb?path='+encodeURIComponent(u);
+}
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
   const cd=cdText(e);
@@ -717,7 +724,7 @@ function rowHtml(e){
   const fs=short.length>3?'9.5px':short.length>2?'11px':'12.5px';
   /* 图片加载失败时回退成游戏色块+短名,避免只剩一块没有文字的空底色 */
   const thumb=e.image
-    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(imgUrl(e.image))}" loading="lazy" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${esc(short)}'"></div>`
+    ?`<div class="thumb" style="--c:${c};background:var(--card2)"><img src="${esc(thumbUrl(e.image))}" loading="lazy" onerror="var p=this.parentNode;p.style.background='${c}';p.textContent='${esc(short)}'"></div>`
     :`<div class="thumb ph" style="--c:${c};font-size:${fs}">${esc(short)}</div>`;
   return `<div class="row${isDone(e)?' doneev':''}" style="--c:${c}" onclick="openEv('${e.id}')">
     ${thumb}
@@ -981,7 +988,7 @@ function showDetail(e){
   overlay.innerHTML=`<div class="detail-sheet">
     <div class="detail-header" style="--c:${c}">
       ${e.image
-        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(imgUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.style.fontSize='${fsD}';p.textContent='${esc(short)}'"></div>`
+        ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(thumbUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.style.fontSize='${fsD}';p.textContent='${esc(short)}'"></div>`
         :`<div class="dthumb" style="font-size:${fsD}">${esc(short)}</div>`}
       <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>

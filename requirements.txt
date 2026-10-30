@@ -1,2 +1,3 @@
 flask>=3.0
 requests>=2.31
+Pillow>=10  # /api/thumb 与离线缩略图生成

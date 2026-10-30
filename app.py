@@ -17,7 +17,7 @@ from io import StringIO
 import csv
 
 import requests
-from flask import Flask, Response, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 from urllib3.util import parse_url
 
@@ -314,6 +314,46 @@ def icon(size):
     if not name:
         return jsonify({'error': 'not found'}), 404
     return send_from_directory(app.static_folder, name)
+
+
+THUMB_DIR = os.path.join(app.static_folder, 'thumb')
+THUMB_MAX = 200   # 列表行 40px(2x 屏 80px),200px 足够且比原图小一个量级
+
+
+@app.route('/api/thumb')
+def api_thumb():
+    """本地封面图的列表缩略图:按需压缩到 200px 并缓存。
+
+    原图动辄几百 KB,首屏几十张 40px 缩略图直接拉原图很慢;这里只接受
+    /static/img/ 下的文件,不开放任意路径/远程地址。压缩失败退回原图。
+    """
+    raw = str(request.args.get('path') or '')
+    if not raw.startswith('/static/img/'):
+        return jsonify({'error': 'bad path'}), 400
+    src = os.path.join(app.static_folder, raw[len('/static/'):])
+    try:
+        root = os.path.realpath(app.static_folder)
+        real = os.path.realpath(src)
+        if os.path.commonpath([real, root]) != root:
+            return jsonify({'error': 'bad path'}), 400
+    except ValueError:
+        return jsonify({'error': 'bad path'}), 400
+    if not os.path.isfile(real):
+        return jsonify({'error': 'not found'}), 404
+    rel = os.path.relpath(real, os.path.join(app.static_folder, 'img'))
+    dst = os.path.join(THUMB_DIR, os.path.splitext(rel)[0] + '.jpg')
+    try:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(real):
+            from PIL import Image
+            im = Image.open(real).convert('RGB')
+            im.thumbnail((THUMB_MAX, THUMB_MAX))
+            im.save(dst, 'JPEG', quality=80, optimize=True)
+    except Exception:  # noqa: BLE001 - 压缩失败退回原图,不影响列表
+        return send_file(real)
+    resp = send_file(dst, mimetype='image/jpeg')
+    resp.headers['Cache-Control'] = 'public, max-age=604800'
+    return resp
 
 
 @app.route('/api/events')

@@ -47,6 +47,14 @@ if errorlevel 1 (
   py "%~dp0tools\make_manual_bundle.py"
 )
 
+echo [3.6/5] 生成离线缩略图(static/img 到 assets/www/thumb,约 1MB)...
+where py >nul 2>nul
+if errorlevel 1 (
+  python "%~dp0tools\make_thumbs.py"
+) else (
+  py "%~dp0tools\make_thumbs.py"
+)
+
 echo [4/5] 准备正式签名密钥(仅首次生成,请务必备份)...
 rem 密钥文件丢失但配置还在时,清掉配置回退 debug,避免构建报错
 if exist "%PROJ%\keystore.properties" (
