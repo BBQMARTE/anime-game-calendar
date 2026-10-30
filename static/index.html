@@ -629,6 +629,19 @@ function filtered(){
 function isEv(e){return (e.kind||'event')==='event'}
 function filteredEvents(){return filtered().filter(isEv)}
 function filteredAll(){return filtered()}
+/* 当前是否有搜索词或游戏/分类筛选(用于空结果时给「清除筛选」出口) */
+function filtersActive(){
+  const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  return !!q.trim()
+    || (ids.length&&activeGames.size<ids.length)
+    || activeCats.size<Object.keys(CAT_COLOR).length;
+}
+function clearFilters(){
+  q=''; const i=$('#q'); if(i)i.value='';
+  activeGames=new Set((DATA&&DATA.games||[]).map(g=>g.id));
+  activeCats=new Set(Object.keys(CAT_COLOR));
+  saveFilters();render();
+}
 
 /* ================= 状态 / 筛选 ================= */
 function renderMeta(){
@@ -858,10 +871,12 @@ function renderList(){
     if(tab==='all'&&_allLimit<all.length)
       html+=`<div id="listMore" class="empty" role="status" aria-label="上滑加载更多">上滑加载更多(${all.length-_allLimit} 条)…</div>`;
   }
-  // 空状态:区分「真的没数据」与「被隐藏未核实条目筛空了」,否则用户会以为功能坏了
-  const emptyHint=settings.hideAuto&&(DATA&&DATA.events||[]).length
-    ? '已隐藏未核实的自动条目<br>可在设置里关闭「隐藏未核实的自动条目」'
-    : '暂无数据';
+  // 空状态:区分「筛选筛空了」「被隐藏未核实条目筛空了」「真的没数据」,否则用户会以为功能坏了
+  const emptyHint=filtersActive()
+    ? `没有符合条件的活动<br><a href="#" onclick="clearFilters();return false" style="color:var(--blue);text-decoration:underline">清除搜索与筛选</a>`
+    : settings.hideAuto&&(DATA&&DATA.events||[]).length
+      ? '已隐藏未核实的自动条目<br>可在设置里关闭「隐藏未核实的自动条目」'
+      : '暂无数据';
   $('#list').innerHTML=html||`<div class="empty">${emptyHint}</div>`;
 }
 let _loadingMore=false;
