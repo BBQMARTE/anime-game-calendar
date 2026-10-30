@@ -386,6 +386,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
     <button data-tab="ongoing" onclick="setTab('ongoing')">进行中</button>
     <button data-tab="soon" onclick="setTab('soon')">即将开始</button>
     <button data-tab="all" onclick="setTab('all')">全部资讯</button>
+    <button data-tab="fav" onclick="setTab('fav')">收藏</button>
   </div>
   <div id="list"></div>
 </main>
@@ -842,6 +843,18 @@ function topVersionNodes(arr){  // 每游戏取最近一条未来版本节点,�
   }
   return out.sort((a,b)=>evStart(a)-evStart(b));
 }
+/* 收藏视图排序:进行中(按结束时间) → 即将开始(按开始时间) → 已结束/时间未知 */
+function favEvents(evs,now){
+  const rank=e=>{const s=evStart(e);if(!s)return 3;if(s>now)return 1;return (e.end?evEnd(e)>=now:true)?0:2};
+  const endKey=e=>e.end?evEnd(e).getTime():8.64e15;   // 无结束时间排最后
+  return evs.filter(isFav).sort((a,b)=>{
+    const ra=rank(a),rb=rank(b);
+    if(ra!==rb)return ra-rb;
+    if(ra===1)return evStart(a)-evStart(b);        // 即将开始:最近的在前
+    if(ra===0)return endKey(a)-endKey(b);          // 进行中:先结束的在前
+    return (evStart(b)||0)-(evStart(a)||0);         // 已结束/时间未知:最近的在前
+  });
+}
 /* 进行中分组:有真实结束时间的算「进行中」;结束时间未知的单列,避免与已知截止的混排 */
 function ongoingGroups(evs,now){
   const live=[],unknown=[];
@@ -866,6 +879,11 @@ function renderList(){
     if(g.unknown.length)
       html+=`<div class="sec-title" title="来源只给了开始时间,没有结束时间,无法计算倒计时">已开始 · 结束未知 · ${g.unknown.length}</div>`
         +`<div class="group">${g.unknown.map(rowHtml).join('')}</div>`;
+  }else if(tab==='fav'){
+    const arr=favEvents(filteredAll(),now);
+    html=`<div class="sec-title">★ 收藏 · ${arr.length}</div>`
+      +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`
+        :'<div class="empty">还没有收藏<br>在活动行右侧点 ☆ 即可收藏置顶</div>');
   }else{
     const all=filteredAll();
     const arr=(tab==='soon'
