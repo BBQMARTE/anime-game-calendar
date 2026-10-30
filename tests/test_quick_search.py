@@ -70,6 +70,9 @@ EV = [
     # 今天开始、未写结束时间(应算进行中,不算已结束)
     {'id': 'g', 'game_id': 'hsr', 'title': '活动G', 'category': '活动',
      'start': '2026-10-31T09:00'},
+    # 很久以前开始、未写结束时间:日期筛选只认开始日,不能永远出现在今天/本周/下周
+    {'id': 'h', 'game_id': 'zzz', 'title': '旧签到H', 'category': '签到',
+     'start': '2026-10-05T10:00'},
 ]
 
 bad = 0
@@ -106,7 +109,8 @@ def main():
     check("游戏前缀+关键词 zzz: 活动", d['prefixZzzWord'], ['b', 'e'])
     check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
-    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd', 'g'])
+    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd'])
+    check("无结束时间的老条目不进日期筛选", 'h' in (d['today'] + d['week'] + d['weekend'] + d['nextWeek']), False)
     check("已结束:必须真有结束时间", d['ended'], ['f'])
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))

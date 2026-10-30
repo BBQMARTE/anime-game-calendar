@@ -584,9 +584,10 @@ function quickMatch(e,w,now){
   const d0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const day=n=>new Date(d0.getTime()+864e5*n);
   const same=(a,b)=>a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-  if(w==='今天')return same(s,now)||same(t,now)||(s<=now&&(!t||t>=now));
+  if(w==='今天')return same(s,now)||same(t,now)||(hasEnd&&s<=now&&t>=now);
   if(w==='明天')return same(s,day(1))||same(t,day(1));
-  const te=hasEnd?t:new Date(8.64e15);   // 无结束时间视为仍在进行(不参与区间收窄)
+  // 无结束时间:只按开始日参与日期区间,不把未知结束当成无限进行(否则几十天前的老条目会永远出现在今天/本周/下周)
+  const te=hasEnd?t:s;
   if(w==='本周'){
     const w0=day(-((now.getDay()+6)%7));   // 本周一 00:00(国内习惯周一起算)
     const w1=day(-((now.getDay()+6)%7)+7);
