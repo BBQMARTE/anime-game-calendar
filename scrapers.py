@@ -687,6 +687,37 @@ def _first_img(html):
     return m.group(1) if m else ''
 
 
+_WUWA_ACT_SEC = re.compile(
+    r'全新活动(?:以及玩法)?(.{0,6000}?)(?:【版本调整优化】|✦版本调整优化✦)', re.S)
+
+
+def _wuwa_extract_events(text, ver_start):
+    """鸣潮版本说明:只取「全新活动以及玩法」章节里 [活动名] + ✦活动时间 的条目。
+
+    通用提取会把正文里任意「」/[...] 引用(角色/武器/区域/任务/道具)当成活动名,
+    只要附近有日期就上月历(如「情匣」「探历札记」「梦枢心相由心生」)。
+    """
+    if not text:
+        return []
+    m = _WUWA_ACT_SEC.search(text)
+    if not m:
+        return extract_events(text, ver_start)  # 章节写法变了:退回通用提取
+    out = []
+    for im in re.finditer(
+            r'\[([^\]]{2,26})\](.{0,320}?)(?:✦|★)?(?:活动时间|开放时间|开启时间)[:：]([^\[【✦]{0,90})',
+            m.group(1), re.S):
+        name = im.group(1).strip()
+        if not name or is_noise_name(name):
+            continue
+        # 「3.7版本更新后」会被日期解析误读成 3 月 7 日 → 去掉版本号,交给「版本更新后」口径
+        ttext = re.sub(r'\d+(?:\.\d+)?\s*版本更新后', '版本更新后', im.group(3))
+        s, e = extract_range(ttext, ver_start)
+        if s is None and e is None:
+            continue
+        out.append((name, s, e))
+    return out
+
+
 def _wuthering(gid, gname):
     r = _get('https://media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/zh/ArticleMenu.json')
     arr = r.json()
@@ -707,7 +738,7 @@ def _wuthering(gid, gname):
                             timeout=15).json()
                 text = html_to_text(full.get('articleContent', ''))
                 now = datetime.now()
-                for name, start, end in extract_events(text, pub):
+                for name, start, end in _wuwa_extract_events(text, pub):
                     if end and end < now:  # 只保留未结束的活动
                         continue
                     out.append(_ev(gid, gname, name, _classify(name, '活动'), pub, start, end,

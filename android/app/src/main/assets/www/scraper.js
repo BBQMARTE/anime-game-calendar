@@ -569,6 +569,29 @@ const Scraper = (() => {
     return out;
   }
 
+  /* ---------- 鸣潮版本公告专用活动解析 ---------- */
+  // 只取「全新活动以及玩法」章节里 [活动名] + ✦活动时间 的条目,
+  // 避免正文里角色/武器/区域/任务/道具名(如「情匣」「探历札记」)被当成活动。
+  const WUWA_ACT_SEC = /全新活动(?:以及玩法)?([\s\S]{0,6000}?)(?:【版本调整优化】|✦版本调整优化✦)/;
+  function wuwaExtractEvents(text, verStart) {
+    if (!text) return [];
+    const sec = WUWA_ACT_SEC.exec(text);
+    if (!sec) return extractEvents(text, verStart);   // 章节写法变了:退回通用提取
+    const out = [];
+    const re = /\[([^\]]{2,26})\]([\s\S]{0,320}?)(?:✦|★)?(?:活动时间|开放时间|开启时间)[:：]([^\[【✦]{0,90})/g;
+    let m;
+    while ((m = re.exec(sec[1]))) {
+      const name = m[1].trim();
+      if (!name || isNoiseName(name)) continue;
+      // 「3.7版本更新后」会被日期解析误读成 3 月 7 日 → 去掉版本号,交给「版本更新后」口径
+      const ttext = m[3].replace(/\d+(?:\.\d+)?\s*版本更新后/, '版本更新后');
+      const [s, e] = extractRange(ttext, verStart);
+      if (!s && !e) continue;
+      out.push([name, s, e]);
+    }
+    return out;
+  }
+
   /* ---------- 鸣潮 ---------- */
   async function wuthering(gid, gname) {
     const arr = await httpJson('https://media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/zh/ArticleMenu.json');
@@ -587,7 +610,7 @@ const Scraper = (() => {
           const full = await httpJson(`https://media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/zh/article/${a.articleId}.json`);
           const text = htmlToText(full.articleContent || '');
           const now = new Date();
-          for (const [name, start, end] of extractEvents(text, pub)) {
+          for (const [name, start, end] of wuwaExtractEvents(text, pub)) {
             if (end && end < now) continue;  // 只保留未结束的活动
             out.push(ev(gid, gname, name, classify(name, '活动'), pub, start, end,
               link, firstImg(full.articleContent)));
@@ -1099,6 +1122,6 @@ const Scraper = (() => {
     return [s, e];
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, firstImg, manualEvents, validateEvent,
+  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, wuwaExtractEvents, firstImg, manualEvents, validateEvent,
            extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();
