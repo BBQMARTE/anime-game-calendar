@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 
 import requests
 
-from timeparse import extract_events, extract_range, html_to_text, roll_year, with_two_day_default
+from timeparse import (extract_events, extract_range, html_to_text, is_noise_name,
+                       roll_year, with_two_day_default)
 
 UA = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -360,6 +361,46 @@ def _zzz_extract_events(html, ver_start, ver_end):
     return out
 
 
+# 星铁版本公告:只取「全新活动」章节里 ■ 开头的条目。
+# 通用 extract_events 会把正文里任意「」引用(角色/光锥/时装/场景/道具名)当成活动名,
+# 只要附近有日期就上月历,导致「贪饕」「潮玩礼券」「知识、沉默、擦肩而过」这类
+# 非活动条目混进列表且没有配图。章节内 ■ 段落 + 时间关键词才是真活动。
+_HSR_ACT_SEC = re.compile(
+    r'(?:[0-9一二三四五六七八九十]+、)?全新活动(.{0,8000}?)'
+    r'(?=[0-9一二三四五六七八九十]+、其他内容|调整及优化|问题修复)', re.S)
+
+
+def _hsr_extract_events(text, ver_start, ver_end):
+    """星铁版本更新说明:返回 [(name, start, end)],只拆「全新活动」章节的 ■ 条目"""
+    if not text:
+        return []
+    out, seen = [], set()
+    m = _HSR_ACT_SEC.search(text)
+    if not m:
+        return extract_events(text, ver_start)  # 章节写法变了:退回通用提取,避免整段丢失
+    for seg in re.split(r'[■◆✦★]', m.group(1)):
+        seg = seg.strip()
+        if not seg:
+            continue
+        kw = re.search(r'(活动时间|开放时间|领取时间|开启时间|挑战时间|参与时间)[:：]?', seg)
+        head = (seg[:kw.start()] if kw else seg).strip()
+        name = re.split(r'\s+', head)[0].strip(' ：:，,')
+        name = name.replace('「', '').replace('」', '')
+        if not name or len(name) < 2 or name in seen or is_noise_name(name):
+            continue
+        s = e = None
+        if kw:
+            s, e = extract_range(seg[kw.start():kw.start() + 240], ver_start)
+        if s is None and e is None and re.search(r'活动期间|活动时间|领取时间|开放时间|开启时间', seg):
+            # 版本内活动未写具体日期(如「巡星之礼:每日登录」):用版本窗口兜底
+            s, e = ver_start, ver_end
+        if s is None and e is None:
+            continue
+        seen.add(name)
+        out.append((name, s, e))
+    return out
+
+
 def _mihoyo_ingame(gid, gname):
     """游戏内公告列表:只把真活动/真卡池标为 event,其余降为 info;
     版本更新说明文拆出其中的活动/卡池排期"""
@@ -393,9 +434,9 @@ def _mihoyo_ingame(gid, gname):
                 # 真版本说明文必含「全新活动」章节;HSR接口偶发错返回通行证等内容,跳过
                 if raw and '全新活动' in raw:
                     ver_done = True
-                    # 绝区零解析依赖块级标签还原换行,须喂原始 HTML;星铁走通用提取
+                    # 绝区零解析依赖块级标签还原换行,须喂原始 HTML;星铁只拆「全新活动」章节
                     items = (_zzz_extract_events(raw, start or now, end) if gid == 'zzz'
-                             else extract_events(html_to_text(raw), start or now))
+                             else _hsr_extract_events(html_to_text(raw), start or now, end))
                     for name, s, e in items:
                         if e and e < now:
                             continue
@@ -404,7 +445,7 @@ def _mihoyo_ingame(gid, gname):
                         c2 = _classify(name, '活动')
                         out.append(_ev(gid, gname, name,
                                        c2 if c2 in ('活动', '角色与专武') else '活动',
-                                       start or now, s, e, link, '', 'event'))
+                                       start or now, s, e, link, a.get('banner') or '', 'event'))
             tag = (a.get('tag_label') or '') + type_label
             # 分级判定(优先级: 噪音 > 商城 > 卡池 > 活动 > 其他)
             is_zzz_non_event = gid == 'zzz' and title in _ZZZ_NON_EVENT
@@ -635,6 +676,15 @@ def _arknights(gid, gname):
 
 # ---------------- 鸣潮 ----------------
 
+_IMG_SRC_RE = re.compile(r'<img[^>]+src=[\'"]([^\'"]+)[\'"]', re.I)
+
+
+def _first_img(html):
+    """取正文里的第一张配图,用于没有独立封面的公告(如鸣潮版本说明拆出的活动)"""
+    m = _IMG_SRC_RE.search(html or '')
+    return m.group(1) if m else ''
+
+
 def _wuthering(gid, gname):
     r = _get('https://media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/zh/ArticleMenu.json')
     arr = r.json()
@@ -658,7 +708,8 @@ def _wuthering(gid, gname):
                 for name, start, end in extract_events(text, pub):
                     if end and end < now:  # 只保留未结束的活动
                         continue
-                    out.append(_ev(gid, gname, name, _classify(name, '活动'), pub, start, end, link))
+                    out.append(_ev(gid, gname, name, _classify(name, '活动'), pub, start, end,
+                                   link, _first_img(full.get('articleContent', ''))))
             except Exception:
                 pass
         text = html_to_text(a.get('articleContent', ''))
@@ -671,7 +722,8 @@ def _wuthering(gid, gname):
             kind = 'event'
         else:
             kind = 'info'
-        out.append(_ev(gid, gname, title, cat, pub, start, end, link, kind=kind))
+        out.append(_ev(gid, gname, title, cat, pub, start, end, link,
+                       _first_img(a.get('articleContent', '')), kind=kind))
     return out
 
 

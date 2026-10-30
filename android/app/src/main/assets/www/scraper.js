@@ -43,6 +43,11 @@ const Scraper = (() => {
     if (!html) return '';
     return html.replace(/<[^>]+>/g, ' ').replace(/&\w+;/g, ' ').replace(/\s+/g, ' ');
   }
+  /* 正文首图:没有独立封面的公告(如鸣潮版本说明拆出的活动)用它兜底 */
+  function firstImg(html) {
+    const m = /<img[^>]+src=['"]([^'"]+)['"]/i.exec(html || '');
+    return m ? m[1] : '';
+  }
   function mkDate(y, mo, d, h, mi, ref) {
     const Y = y ? +y : ref.getFullYear();
     mo = +mo; d = +d;
@@ -340,6 +345,35 @@ const Scraper = (() => {
     return out;
   }
 
+  /* ---------- 星铁版本公告专用活动解析 ---------- */
+  // 通用 extractEvents 会把正文里任意「」引用(角色/光锥/时装/场景/道具名)当成活动名,
+  // 只要附近有日期就上月历;只取「全新活动」章节里 ■ 开头的条目(与 scrapers.py 同口径)。
+  const HSR_ACT_SEC = /(?:[0-9一二三四五六七八九十]+、)?全新活动([\s\S]{0,8000}?)(?=[0-9一二三四五六七八九十]+、其他内容|调整及优化|问题修复)/;
+  function hsrExtractEvents(text, verStart, verEnd) {
+    if (!text) return [];
+    const out = [], seen = new Set();
+    const sec = HSR_ACT_SEC.exec(text);
+    if (!sec) return extractEvents(text, verStart);   // 章节写法变了:退回通用提取,避免整段丢失
+    for (const rawSeg of sec[1].split(/[■◆✦★]/)) {
+      const seg = rawSeg.trim();
+      if (!seg) continue;
+      const kw = /(活动时间|开放时间|领取时间|开启时间|挑战时间|参与时间)[:：]?/.exec(seg);
+      const head = (kw ? seg.slice(0, kw.index) : seg).trim();
+      let name = head.split(/\s+/)[0].replace(/^[：:，,\s]+|[：:，,\s]+$/g, '');
+      name = name.replace(/「/g, '').replace(/」/g, '');
+      if (!name || name.length < 2 || seen.has(name) || isNoiseName(name)) continue;
+      let s = null, e = null;
+      if (kw) [s, e] = extractRange(seg.slice(kw.index, kw.index + 240), verStart);
+      if (!s && !e && /(活动期间|活动时间|领取时间|开放时间|开启时间)/.test(seg)) {
+        // 版本内活动未写具体日期(如「巡星之礼:每日登录」):用版本窗口兜底
+        s = verStart || null; e = verEnd || null;
+      }
+      if (!s && !e) continue;
+      seen.add(name); out.push([name, s, e]);
+    }
+    return out;
+  }
+
   /* ---------- 米哈游系:游戏内公告(真实活动排期) ---------- */
   const MIHOYO_ANN = {
     hsr: ['https://hkrpg-ann-api.mihoyo.com/common/hkrpg_cn/announcement/api/getAnnList',
@@ -395,16 +429,16 @@ const Scraper = (() => {
           if (raw && raw.includes('全新活动')) {
             verDone = true;
             // 绝区零解析依赖块级标签还原换行,必须喂原始 HTML;
-            // 星铁走通用提取,先转纯文本
+            // 星铁只拆「全新活动」章节(避免正文引用被误当活动名)
             const items = gid === 'zzz'
               ? zzzExtractEvents(raw, start || now, end)
-              : extractEvents(htmlToText(raw), start || now);
+              : hsrExtractEvents(htmlToText(raw), start || now, end);
             for (const [name, s, e] of items) {
               if (e && e < now) continue;
               if (BAD_SHORT.has(name) || name.length < 3) continue;
               const c2 = classify(name, '活动');
               out.push(ev(gid, gname, name, (c2 === '活动' || c2 === '角色与专武') ? c2 : '活动',
-                start || now, s, e, link, '', 'event'));
+                start || now, s, e, link, a.banner || '', 'event'));
             }
           }
         }
@@ -555,7 +589,8 @@ const Scraper = (() => {
           const now = new Date();
           for (const [name, start, end] of extractEvents(text, pub)) {
             if (end && end < now) continue;  // 只保留未结束的活动
-            out.push(ev(gid, gname, name, classify(name, '活动'), pub, start, end, link));
+            out.push(ev(gid, gname, name, classify(name, '活动'), pub, start, end,
+              link, firstImg(full.articleContent)));
           }
         } catch (e) { }
       }
@@ -567,7 +602,7 @@ const Scraper = (() => {
       if (POOL_RE.test(title) && start) { cat = '角色与专武'; kind = 'event'; }
       else if ((cat === '活动' || cat === '角色与专武') && start && end && !NOISE_RE.test(title)) kind = 'event';
       else kind = 'info';
-      out.push(ev(gid, gname, title, cat, pub, start, end, link, '', kind));
+      out.push(ev(gid, gname, title, cat, pub, start, end, link, firstImg(a.articleContent), kind));
     }
     return out;
   }
@@ -1063,6 +1098,6 @@ const Scraper = (() => {
     return [s, e];
   }
 
-  return { GAMES, fetchAll, extractEvents, isNoiseName, manualEvents, validateEvent,
+  return { GAMES, fetchAll, extractEvents, isNoiseName, hsrExtractEvents, firstImg, manualEvents, validateEvent,
            extractRange, withTwoDayDefault, dayDiff, iso, mihoyoContent, annPick };
 })();
