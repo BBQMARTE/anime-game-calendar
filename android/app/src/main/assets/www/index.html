@@ -1180,6 +1180,10 @@ function openSettings(){
   const games=(DATA&&DATA.games||[]).map(g=>
     `<span class="chip ${calGamesSet().has(g.id)?'on':''}" style="--c:${g.color}" onclick="toggleCalGame('${g.id}')"><i></i>${esc(g.name)}</span>`
   ).join('');
+  // 让开关不再是盲操作:直接告诉用户当前有多少条未核实的自动条目会被隐藏
+  const autoN=(DATA&&DATA.events||[]).filter(e=>(e.kind||'event')==='event'&&!e.src).length;
+  const autoMissN=(DATA&&DATA.events||[]).filter(e=>(e.kind||'event')==='event'&&!e.src
+    &&!(e.image||'').trim()).length;
   o.innerHTML=`<div class="detail-sheet">
     <div class="detail-header" style="--c:var(--blue)">
       <div class="dthumb">设</div>
@@ -1199,7 +1203,7 @@ function openSettings(){
         </div>
       </div>
       <div class="set-row">
-        <div class="lbl">隐藏未核实的自动条目<span class="sub">只保留人工核实与 B站官方来源,自动抓取的条目不再显示</span></div>
+        <div class="lbl">隐藏未核实的自动条目<span class="sub">只保留人工核实与 B站官方来源;当前 ${autoN} 条自动条目会被隐藏${autoMissN?`(其中 ${autoMissN} 条无图)`:''}</span></div>
         <label class="switch"><input type="checkbox" ${settings.hideAuto?'checked':''} onchange="toggleHideAuto(this.checked)" aria-label="隐藏未核实的自动条目"><span class="tr"></span></label>
       </div>
       <div class="set-sec">提醒推送</div>
