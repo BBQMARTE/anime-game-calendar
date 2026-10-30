@@ -33,7 +33,13 @@ const EVENTS = __EVENTS__;
 const FAV = new Set(__FAV__);
 const fn = new Function('evStart', 'evEnd', 'isFav', grab('favEvents') + '\nreturn favEvents;');
 const arr = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id))(EVENTS, new Date('2026-10-31T12:00:00+08:00'));
-console.log(JSON.stringify({ ids: arr.map(e => e.id) }));
+// favList:收藏页不受顶部筛选影响,只受「设置里隐藏的游戏 / 隐藏已完成」影响
+const DATA2 = {events: __EVENTS2__};
+const FAV2 = new Set(__FAV2__);
+const fl = new Function('DATA', 'settings', 'calVisible', 'isDone', 'isFav',
+  grab('favList') + '\nreturn favList;')(
+  DATA2, {hideDone: true}, e => e.game_id !== 'wuwa', e => e.id === 'c', e => FAV2.has(e.id));
+console.log(JSON.stringify({ ids: arr.map(e => e.id), favList: fl().map(e => e.id) }));
 """
 
 EV = [
@@ -45,6 +51,16 @@ EV = [
     {'id': 'f', 'start': '2026-10-31T12:00', 'end': '2026-11-05T12:00'},
 ]
 FAV = ['a', 'b', 'c', 'd', 'e']
+
+# 收藏页数据源用例:c 已完成、d 在设置里被隐藏游戏、e 未收藏
+EV2 = [
+    {'id': 'a', 'game_id': 'hsr', 'title': 'A', 'start': '2026-10-30T12:00', 'end': '2026-11-03T12:00'},
+    {'id': 'b', 'game_id': 'zzz', 'title': 'B', 'start': '2026-10-28T12:00', 'end': '2026-11-01T12:00'},
+    {'id': 'c', 'game_id': 'hsr', 'title': 'C', 'start': '2026-10-01T12:00', 'end': '2026-10-20T12:00'},
+    {'id': 'd', 'game_id': 'wuwa', 'title': 'D', 'start': '2026-10-31T12:00', 'end': '2026-11-05T12:00'},
+    {'id': 'e', 'game_id': 'hsr', 'title': 'E', 'start': '2026-10-31T12:00', 'end': '2026-11-05T12:00'},
+]
+FAV2 = ['a', 'b', 'c', 'd']
 
 bad = 0
 
@@ -64,7 +80,9 @@ def main():
         return 0
     html = open(HTML, encoding='utf-8').read()
     loader = (LOADER.replace('__EVENTS__', json.dumps(EV, ensure_ascii=False))
-              .replace('__FAV__', json.dumps(FAV, ensure_ascii=False)))
+              .replace('__FAV__', json.dumps(FAV, ensure_ascii=False))
+              .replace('__EVENTS2__', json.dumps(EV2, ensure_ascii=False))
+              .replace('__FAV2__', json.dumps(FAV2, ensure_ascii=False)))
     r = subprocess.run([node, '-e', loader], input=html, capture_output=True,
                        text=True, encoding='utf-8', timeout=60)
     if r.returncode != 0:
@@ -75,6 +93,7 @@ def main():
     check('排序:进行中(先结束)→ 即将开始 → 已结束 → 时间未知',
           got['ids'], ['b', 'a', 'e', 'c', 'd'])
     check('页签按钮存在', 'data-tab="fav"' in html, True)
+    check('收藏页不受顶部筛选影响,但过滤隐藏游戏与已完成', got['favList'], ['a', 'b'])
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
