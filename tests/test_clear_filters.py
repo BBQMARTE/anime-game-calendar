@@ -51,6 +51,7 @@ console.log(JSON.stringify({
   clearedCats: [...none.getCats()],
   hasLink: html.includes('没有符合条件的活动') && html.includes('clearFilters();return false'),
   hasFn: html.includes('function clearFilters'),
+  hasHideDone: html.includes('隐藏已完成的活动') && html.includes('function toggleHideDone'),
 }));
 """
 
@@ -85,6 +86,7 @@ def main():
     check("清除后分类全选", d['clearedCats'], ['活动', '签到', '公告'])
     check("空结果带「清除搜索与筛选」链接", d['hasLink'], True)
     check("clearFilters 已实现", d['hasFn'], True)
+    check("设置含「隐藏已完成的活动」开关", d['hasHideDone'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

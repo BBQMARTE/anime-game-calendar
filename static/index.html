@@ -407,7 +407,7 @@ try{
 }catch(e){}
 function saveFilters(){try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
-let settings={calOn:true,calGames:null,hideAuto:false};
+let settings={calOn:true,calGames:null,hideAuto:false,hideDone:false};
 try{settings=Object.assign(settings,JSON.parse(localStorage.getItem('ycal_settings')||'{}'))}catch(e){}
 function saveSettings(){try{localStorage.setItem('ycal_settings',JSON.stringify(settings))}catch(e){}}
 function calGamesSet(){
@@ -621,6 +621,7 @@ function filtered(){
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
     &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
     &&(!settings.hideAuto||e.src==='manual'||e.src==='bilibili')  // 只留有来源保证的条目
+    &&(!settings.hideDone||!isDone(e))  // 可选:已打钩做完的条目不再显示
     &&activeCats.has(e.category)
     &&(!gp||e.game_id===gp.id)
     &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k))));
@@ -1556,6 +1557,10 @@ function openSettings(){
         <div class="lbl">隐藏未核实的自动条目<span class="sub">只保留人工核实与 B站官方来源;当前 ${autoN} 条自动条目会被隐藏${autoMissN?`(其中 ${autoMissN} 条无图)`:''}</span></div>
         <label class="switch"><input type="checkbox" ${settings.hideAuto?'checked':''} onchange="toggleHideAuto(this.checked)" aria-label="隐藏未核实的自动条目"><span class="tr"></span></label>
       </div>
+      <div class="set-row">
+        <div class="lbl">隐藏已完成的活动<span class="sub">已打钩「做完」的条目不再显示;关掉随时可以看到历史</span></div>
+        <label class="switch"><input type="checkbox" ${settings.hideDone?'checked':''} onchange="toggleHideDone(this.checked)" aria-label="隐藏已完成的活动"><span class="tr"></span></label>
+      </div>
       </details>
       <details class="set-group" open>
       <summary class="set-sec">提醒推送</summary>
@@ -1756,6 +1761,10 @@ function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFi
 function toggleHideAuto(on){
   settings.hideAuto=!!on;saveSettings();
   render();openSettingsRefresh();   // 列表与月历立即按新口径重绘
+}
+function toggleHideDone(on){
+  settings.hideDone=!!on;saveSettings();
+  render();openSettingsRefresh();
 }
 function toggleCalGame(id){
   const cur=calGamesSet(); const ids=(DATA&&DATA.games||[]).map(g=>g.id);
