@@ -30,7 +30,7 @@ const EVENTS = {events: __EVENTS__, games: [
   {id:'hsr', name:'崩坏：星穹铁道'}, {id:'zzz', name:'绝区零'}, {id:'wuwa', name:'鸣潮'}]};
 function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
-    "const QUICK_WORDS=['今天','明天','本周','周末','未开始'];\n"
+    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束'];\n"
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')
     (EVENTS, w, new Set(['hsr','zzz','wuwa']),
@@ -44,6 +44,7 @@ console.log(JSON.stringify({
   prefixHsr: run('hsr:'), prefixHsrAbbr: run('hs:'),
   prefixZzzWord: run('zzz: 活动'), prefixHsrToday: run('hsr: 今天'),
   prefixUnknown: run('xxx:'),
+  nextWeek: run('下周'), ended: run('已结束'),
 }));
 """
 
@@ -63,6 +64,9 @@ EV = [
     # 三周后(不在本周)
     {'id': 'e', 'game_id': 'zzz', 'title': '活动E', 'category': '活动',
      'start': '2026-11-20T10:00', 'end': '2026-11-30T03:59'},
+    # 已结束(10/1–10/5)
+    {'id': 'f', 'game_id': 'wuwa', 'title': '活动F', 'category': '活动',
+     'start': '2026-10-01T10:00', 'end': '2026-10-05T23:59'},
 ]
 
 bad = 0
@@ -99,6 +103,8 @@ def main():
     check("游戏前缀+关键词 zzz: 活动", d['prefixZzzWord'], ['b', 'e'])
     check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
+    check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd'])
+    check("已结束:结束时间早于此刻", d['ended'], ['f'])
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

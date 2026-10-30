@@ -366,7 +366,7 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
 <div class="sources" id="sources"></div>
 <div class="filters" id="filters"></div>
 <div class="searchbar" style="position:relative">
-  <input type="search" id="q" placeholder="搜索活动,或输入 今天/明天/本周/周末/未开始…" oninput="onSearch(this.value)" onfocus="showQHist()" autocomplete="off">
+  <input type="search" id="q" placeholder="搜索活动,或输入 今天/明天/本周/周末/未开始/下周/已结束…" oninput="onSearch(this.value)" onfocus="showQHist()" autocomplete="off">
   <div id="qhist" style="display:none"></div>
 </div>
 
@@ -566,7 +566,7 @@ async function doRefresh(){
   }
 }
 /* 搜索快捷词:输入这些词直接按时间筛选(不用记活动名) */
-const QUICK_WORDS=['今天','明天','本周','周末','未开始'];
+const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束'];
 function isQuickWord(s){return QUICK_WORDS.indexOf(s)>=0}
 function quickMatch(e,w,now){
   const s=evStart(e); if(!s)return false;
@@ -586,7 +586,13 @@ function quickMatch(e,w,now){
     const sat=day(add), mon=day(add+2);
     return (s>=sat&&s<mon)||(s<sat&&t>=sat);
   }
+  if(w==='下周'){
+    const add=7-((now.getDay()+6)%7);  // 到下周一的天数(今天就是周一时取 7)
+    const w0=day(add), w1=day(add+7);
+    return s<w1&&t>=w0;               // 下周内开始或跨到下周的都算
+  }
   if(w==='未开始')return s>now;
+  if(w==='已结束')return t<now;
   return false;
 }
 /* 游戏前缀:输入 hsr: / zzz: 只看该游戏,冒号后可跟关键词或快捷词(如 hsr: 今天) */
