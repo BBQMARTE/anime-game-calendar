@@ -89,7 +89,7 @@ def main():
     check("统计行可点进结束未知", 'statQuality(\'stale\',this)' in src, True)
     check("列表顶部有质量筛选条", 'class="dq-bar"' in src, True)
     check("质量筛选条可一键退出", "setQuality('')" in src, True)
-    check("筛选结果写进地址栏", 'buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq)' in src, True)
+    check("筛选结果写进地址栏", 'buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq' in src, True)
     check("质量筛选只针对真活动", 'isEv(e)&&dqMatch(e,dq,now)' in src, True)
 
     assets = open(HTML_ANDROID, encoding='utf-8').read() if os.path.exists(HTML_ANDROID) else ''

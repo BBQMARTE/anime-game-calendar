@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""分享链接筛选参数测试(?games=&cats=&tab=)。
+"""分享链接筛选参数测试(?games=&cats=&tab=&day=)。
 
 把当前筛选写进地址栏,发给别人打开就是同一个视图;离线 APK 走 file://,
 syncUrl 会跳过 replaceState,不报 SecurityError。
+月历选中日通过 ?day=YYYY-MM-DD 一起分享,非法日期(如 2026-02-30)忽略。
 
 运行:python tests/test_share_url.py(node 缺失则 SKIP)
 """
@@ -53,6 +54,10 @@ console.log(JSON.stringify({
   badDq: f.p('?dq=bogus'),
   round1: round('?games=hsr&tab=all'),
   round2: round('?cats=活动,公告&tab=ongoing'),
+  parseDay: f.p('?day=2026-11-03'),
+  badDay: f.p('?day=2026-02-30'),
+  badDayFmt: f.p('?day=11-03'),
+  buildDay: f.b(new Set(ALL_G), new Set(ALL_C), 'cal', ALL_G, ALL_C, '', '', '2026-11-03'),
 }));
 """
 
@@ -72,7 +77,8 @@ def main():
     if not node:
         print('SKIP: 未找到 node')
         return 0
-    r = subprocess.run([node, '-e', LOADER], input=open(HTML, encoding='utf-8').read(),
+    html = open(HTML, encoding='utf-8').read()
+    r = subprocess.run([node, '-e', LOADER], input=html,
                        capture_output=True, text=True, encoding='utf-8', timeout=60)
     if r.returncode != 0:
         print('FAIL: node 执行失败\n' + r.stderr[:600])
@@ -80,14 +86,18 @@ def main():
     d = json.loads(r.stdout.strip().splitlines()[-1])
 
     check('完整参数', d['full'], {'games': ['hsr', 'zzz'], 'cats': ['活动', '签到'],
-                                  'tab': 'ongoing', 'q': None, 'dq': None})
+                                  'tab': 'ongoing', 'q': None, 'dq': None, 'day': None})
     check('空格与编码', d['spaces']['games'], ['zzz', 'hsr'])
     check('非法 tab 忽略', d['badtab']['tab'], None)
-    check('无参数', d['empty'], {'games': None, 'cats': None, 'tab': None, 'q': None, 'dq': None})
+    check('无参数', d['empty'], {'games': None, 'cats': None, 'tab': None,
+                                 'q': None, 'dq': None, 'day': None})
     check('games= 视为空列表', d['emptyGames']['games'], [])
     check('搜索词解码', d['search']['q'], '崩铁')
     check('质量筛选解析', d['parseDq']['dq'], 'noend')
     check('非法质量筛选忽略', d['badDq']['dq'], None)
+    check('日历选中日解析', d['parseDay']['day'], '2026-11-03')
+    check('不存在的日期忽略(2026-02-30)', d['badDay']['day'], None)
+    check('日期格式不对忽略', d['badDayFmt']['day'], None)
 
     check('全选 + 默认页签 → 干净地址', d['buildAll'], '')
     check('只选一个游戏', d['buildGames'], '?games=hsr')
@@ -96,10 +106,14 @@ def main():
           '?games=hsr%2Czzz&cats=%E6%B4%BB%E5%8A%A8%2C%E7%AD%BE%E5%88%B0&tab=fav')
     check('搜索词写进链接(去首尾空格)', d['buildSearch'], '?q=%E5%B4%A9%E9%93%81')
     check('质量筛选写进链接', d['buildDq'], '?tab=all&dq=noend')
+    check('日历选中日写进链接', d['buildDay'], '?day=2026-11-03')
 
     check('解析→生成往返(单游戏)', d['round1'], '?games=hsr&tab=all')
     check('解析→生成往返(分类)', d['round2'],
           '?cats=%E6%B4%BB%E5%8A%A8%2C%E5%85%AC%E5%91%8A&tab=ongoing')
+    check('加载链接时记住 ?day=', '_urlDay=u.day' in html, True)
+    check('首次渲染日历应用 ?day=', 'if(_urlDay)' in html, True)
+    check('分享/地址栏带上选中日', 'dayParam(selDay)' in html, True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

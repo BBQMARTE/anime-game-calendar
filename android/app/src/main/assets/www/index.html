@@ -441,12 +441,13 @@ const IS_ANDROID=/[?&]platform=android/.test(location.search)||!!window.YCalNati
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
 let dq='';   // 数据质量筛选:noimg=缺封面图 / noend=缺结束时间 / stale=更早开始·结束未知
+let _urlDay=null;   // 分享链接里的 ?day=YYYY-MM-DD:首次渲染日历直接跳到那一天
 const DQ_LABEL={noimg:'缺封面图',noend:'缺结束时间',stale:'更早开始·结束未知'};
 /* 分享链接参数:?games=hsr,zzz&cats=活动,签到&tab=ongoing&q=崩铁
    纯函数便于测试;未知游戏 id 会在 data 载入后被过滤,非法 tab 忽略 */
 const TAB_IDS=['cal','ongoing','soon','all','fav'];
 function parseFilterParams(search){
-  const out={games:null,cats:null,tab:null,q:null,dq:null};
+  const out={games:null,cats:null,tab:null,q:null,dq:null,day:null};
   try{
     const sp=new URLSearchParams(search||'');
     if(sp.has('games'))out.games=sp.get('games').split(',').map(s=>s.trim()).filter(Boolean);
@@ -456,11 +457,23 @@ function parseFilterParams(search){
     if(sp.has('q'))out.q=sp.get('q');
     const v=sp.get('dq');
     if(v&&['noimg','noend','stale'].includes(v))out.dq=v;   // 非法值忽略
+    const dv=sp.get('day');
+    if(dv&&/^\d{4}-\d{2}-\d{2}$/.test(dv)){
+      const d=new Date(dv+'T00:00:00');
+      if(!isNaN(d.getTime())&&d.getFullYear()===+dv.slice(0,4)
+        &&d.getMonth()===+dv.slice(5,7)-1&&d.getDate()===+dv.slice(8,10))out.day=dv;   // 2026-02-30 这类非法日期忽略
+    }
   }catch(e){}
   return out;
 }
+/* Date → ?day= 参数(月历选中日可分享) */
+function dayParam(d){
+  if(!d)return '';
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
 /* 反向:当前筛选 → 可分享的 query(全部选中/默认 tab/空搜索不写进 URL,保持地址干净) */
-function buildFilterQuery(games,cats,tab,allGames,allCats,q,dq){
+function buildFilterQuery(games,cats,tab,allGames,allCats,q,dq,day){
   const p=new URLSearchParams();
   const gs=[...games], cs=[...cats];
   if(gs.length&&gs.length<(allGames||[]).length)p.set('games',gs.join(','));
@@ -469,6 +482,7 @@ function buildFilterQuery(games,cats,tab,allGames,allCats,q,dq){
   const kw=String(q||'').trim();
   if(kw)p.set('q',kw);
   if(dq)p.set('dq',dq);
+  if(day)p.set('day',day);
   const qs=p.toString();
   return qs?'?'+qs:'';
 }
@@ -488,6 +502,7 @@ function clearUrlGames(){_urlGames=null}   // 用户手动改筛选后交还本�
   if(u.cats!==null)activeCats=new Set(u.cats.length?u.cats:Object.keys(CAT_COLOR));
   if(u.tab)tab=u.tab;
   if(u.dq){dq=u.dq;tab='all';}   // 数据质量视图固定落在「全部资讯」的平铺列表
+  if(u.day)_urlDay=u.day;         // 首次渲染月历时直接选中分享者那一天
   if(u.q!==null){q=u.q;const qi=document.getElementById('q');if(qi)qi.value=u.q;}
 })();
 function saveFilters(){
@@ -499,7 +514,8 @@ function syncUrl(){
   try{
     if(!/^http/.test(location.protocol))return;
     const ids=(DATA&&DATA.games||[]).map(g=>g.id);
-    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq);
+    const day=(tab==='cal')?dayParam(selDay):'';
+    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq,day);
     history.replaceState(null,'',location.pathname+qs+location.hash);
   }catch(e){}
 }
@@ -527,8 +543,9 @@ function copyText(text){
 function shareView(){
   if(!/^http/.test(location.protocol)){flash('离线模式没有可分享的网址');return}
   const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  const day=(tab==='cal')?dayParam(selDay):'';   // 月历:把当前选中日一起带走
   const link=location.origin+location.pathname
-    +buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq)+location.hash;
+    +buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq,day)+location.hash;
   copyText(link).then(()=>flash('链接已复制,发给好友即可打开同一视图'),()=>flash('复制失败,请手动复制地址栏链接'));
 }
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
@@ -1134,7 +1151,7 @@ function calNav(n){
   if(calWeek){   // 周视图:按 7 天翻页
     const base=new Date((selDay||new Date()).getTime());
     base.setDate(base.getDate()+7*n); selDay=base;
-    calY=base.getFullYear(); calM=base.getMonth(); renderCal(); return;
+    calY=base.getFullYear(); calM=base.getMonth(); renderCal(); syncUrl(); return;
   }
   calM+=n; if(calM<0){calM=11;calY--} if(calM>11){calM=0;calY++} renderCal();
 }
@@ -1142,16 +1159,21 @@ function setCalView(v){
   calWeek=(v==='week'); saveFilters(); renderCal();
   try{localStorage.setItem('ycal_calview',calWeek?'week':'month')}catch(e){}
 }
-function calToday(){const n=new Date(); calY=n.getFullYear(); calM=n.getMonth(); selDay=n; renderCal()}
+function calToday(){const n=new Date(); calY=n.getFullYear(); calM=n.getMonth(); selDay=n; renderCal(); syncUrl()}
 function pickDay(y,mo,d){
   if(y!==calY||mo!==calM){calY=y;calM=mo}  // 点击前后月灰格自动翻月
   selDay=new Date(y,mo,d);
   renderCal();
+  syncUrl();   // 地址栏/分享链接跟着选中日走
 }
 function renderCal(){
   const now=new Date();
   if(calY===null){
-    calY=now.getFullYear(); calM=now.getMonth(); selDay=now;
+    if(_urlDay){   // 分享链接指定了日期:直接落在这一天
+      const d=new Date(_urlDay+'T00:00:00');
+      if(!isNaN(d.getTime())){calY=d.getFullYear();calM=d.getMonth();selDay=d;}
+    }
+    if(calY===null){calY=now.getFullYear(); calM=now.getMonth(); selDay=now;}
     try{calWeek=localStorage.getItem('ycal_calview')==='week'}catch(e){}   // 记住月/周视图偏好
   }
   /* 月视图 42 格 / 周视图 7 格:都以周日为一周起点,与表头「日一二三四五六」对齐 */
