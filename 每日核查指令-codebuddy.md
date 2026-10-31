@@ -50,10 +50,10 @@
 
 ### 先处理用户反馈(优先级最高,本步最先做)
 
-前端详情弹窗里有「这条有问题? 缺图 / 时间不对 / 其他」三个按钮，用户点过的反馈会写进 `data\reports.json`（结构 `{"items":[{game_id,title,kind,note,start,end,link,at,done}]}`）。
+前端详情弹窗里有「这条有问题? 缺图 / 缺结束时间 / 时间不对 / 其他」四个按钮（「缺结束」只对没有结束时间的条目出现），用户点过的反馈会写进 `data\reports.json`（结构 `{"items":[{game_id,title,kind,note,start,end,link,at,done}]}`）。
 
-1. 若该文件存在，先读出来，筛出 `done` 为 false 的条目（`kind`：`missing-image` 缺图 / `wrong-time` 时间不对 / `other` 其他）
-2. **这些条目本轮必须优先处理**：缺图的回源补图、时间不对的重新核实起止时间并更新 `manual.json`、其他的按 `note` 说明处理
+1. 若该文件存在，先读出来，筛出 `done` 为 false 的条目（`kind`：`missing-image` 缺图 / `no-end` 缺结束时间 / `wrong-time` 时间不对 / `other` 其他）
+2. **这些条目本轮必须优先处理**：缺图的回源补图、缺结束时间的回源核实结束日并补进 `manual.json`、时间不对的重新核实起止时间并更新 `manual.json`、其他的按 `note` 说明处理
 3. 处理完把对应条目的 `done` 改成 true（只改 `reports.json`，不必删记录），并在汇报里写明处理了几条、各是什么结果
 4. 文件不存在或没有未处理条目时跳过
 

@@ -1159,6 +1159,7 @@ function showDetail(e){
       <div class="report-row">
         <span class="report-lbl">这条有问题?</span>
         <span class="chip" style="--c:var(--red)" onclick="reportEv('${e.id}','missing-image')">缺图</span>
+        ${e.end?'':`<span class="chip" style="--c:var(--purple)" onclick="reportEv('${e.id}','no-end')">缺结束时间</span>`}
         <span class="chip" style="--c:var(--orange)" onclick="reportEv('${e.id}','wrong-time')">时间不对</span>
         <span class="chip" style="--c:var(--blue)" onclick="reportEv('${e.id}','other')">其他</span>
       </div>
@@ -1344,7 +1345,7 @@ async function shareCard(id){
   },'image/png');
 }
 /* ── 一键反馈:写入服务端待核查清单(data/reports.json),每日核查优先处理 ── */
-const REPORT_LABEL={'missing-image':'缺图','wrong-time':'时间不对','other':'其他'};
+const REPORT_LABEL={'missing-image':'缺图','wrong-time':'时间不对','other':'其他','no-end':'缺结束时间'};
 function reportEv(id,kind){
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
   if(!e)return;

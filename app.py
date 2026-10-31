@@ -935,7 +935,7 @@ def api_userstate():
 REPORT_FILE = os.path.join(DATA_DIR, 'reports.json')
 _report_lock = threading.Lock()
 _REPORT_MAX = 300
-_REPORT_KINDS = ('missing-image', 'wrong-time', 'other')
+_REPORT_KINDS = ('missing-image', 'wrong-time', 'other', 'no-end')
 
 
 def _load_reports():
