@@ -288,12 +288,17 @@ def _manual_id(e):
     复用给另一条活动(RFC5545 §3.8.4.7 要求 UID 在事件生命周期内持久稳定)。
     数据侧显式给出 id 且为安全字符集([A-Za-z0-9_.:-])时优先用它;该值会进
     前端内联 onclick 与 ICS 属性,不收其它字符。
+
+    派生键**不含 start**:官方改期后 UID 若跟着变,日历订阅端会留下旧时间的
+    旧条目、再冒出一条新条目(用户看到同活动两份)。现网 197 条已在 manual.json
+    固化显式 id;未写 id 的新条目按「游戏+标题」派生,改期也能原地更新。
+    同一游戏出现同名活动(复刻/多期)时请显式给不同的 id,避免 UID 撞车。
     """
     raw = str(e.get('id') or '')
     # 显式 id 只收安全字符集:该值会进前端内联 onclick 与 ICS 属性
     if re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}', raw):
         return raw
-    key = f"{e.get('game_id', '')}|{e.get('title', '')}|{e.get('start') or ''}"
+    key = f"{e.get('game_id', '')}|{e.get('title', '')}"
     return 'manual-' + hashlib.md5(key.encode('utf-8')).hexdigest()[:8]
 
 

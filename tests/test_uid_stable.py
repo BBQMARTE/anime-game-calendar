@@ -77,11 +77,15 @@ check('UID 唯一（无复用）', len(set(ids)), len(ids))
 keyed = {(e['game_id'], e['title'], e['start']): e['id'] for e in events}
 check('UID 与内容一一对应', len(keyed), len(ids))
 
-# ---- 3. 派生口径：内容哈希，与 scrapers._ev 同风格 ----
-e0 = events[0]
-want = 'manual-' + hashlib.md5(
-    f"{e0['game_id']}|{e0['title']}|{e0['start'] or ''}".encode('utf-8')).hexdigest()[:8]
-check('ID 由内容派生', e0['id'], want)
+# ---- 3. 派生口径：未写 id 时按「游戏+标题」哈希（不含 start，改期不换 UID） ----
+derived = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2026-09-10T12:00'}])
+want = 'manual-' + hashlib.md5('hsr|派生检查'.encode('utf-8')).hexdigest()[:8]
+check('ID 由游戏+标题派生', derived[0]['id'], want)
+moved = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2026-09-12T12:00'}])
+check('改期后派生 ID 不变', moved[0]['id'], want)
+# 当前数据已全部固化显式 id（= 迁移前的旧 UID），迁移本身不改变已有订阅
+check('真实数据均已写入显式 id',
+      all(re.fullmatch(r'manual-[0-9a-f]{8}', i) for i in ids), True)
 # 下标形态（1~3 位纯数字）不得再出现；哈希值本身可能是纯数字，故只限短尾缀
 check('ID 不再形如 manual-<小下标>',
       any(re.fullmatch(r'manual-\d{1,3}', i) for i in ids), False)
@@ -100,6 +104,20 @@ unsafe = load_manual([{'game_id': 'hsr', 'id': "x');alert(1);//", 'title': '带�
                        'start': '2026-09-10T12:00'}])
 check('非法字符的显式 id 被拒绝（退回哈希）',
       re.fullmatch(r'manual-[0-9a-f]{8}', unsafe[0]['id']) is not None, True)
+
+# ---- 4.6 改期后 ICS UID 不变：订阅端应原地更新，而不是多出一条旧时间的条目 ----
+b1 = load_manual([{'game_id': 'hsr', 'id': 'manual-fixed1', 'title': '改期活动',
+                    'start': '2026-09-10T12:00', 'end': '2026-09-20T23:59'}])
+uids_before = ics_uids(b1)
+b2 = load_manual([{'game_id': 'hsr', 'id': 'manual-fixed1', 'title': '改期活动',
+                    'start': '2026-09-12T12:00', 'end': '2026-09-22T23:59'}])
+uids_after = ics_uids(b2)
+check('改期后 ICS UID 集合不变', sorted(uids_before), sorted(uids_after))
+check('改期后 DTSTART 已更新',
+      'DTSTART:20260912T' in app.app.test_client().get('/api/calendar.ics').get_data(as_text=True), True)
+d1 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2026-09-10T10:00'}])
+d2 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2026-09-12T10:00'}])
+check('派生 ID 改期不变', d2[0]['id'], d1[0]['id'])
 
 # ---- 5. 端到端 ICS：两份顺序不同的数据，UID 集合相同且与内容绑定 ----
 _ev = load_manual(A)

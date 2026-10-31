@@ -221,7 +221,8 @@ Official teaser/schedule images are often "hundreds of events packed into one ul
 1. Read all existing entries first
 2. Deduplicate by (game_id + title); do not add entries that already exist
 3. Append new entries at the end of the JSON array:
-   {"game_id": "hsr", "title": "Event Name", "category": "活动", "start": "2026-08-20T10:00", "end": "2026-09-03T03:59", "link": "official link", "image": "image URL, optional"}
+   {"game_id": "hsr", "id": "manual-xxxxxxxx", "title": "Event Name", "category": "活动", "start": "2026-08-20T10:00", "end": "2026-09-03T03:59", "link": "official link", "image": "image URL, optional"}
+   id is the ICS UID — include it and **never change it once written**; when the official schedule moves, edit start/end only and subscribers update in place. Without an id it is derived from game + title; give different ids to same-title reruns
    image: direct URL of the official artwork/schedule image — compressed to a 200px thumbnail in lists and 800px in the detail popup (share cards keep the original); empty string if none
    category values: 活动 (event) / 角色与专武 (character & weapon banner) / 公告 (notice) / 资讯 (info)
    Leave end as an empty string for permanent/no-end events; only record events whose end time is in the future
