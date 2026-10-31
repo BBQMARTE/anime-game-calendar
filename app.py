@@ -40,6 +40,7 @@ _state = {
     'events': [],
     'sources': {},
     'games': scrapers.GAMES_META,
+    'changes': [],   # 近期变更(含已移除的条目,供统计页展示)
 }
 
 
@@ -228,6 +229,20 @@ def _attach_changes(events, hist=None):
             e['_change'] = {k: rec.get(k) for k in ('type', 'at', 'from', 'to')}
 
 
+def _changes_list(hist, limit=20):
+    """把变更历史转成按时间倒序的列表(接口用)。removed 条目已不在活动列表里,
+    只能靠这份摘要让用户知道「官方把这活动撤了」。"""
+    rows = []
+    for key, rec in (hist or {}).items():
+        if not isinstance(rec, dict) or not rec.get('type'):
+            continue
+        rows.append({'key': key, 'type': rec.get('type'), 'at': rec.get('at'),
+                     'game_id': rec.get('game_id'), 'title': rec.get('title'),
+                     'from': rec.get('from'), 'to': rec.get('to')})
+    rows.sort(key=lambda r: str(r.get('at') or ''), reverse=True)
+    return rows[:limit]
+
+
 def _strip_stale_changes(events):
     """启动载入旧缓存时清掉过期的 _change 角标(否则界面会一直显示几周前的改期)"""
     cut = (_bj_now().replace(tzinfo=None) - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
@@ -251,6 +266,7 @@ def _load_cache():
             _state['sources'] = {k: v for k, v in (data.get('sources') or {}).items()
                                  if k in valid or k == 'bilibili'}
             _state['updated'] = data.get('updated')
+            _state['changes'] = _changes_list(_prune_changes(_load_changes()))
             print(f"[缓存] 已载入 {len(_state['events'])} 条事件 (更新于 {_state['updated']})")
         except Exception as e:  # noqa: BLE001
             print(f'[缓存] 载入失败: {e}')
@@ -373,9 +389,11 @@ def do_refresh():
         scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
         # 与上一轮对比,记录官方新增/改期/移除,并把近期变更挂到条目上(前端角标)
-        _attach_changes(events, _track_changes(prev_all, events))
+        hist = _track_changes(prev_all, events)
+        _attach_changes(events, hist)
         with _lock:
             _state['events'] = events
+            _state['changes'] = _changes_list(hist)
             _state['sources'] = sources
             _state['updated'] = datetime.now().isoformat(timespec='seconds')
             _state['refreshing'] = False

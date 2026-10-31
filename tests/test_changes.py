@@ -40,6 +40,7 @@ def main():
     global bad
     tmp = tempfile.mkdtemp()
     real_file, real_state = app.CHANGES_FILE, app._state['events']
+    real_changes = app._state['changes']
     app.CHANGES_FILE = os.path.join(tmp, 'changes.json')
     try:
         a = ev('hsr', '活动A', '2026-11-05T10:00', '2026-11-12T03:59')
@@ -91,15 +92,35 @@ def main():
         h = app._track_changes([], [], now=datetime(2026, 10, 31, 9, 0))
         check('超过 14 天的变更被裁掉', len(h), 0)
 
+        # ---- 摘要列表:按时间倒序、含 remov​ed、最多 20 条 ----
+        hist = {
+            'k1': {'type': 'moved', 'at': '2026-10-30T09:00:00',
+                   'game_id': 'hsr', 'title': '活动A',
+                   'from': {'start': '2026-11-01T10:00', 'end': ''},
+                   'to': {'start': '2026-11-03T10:00', 'end': ''}},
+            'k2': {'type': 'removed', 'at': '2026-10-31T09:00:00',
+                   'game_id': 'wuwa', 'title': '活动B',
+                   'from': {'start': '2026-11-02T10:00', 'end': ''}, 'to': None},
+        }
+        rows = app._changes_list(hist)
+        check('摘要按时间倒序', rows[0]['key'], 'k2')
+        check('摘要保留移除类型', rows[0]['type'], 'removed')
+        check('摘要带上原时间', rows[1]['from']['start'], '2026-11-01T10:00')
+        many = {str(i): {'type': 'new', 'at': '2026-10-31T00:00:%02d' % i} for i in range(30)}
+        check('摘要最多 20 条', len(app._changes_list(many)), 20)
+
         # ---- 接口透出 ----
         client = app.app.test_client()
         app._state['events'] = [{'id': 'x', '_change': {'type': 'moved',
                                                        'from': {'start': '2026-11-01T10:00', 'end': ''}}}]
+        app._state['changes'] = rows
         d = client.get('/api/events').get_json()
         check('/api/events 透出 _change', d['events'][0]['_change']['type'], 'moved')
+        check('/api/events 带变更摘要', d['changes'][0]['type'], 'removed')
     finally:
         app.CHANGES_FILE = real_file
         app._state['events'] = real_state
+        app._state['changes'] = real_changes
         shutil.rmtree(tmp, ignore_errors=True)
 
     # ---- 前端:标签与详情文案 ----
@@ -122,8 +143,9 @@ function grab(name) {
 }
 const fn = new Function("const pad=n=>String(n).padStart(2,'0');" + grab('evStart') + '\n'
   + grab('evEnd') + '\n' + grab('fmtRange') + '\n'
-  + grab('chgLabel') + '\n' + grab('chgFromText') + '\n' + grab('chgMovedLine')
-  + '\nreturn {chgLabel, chgMovedLine};');
+  + grab('chgLabel') + '\n' + grab('chgFromText') + '\n' + grab('chgMovedLine') + '\n'
+  + grab('chgTypeLabel') + '\n' + grab('chgDesc')
+  + '\nreturn {chgLabel, chgMovedLine, chgTypeLabel, chgDesc};');
 const g = fn();
 console.log(JSON.stringify({
   none: g.chgLabel({}),
@@ -131,6 +153,11 @@ console.log(JSON.stringify({
   added: g.chgLabel({_change:{type:'new'}}),
   line: g.chgMovedLine({start:'2026-11-07T10:00', end:'2026-11-14T03:59',
     _change:{type:'moved', from:{start:'2026-11-05T10:00', end:'2026-11-12T03:59'}}}),
+  movedDesc: g.chgDesc({type:'moved', from:{start:'2026-11-05T10:00', end:'2026-11-12T03:59'},
+    to:{start:'2026-11-07T10:00', end:'2026-11-14T03:59'}}),
+  removedDesc: g.chgDesc({type:'removed', from:{start:'2026-11-02T10:00', end:''}, to:null}),
+  newDesc: g.chgDesc({type:'new', from:null, to:{start:'2026-11-09T10:00', end:''}}),
+  removedLabel: g.chgTypeLabel('removed'),
 }));
 """
         r = subprocess.run([node, '-e', loader], input=open(HTML, encoding='utf-8').read(),
@@ -145,6 +172,11 @@ console.log(JSON.stringify({
             check('新增标签', d['added'], '新增')
             check('详情展示原→现时间', d['line'],
                   '官方改期 · 原 11月5日 10:00 ~ 11月12日 03:59 → 现 11月7日 10:00 ~ 11月14日 03:59')
+            check('统计页改期文案', d['movedDesc'],
+                  '原 11月5日 10:00 ~ 11月12日 03:59 → 现 11月7日 10:00 ~ 11月14日 03:59')
+            check('统计页移除文案', d['removedDesc'], '已从官方排期移除 · 原 11月2日 10:00 起')
+            check('统计页新增文案', d['newDesc'], '新增 · 11月9日 10:00 起')
+            check('移除类型标签', d['removedLabel'], '移除')
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

@@ -233,6 +233,12 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .tl-row .tl-name{flex:none; width:104px; font-size:11px; color:var(--label2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .tl-track{position:relative; flex:1; height:10px; border-radius:5px; background:var(--fill)}
 .tl-track i{position:absolute; top:0; bottom:0; border-radius:5px; opacity:.9}
+/* 统计页「近期变更」:类型标签 + 标题 + 原/新时间 */
+.chg-row{display:flex; gap:8px; align-items:flex-start; margin:7px 0}
+.chg-row .chg-tag{flex:none; font-size:11px; font-weight:600; padding:2px 6px; border-radius:6px; line-height:1.5}
+.chg-row .chg-main{flex:1; min-width:0}
+.chg-row .chg-title{font-size:12.5px; color:var(--label); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.chg-row .chg-sub{font-size:11px; color:var(--label3); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -750,6 +756,15 @@ function chgMovedLine(e){
   const c=(e&&e._change)||{};
   if(c.type!=='moved'||!c.from||!c.from.start)return '';
   return '官方改期 · 原 '+fmtRange({start:c.from.start,end:c.from.end})+' → 现 '+fmtRange(e);
+}
+/* 统计页「近期变更」:removed 的条目已不在活动列表里,只能靠这份摘要看见 */
+function chgTypeLabel(t){return t==='moved'?'改期':t==='removed'?'移除':'新增'}
+function chgDesc(r){
+  if(!r)return '';
+  const range=o=>(o&&o.start)?fmtRange({start:o.start,end:o.end}):'时间待定';
+  if(r.type==='moved')return '原 '+range(r.from)+' → 现 '+range(r.to);
+  if(r.type==='removed')return '已从官方排期移除 · 原 '+range(r.from);
+  return '新增 · '+range(r.to);
 }
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
@@ -1770,6 +1785,12 @@ function openStats(){
     return `<div class="tl-row"><span class="tl-name" title="${esc(e.title)}">${esc(e.title)}</span>`
       +`<div class="tl-track"><i style="left:${left}%;width:${w}%;background:${gameColor(e.game_id)}"></i></div></div>`;
   };
+  /* 近期变更(服务端 data/changes.json 的摘要,含已被官方移除的条目) */
+  const chgColor={moved:'#FF9500',removed:'var(--red)',new:'#34C759'};
+  const chgRows=(DATA&&DATA.changes||[]).slice(0,10);
+  const chgRow=r=>`<div class="chg-row"><span class="chg-tag" style="background:${chgColor[r.type]||'#8e8e93'};color:#1c1c1e">${esc(chgTypeLabel(r.type))}</span>`
+    +`<div class="chg-main"><div class="chg-title" title="${esc(r.title||'')}">${esc(r.title||'')}</div>`
+    +`<div class="chg-sub">${esc(gameName(r.game_id))} · ${esc(chgDesc(r))}</div></div></div>`;
   const o=document.createElement('div');
   o.className='detail-overlay';
   const bar=(name,n,max,color,extra)=>`<div class="stat-row"><span class="sn" title="${esc(name)}">${esc(name)}</span><div class="sb"><i style="width:${Math.round(n/max*100)}%;background:${color}"></i></div><span class="sv">${n}${extra||''}</span></div>`;
@@ -1787,6 +1808,8 @@ function openStats(){
       </div>
       <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
       <div class="stat-sub">缺少封面图 <b>${missingN}</b> 条${missingN?' · 可在详情里点「缺图」反馈':''}</div>
+      <div class="stat-sec">近期变更 · 近 14 天</div>
+      ${chgRows.length?chgRows.map(chgRow).join(''):'<div class="sub" style="padding:6px 0">近 14 天没有抓取到新增 / 改期 / 移除</div>'}
       <div class="stat-sec">各游戏活动数</div>
       ${games.map(([g,v])=>bar(g,v.n,maxG,v.color,v.on?`<small style="color:var(--label3)"> (${v.on} 进行中)</small>`:'')).join('')}
       <div class="stat-sec">分类分布</div>
