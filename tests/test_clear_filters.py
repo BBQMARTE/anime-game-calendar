@@ -26,7 +26,7 @@ function grab(name) {
   }
   throw new Error('unbalanced: ' + name);
 }
-const code = [grab('filtersActive'), grab('clearFilters')].join('\n');
+const code = [grab('clearUrlGames'), grab('filtersActive'), grab('clearFilters')].join('\n');
 const DATA = {games: [{id:'hsr'}, {id:'zzz'}, {id:'wuwa'}], events: [{}]};
 const CAT_COLOR = {'活动':1, '签到':2, '公告':3};
 function make(qv, games, cats) {

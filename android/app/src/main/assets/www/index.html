@@ -465,6 +465,7 @@ try{
 }catch(e){}
 /* 带筛选参数的链接优先于本地记忆(分享给别人时看到同一视图) */
 let _urlGames=null;   // 分享链接里显式点名的游戏:即使本机设置里隐藏了,也要在列表里显示
+function clearUrlGames(){_urlGames=null}   // 用户手动改筛选后交还本机设置,避免隐藏的游戏一直被链接/跳转强制显示
 (function applySharedFilters(){
   const u=parseFilterParams(location.search);
   if(u.games!==null){activeGames=new Set(u.games);_urlGames=new Set(u.games);}
@@ -766,6 +767,7 @@ function filtersActive(){
     || activeCats.size<Object.keys(CAT_COLOR).length;
 }
 function clearFilters(){
+  clearUrlGames();
   q=''; const i=$('#q'); if(i)i.value='';
   dq='';
   activeGames=new Set((DATA&&DATA.games||[]).map(g=>g.id));
@@ -839,9 +841,10 @@ function renderMeta(){
   ).join('');
   $('#filters').innerHTML=h;
 }
-function toggleGame(id){activeGames.has(id)?activeGames.delete(id):activeGames.add(id);saveFilters();render()}
-function toggleCat(c){activeCats.has(c)?activeCats.delete(c):activeCats.add(c);saveFilters();render()}
+function toggleGame(id){clearUrlGames();activeGames.has(id)?activeGames.delete(id):activeGames.add(id);saveFilters();render()}
+function toggleCat(c){clearUrlGames();activeCats.has(c)?activeCats.delete(c):activeCats.add(c);saveFilters();render()}
 function toggleAll(){
+  clearUrlGames();
   const ids=(DATA.games||[]).map(g=>g.id).filter(id=>calGamesSet().has(id));  // 只操作筛选器里可见的游戏
   const allOn=ids.length>0&&ids.every(id=>activeGames.has(id));
   activeGames=allOn?new Set():new Set(ids);
