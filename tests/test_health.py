@@ -66,6 +66,7 @@ def main():
         check('进行中:2 条(有结束 + 未超 30 天无结束)', d['ongoing'], 2)
         check('更早开始·结束未知', d['stale_unknown'], 1)
         check('近 14 天变更', d['changes_recent'], 2)
+        check('缺结束时间:noend / future / stale 共 3 条', d['missing_end'], 3)
         check('缺图:除 run 外 4 条', d['missing_images'], 4)
         check('数据源状态保留', d['sources']['manual'], {'ok': True, 'count': 3})
         check('未过期', d['stale'], False)

@@ -1288,6 +1288,7 @@ def api_health():
         'ongoing': sum(1 for e in real if _is_ongoing(e, now)),
         'stale_unknown': sum(1 for e in real if _is_stale_unknown(e, now)),
         'changes_recent': changes_recent,
+        'missing_end': sum(1 for e in real if not e.get('end')),
         'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),
                         'count': (v or {}).get('count', 0)}
