@@ -1311,6 +1311,11 @@ def api_export_csv():
     rows = [e for e in events
             if (not games or e.get('game_id') in games)
             and (not cats or e.get('category') in cats)]
+    # ?fav=1:只导出收藏的活动(收藏状态来自 data/userstate.json,键= game_id|title)
+    if request.args.get('fav') in ('1', 'true', 'yes'):
+        fav = _load_userstate().get('fav') or {}
+        rows = [e for e in rows
+                if fav.get('%s|%s' % (e.get('game_id') or '', e.get('title') or ''), 0) > 0]
     rows.sort(key=lambda e: (e.get('start') or e.get('date') or '~', e.get('title') or ''))
     buf = StringIO()
     w = csv.writer(buf)

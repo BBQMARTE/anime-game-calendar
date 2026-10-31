@@ -1800,6 +1800,10 @@ function openSettings(){
         <div class="lbl">导出 CSV<span class="sub">按当前显示的游戏与分类导出表格,Excel 直接打开</span></div>
         <span class="chev">›</span>
       </div>
+      <div class="set-row" style="cursor:pointer" onclick="exportFavCsv()" role="button" aria-label="导出收藏 CSV">
+        <div class="lbl">导出收藏 CSV<span class="sub">只导出已收藏的活动,不受顶部筛选影响</span></div>
+        <span class="chev">›</span>
+      </div>
       </details>
     </div>
   </div>`;
@@ -1830,6 +1834,17 @@ function exportCsv(){
   const a=document.createElement('a');
   a.href=o+'/api/export.csv'+filterQuery();
   a.download='二游活动日历.csv';
+  document.body.appendChild(a);a.click();a.remove();
+}
+/* 导出收藏 CSV:收藏状态在服务端 userstate,后端按 ?fav=1 过滤 */
+function exportFavCsv(){
+  const o=apiOrigin();
+  if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
+  const n=Object.values(FAV||{}).filter(v=>v>0).length;
+  if(!n){alert('还没有收藏的活动:在列表里点「收藏置顶」后再导出');return}
+  const a=document.createElement('a');
+  a.href=o+'/api/export.csv?fav=1';
+  a.download='二游活动日历-收藏.csv';
   document.body.appendChild(a);a.click();a.remove();
 }
 function copyIcsUrl(){

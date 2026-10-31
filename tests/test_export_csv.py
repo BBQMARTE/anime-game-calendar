@@ -76,6 +76,17 @@ def main():
     rows = rows_of(c.get('/api/export.csv?games=hsr&cats=活动'))
     check("游戏+分类组合筛选", [x[1] for x in rows[1:]], ['活动, "限定"'])
 
+    # 收藏导出:只看 userstate 里的收藏键(hsr|活动 / wuwa|无日期),忽略筛选
+    app._load_userstate = lambda: {'fav': {'hsr|活动, "限定"': 1690000000000,
+                                           'wuwa|无日期活动': 1690000000001,
+                                           'zzz|已取消的收藏': -1690000000002}}
+    rows = rows_of(c.get('/api/export.csv?fav=1'))
+    check("?fav=1 只导出收藏", [x[1] for x in rows[1:]], ['无日期活动', '活动, "限定"'])
+    rows = rows_of(c.get('/api/export.csv?fav=1&games=wuwa'))
+    check("收藏 + 游戏筛选可组合", [x[1] for x in rows[1:]], ['无日期活动'])
+    rows = rows_of(c.get('/api/export.csv?fav=0'))
+    check("fav=0 不过滤", len(rows) - 1, 4)
+
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
 
