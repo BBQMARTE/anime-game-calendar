@@ -7,6 +7,7 @@
 - 逗号/分号/换行按 RFC5545 转义
 - 中文长标题按 75 字节折行,续行以空格开头
 - 没有开始时间返回空串
+- 当天批量导出:多个 VEVENT、X-WR-CALNAME、UID 不重复,空列表返回空串
 运行:python3 tests/test_event_ics.py(node 缺失则 SKIP)
 """
 import json, os, shutil, subprocess, sys
@@ -28,9 +29,10 @@ function grab(name) {
   }
   throw new Error('unbalanced: ' + name);
 }
-const code = ['evStart','evEnd','icsEsc','icsUtc','icsDate','_u8len','icsFold','buildEventIcs']
+const code = ['evStart','evEnd','icsEsc','icsUtc','icsDate','_u8len','icsFold',
+  'icsCalendarHead','icsVevent','buildEventIcs','buildDayIcs']
   .map(grab).join('\n');
-const api = new Function('Date', code + '\nreturn {buildEventIcs};')(Date);
+const api = new Function('Date', code + '\nreturn {buildEventIcs,buildDayIcs};')(Date);
 const toUtc = s => new Date(s).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 const timed = {
   id:'ev1', game_id:'hsr', game:'崩坏：星穹铁道', category:'活动',
@@ -42,6 +44,10 @@ const allDay = {id:'ev2', game_id:'zzz', game:'绝区零', category:'活动',
 const nodate = {id:'ev3', game_id:'hsr', title:'时间待定', _nodate:true, date:'2026-10-20T10:00'};
 const longTitle = {id:'ev4', game_id:'hsr', title:'很长的活动标题'.repeat(20),
   start:'2026-11-01T10:00', end:'2026-11-02T10:00'};
+const dayA = {id:'d1', game_id:'hsr', title:'当天开始', start:'2026-11-03T10:00'};
+const dayB = {id:'d2', game_id:'zzz', title:'当天结束', start:'2026-11-01T10:00', end:'2026-11-03T03:59'};
+const dayIcs = api.buildDayIcs([dayA, dayB], '11月3日 周一');
+const dayUids = (dayIcs.match(/UID:(\S+)/g) || []);
 const timedIcs = api.buildEventIcs(timed);
 const lines = timedIcs.split('\r\n').filter(Boolean);
 const maxBytes = Math.max(...lines.map(l => Buffer.byteLength(l, 'utf8')));
@@ -63,6 +69,12 @@ console.log(JSON.stringify({
   longMaxBytes: maxBytes,
   longContOk: contOk,
   longLines: api.buildEventIcs(longTitle).split('\r\n').length,
+  dayVevents: (dayIcs.match(/BEGIN:VEVENT/g) || []).length,
+  dayCalname: dayIcs.includes('X-WR-CALNAME:11月3日 周一'),
+  dayUidCount: dayUids.length,
+  dayUidUnique: new Set(dayUids).size,
+  dayEmpty: api.buildDayIcs([]),
+  hasEntry: src.includes('onclick="exportDayIcs()"'),
 }));
 """
 
@@ -101,6 +113,11 @@ def main():
     check("无开始时间返回空串", d['nodate'], '')
     check("中文长标题每行不超过 75 字节", d['longMaxBytes'] <= 75, True)
     check("续行均以空格开头", d['longContOk'], True)
+    check("当天导出含 2 个 VEVENT", d['dayVevents'], 2)
+    check("当天导出带日历名", d['dayCalname'], True)
+    check("同一天的 UID 不重复", (d['dayUidCount'], d['dayUidUnique']), (2, 2))
+    check("空列表返回空串", d['dayEmpty'], '')
+    check("日历当天有「导出 .ics」入口", d['hasEntry'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

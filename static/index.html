@@ -1196,7 +1196,7 @@ function renderCal(){
   /* 选中日的活动列表:当天开始 / 进行中 / 当天结束 */
   const ev=eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate());
   const cnt=ev.starts.length+ev.runs.length+ev.ends.length;
-  h+=`<div class="sec-title" style="margin-top:16px;display:flex;align-items:center;gap:8px">${dayLabel(selDay)}${cnt?' · '+cnt+' 个活动':''}${cnt?`<span class="stat-link" style="margin-left:auto;color:var(--blue)" onclick="copyDay()">复制当天</span>`:''}</div>`;
+  h+=`<div class="sec-title" style="margin-top:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">${dayLabel(selDay)}${cnt?' · '+cnt+' 个活动':''}${cnt?`<span class="stat-link" style="margin-left:auto;color:var(--blue)" onclick="copyDay()">复制当天</span><span class="stat-link" style="color:var(--blue)" onclick="exportDayIcs()">导出 .ics</span>`:''}</div>`;
   if(!cnt) h+='<div class="empty">当天无排期活动</div>';
   if(ev.starts.length) h+=`<div class="sec-title">当天开始 · ${ev.starts.length}</div><div class="group">${ev.starts.map(rowHtml).join('')}</div>`;
   if(ev.runs.length) h+=`<div class="sec-title">进行中 · ${ev.runs.length}</div><div class="group">${ev.runs.map(rowHtml).join('')}</div>`;
@@ -1207,6 +1207,21 @@ function copyDay(){
   const text=dayCopyText(eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate()),dayLabel(selDay));
   if(!text){flash('当天没有活动可复制');return}
   copyText(text).then(()=>flash('已复制当天活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
+}
+/* 导出当天活动 .ics:导入系统日历后,当天所有活动都在同一个日历里 */
+function exportDayIcs(){
+  const ev=eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate());
+  const list=[...ev.starts,...ev.runs,...ev.ends];
+  if(!list.length){flash('当天没有活动可导出');return}
+  const label=dayLabel(selDay);
+  const ics=buildDayIcs(list,label);
+  const name=('二游活动_'+label).replace(/[\\/:*?"<>|·\s]/g,'_').slice(0,60)+'.ics';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  flash('已导出当天 '+list.length+' 个活动');
 }
 /* 把选中日的活动整理成纯文本:日期 + 总数,再按「当天开始 / 进行中 / 当天结束」分组 */
 function dayCopyText(ev,label){
@@ -1433,14 +1448,19 @@ function icsFold(line){
   out.push(cur);
   return out.join('\r\n');
 }
-function buildEventIcs(e){
+function icsCalendarHead(calName){
+  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//YOYUXI//Anime Game Calendar//CN',
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+  if(calName)lines.push('X-WR-CALNAME:'+icsEsc(calName));
+  return lines;
+}
+function icsVevent(e){
   const s=evStart(e);
-  if(!s)return '';
+  if(!s)return null;
   const t=evEnd(e)||s;
   const allDay=/^\d{4}-\d{2}-\d{2}$/.test(String(e.start||''));  // 纯日期活动按全天事件
   const lines=[
-    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//YOYUXI//Anime Game Calendar//CN',
-    'CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT',
+    'BEGIN:VEVENT',
     'UID:'+icsEsc((e.game_id||'event')+'-'+(e.id||s.getTime())+'@yoyuxi'),
     'DTSTAMP:'+icsUtc(new Date()),
   ];
@@ -1458,7 +1478,21 @@ function buildEventIcs(e){
   if(!allDay)
     lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(e.title||'活动'),
                'TRIGGER:-PT30M','END:VALARM');
-  lines.push('END:VEVENT','END:VCALENDAR');
+  lines.push('END:VEVENT');
+  return lines;
+}
+function buildEventIcs(e){
+  const body=icsVevent(e);
+  if(!body)return '';
+  return icsCalendarHead().concat(body,['END:VCALENDAR']).map(icsFold).join('\r\n')+'\r\n';
+}
+/* 把当天的一组活动导成一个 .ics,导入系统日历后一天的活动都在一个日历里 */
+function buildDayIcs(evs,calName){
+  const body=(evs||[]).map(icsVevent).filter(Boolean);
+  if(!body.length)return '';
+  const lines=icsCalendarHead(calName||'当日活动');
+  body.forEach(b=>lines.push(...b));
+  lines.push('END:VCALENDAR');
   return lines.map(icsFold).join('\r\n')+'\r\n';
 }
 function addToCalendar(id){
