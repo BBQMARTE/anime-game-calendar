@@ -257,6 +257,12 @@ mark{background:rgba(255,214,10,.45); color:inherit; border-radius:3px; padding:
 .chg-row .chg-del:active{opacity:.5}
 /* 我的反馈工具栏:只看待核查 / 清除已处理 */
 .rep-bar{display:flex; gap:14px; justify-content:space-between; align-items:center; margin:0 0 10px; font-size:12px}
+/* 我的反馈按类型筛选:缺图 / 缺结束时间 / 时间不对 / 其他,带条数 */
+.rep-kinds{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 0 10px}
+.rep-kinds::-webkit-scrollbar{display:none}
+.rep-kind{flex:none; padding:4px 11px; border-radius:99px; background:var(--fill); color:var(--label2); font-size:11.5px; font-weight:600; cursor:pointer; transition:.15s}
+.rep-kind:active{opacity:.6}
+.rep-kind.on{background:var(--orange); color:#fff}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -870,16 +876,25 @@ function statRange(w,el){
   saveFilters(); render();
   flash('只看'+w+'的活动');
 }
-/* 我的反馈:展示 /api/report 清单;待核查可撤回 / 只看待核查 / 清除已处理 */
+/* 我的反馈:展示 /api/report 清单;按类型筛选 / 待核查可撤回 / 只看待核查 / 清除已处理 */
 let _repPending=false;
+let _repKind='';   // 类型筛选('' = 全部)
+const REP_KINDS=['missing-image','no-end','wrong-time','other'];
 function openReports(){
   const o=apiOrigin();
   if(!o){alert('离线模式看不到反馈清单,请先在 APK 里连接电脑上的服务端');return}
   fetch('/api/report').then(r=>r.json()).then(d=>{
     const all=d.items||[];
     const pendAll=all.filter(x=>!x.done).length, doneAll=all.length-pendAll;
-    const src=_repPending?all.filter(x=>!x.done):all;
+    const base=_repPending?all.filter(x=>!x.done):all;
+    const kindOf=x=>(x.kind||'other');
+    const src=_repKind?base.filter(x=>kindOf(x)===_repKind):base;
     const items=src.slice(-60).reverse();
+    const kindBar=REP_KINDS.map(k=>{
+      const n=base.filter(x=>kindOf(x)===k).length;
+      if(!n)return '';
+      return `<span class="rep-kind ${_repKind===k?'on':''}" onclick="repKind('${k}')">${esc(REPORT_LABEL[k]||k)} ${n}</span>`;
+    }).join('');
     const over=document.createElement('div');
     over.className='detail-overlay';
     over.innerHTML=`<div class="detail-sheet">
@@ -893,13 +908,15 @@ function openReports(){
           <span class="stat-link" onclick="toggleRepPending()">${_repPending?'显示全部':'只看待核查'}</span>
           ${doneAll?`<span class="stat-link" style="color:var(--red)" onclick="clearReportsDone(${doneAll})">清除已处理 · ${doneAll}</span>`:''}
         </div>
+        ${(kindBar||_repKind)?`<div class="rep-kinds"><span class="rep-kind ${_repKind===''?'on':''}" onclick="repKind('')">全部 ${base.length}</span>${kindBar}</div>`:''}
         ${items.length?items.map(it=>`<div class="chg-row" style="cursor:default" data-at="${esc(it.at||'')}" data-game="${esc(it.game_id||'')}" data-title="${esc(it.title||'')}" data-kind="${esc(it.kind||'')}">
           <span class="chg-tag" style="background:${it.done?'#34C759':'#FF9500'};color:#1c1c1e">${esc(REPORT_LABEL[it.kind]||it.kind||'其他')}</span>
           <div class="chg-main"><div class="chg-title">${esc(it.title||'')}</div>
           <div class="chg-sub">${esc(gameName(it.game_id))} · ${esc(String(it.at||'').replace('T',' ').slice(5,16))} · ${it.done?'已处理':'待核查'}${it.note?(' · '+esc(it.note)):''}</div></div>
           ${it.done?'':'<span class="chg-del" onclick="withdrawReport(this)" title="撤回这条待核查反馈">撤回</span>'}
         </div>`).join('')
-          :(_repPending?'<div class="empty">没有待核查反馈<br>都处理完了</div>'
+          :(_repKind?'<div class="empty">这个类型下没有反馈<br>点上面的「全部」看其它类型</div>'
+            :_repPending?'<div class="empty">没有待核查反馈<br>都处理完了</div>'
             :'<div class="empty">还没有提交过反馈<br>在活动详情里点「缺图 / 缺结束时间 / 时间不对」即可</div>')}
         <div class="stat-sub" style="margin-top:12px">数据补全(补封面 / 补结束时间)后会自动标记「已处理」;也可在这里撤回还没处理的反馈。</div>
       </div>
@@ -918,6 +935,7 @@ function refreshReports(){
   openReports();
 }
 function toggleRepPending(){_repPending=!_repPending;refreshReports()}
+function repKind(k){_repKind=(_repKind===k?'':k);refreshReports()}
 function clearReportsDone(n){
   if(!confirm('清除 '+n+' 条已处理反馈?待核查的会保留'))return;
   fetch('/api/report',{method:'DELETE',headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},body:JSON.stringify({done:true})})

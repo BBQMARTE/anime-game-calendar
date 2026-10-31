@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""「我的反馈」入口测试(设置 → 我的反馈 → 清单,待核查可撤回 / 只看待核查 / 清除已处理)。
+"""「我的反馈」入口测试(设置 → 我的反馈 → 清单,待核查可撤回 / 只看待核查 / 清除已处理 / 按类型筛选)。
 
 用户点过「缺图 / 缺结束时间 / 时间不对」后,只弹一句「已反馈」就没有下文了。
 现在设置里能打开反馈清单:显示提交了什么、什么时候、以及是「待核查」还是「已处理」
-(done 由每日核查 Agent 回写)。离线 APK 连不到服务端,要给明确提示而不是空面板。
+(done 由每日核查 Agent 回写)。反馈多了以后还能按类型筛选(带条数)。
+离线 APK 连不到服务端,要给明确提示而不是空面板。
 
 运行:python tests/test_reports_ui.py(node 缺失则 SKIP)
 """
@@ -42,11 +43,14 @@ const items = [
   {game_id:'zzz', title:'限定角色活动', kind:'missing-image', at:'2026-10-30T18:00:00', done:true, note:'已补图'},
 ];
 const fetchStub = () => Promise.resolve({ json: () => Promise.resolve({ items }) });
-const mk = (origin) => new Function('fetch','document','apiOrigin','esc','gameName','REPORT_LABEL',
-  'attachSwipeClose','alert','_repPending', grab('openReports') + '\nreturn openReports;')(
+const REP_KINDS = ['missing-image','no-end','wrong-time','other'];
+const mk = (origin, kind) => new Function('fetch','document','apiOrigin','esc','gameName','REPORT_LABEL',
+  'attachSwipeClose','alert','_repPending','REP_KINDS','_repKind',
+  grab('openReports') + '\nreturn openReports;')(
     fetchStub, documentStub, () => origin, esc, gameName, REPORT_LABEL, () => {},
-    (m) => alerts.push(m), false);
+    (m) => alerts.push(m), false, REP_KINDS, kind || '');
 mk('http://127.0.0.1:5000')();
+mk('http://127.0.0.1:5000', 'missing-image')();   // 只看缺图
 mk('')();   // 离线:apiOrigin 为空
 // 清除已处理:DElETE {done:true}
 const clearReq = [], clearFlash = [];
@@ -59,11 +63,13 @@ clearFn(1);
 setTimeout(() => {
   console.log(JSON.stringify({
     html: captured.length ? captured[0].innerHTML : '',
+    htmlKind: captured.length > 1 ? captured[1].innerHTML : '',
     alerts,
     hasEntry: src.includes('onclick="openReports()"'),
     hasFn: src.includes('function openReports('),
     hasToggle: src.includes('function toggleRepPending(') && src.includes("_repPending?'显示全部':'只看待核查'"),
     hasClear: src.includes('function clearReportsDone('),
+    hasKind: src.includes('function repKind(') && src.includes('class="rep-kind'),
     clearReq: clearReq[0], clearFlash: clearFlash[0],
   }));
 }, 20);
@@ -109,6 +115,15 @@ def main():
     check("有「清除已处理」入口并带条数", '清除已处理 · 1' in out, True)
     check("toggleRepPending 已实现", d['hasToggle'], True)
     check("clearReportsDone 已实现", d['hasClear'], True)
+    check("按类型筛选 chips 已实现", d['hasKind'], True)
+    check("类型条带条数(全部 2 / 缺结束时间 1 / 缺图 1)",
+          ('全部 2' in out and '缺结束时间 1' in out and '缺图 1' in out), True)
+    check("默认选中「全部」", '<span class="rep-kind on" onclick="repKind(\'\')">全部 2</span>' in out, True)
+    check("点类型可切换", 'onclick="repKind(\'missing-image\')"' in out, True)
+    check("只看缺图时只剩缺图反馈",
+          ('限定角色活动' in d['htmlKind'] and '画外遗光' not in d['htmlKind']), True)
+    check("只看缺图时高亮「缺图」chip",
+          ('class="rep-kind on"' in d['htmlKind'] and '缺图 1' in d['htmlKind']), True)
     check("清除请求用 DELETE + CSRF + done:true",
           (d['clearReq']['method'], d['clearReq']['body'], d['clearReq']['csrf']),
           ('DELETE', {'done': True}, 'ycal'))
