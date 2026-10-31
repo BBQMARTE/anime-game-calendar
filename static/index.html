@@ -1804,9 +1804,10 @@ function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不
   btn.style.background=isFav(e)?'var(--orange)':'';
   btn.style.color=isFav(e)?'#fff':'var(--orange)';
 }
-/* ── 状态同步码:网页(服务端)与离线 APK(本地)互导收藏 + 打钩 + 备忘 ──
+/* ── 状态同步码:网页(服务端)与离线 APK(本地)互导收藏 + 打钩 + 备忘 + 显示偏好 ──
    只带正向状态(负值=取消不进码),导入走 mergeTS 合并,本机更新的操作优先;
-   备忘按标题去重合并(同名本机优先);兼容 v1.9.10 的 YCALFAV1(仅收藏)码。 */
+   备忘按标题去重合并(同名本机优先);显示偏好只在非默认值时才写进码。
+   兼容 v1.9.10 的 YCALFAV1(仅收藏)码。 */
 function posOnly(m){
   const out={};
   for(const k in (m||{})){ const v=+m[k]; if(v>0)out[k]=v; }
@@ -1818,24 +1819,40 @@ function notesSync(notes){   // 同步码里的备忘:只带标题 / 打钩 / �
     d:it.done?1:0, c:it.cycle==='weekly'?'weekly':'', w:String(it.done_week||'').slice(0,10)}))
     .filter(x=>x.t);
 }
-function stateCodeOf(fav,done,notes){
-  const f=posOnly(fav), d=posOnly(done), n=notesSync(notes);
-  if(!Object.keys(f).length&&!Object.keys(d).length&&!n.length)return '';
-  return 'YCALSYNC1:'+btoa(unescape(encodeURIComponent(JSON.stringify({fav:f,done:d,n}))));
+function settingsSync(st){   // 显示偏好:仅非默认值写进码(空对象返回 null)
+  if(!st)return null;
+  const s={};
+  for(const k of ['hideAuto','hideDone','icsFav','icsAlarm'])if(st[k])s[k]=true;
+  if(Array.isArray(st.calGames))s.calGames=st.calGames.slice(0,50).map(x=>String(x).slice(0,40));
+  return Object.keys(s).length?s:null;
+}
+function decodeSettings(s){   // 导入前收口:只认四个布尔 + calGames 字符串数组
+  if(!s||typeof s!=='object')return null;
+  const out={};
+  for(const k of ['hideAuto','hideDone','icsFav','icsAlarm'])if(typeof s[k]==='boolean')out[k]=s[k];
+  if(Array.isArray(s.calGames))out.calGames=s.calGames.slice(0,50).map(x=>String(x).slice(0,40));
+  return Object.keys(out).length?out:null;
+}
+function stateCodeOf(fav,done,notes,st){
+  const f=posOnly(fav), d=posOnly(done), n=notesSync(notes), s=settingsSync(st);
+  if(!Object.keys(f).length&&!Object.keys(d).length&&!n.length&&!s)return '';
+  const payload={fav:f,done:d,n};
+  if(s)payload.s=s;
+  return 'YCALSYNC1:'+btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
 }
 function decodeStateCode(s){
   const t=String(s||'').trim();
   if(/^YCALFAV1:[A-Za-z0-9+/=]+$/.test(t)){     // 旧版仅收藏码
     try{
       const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));
-      return d&&typeof d==='object'?{fav:posOnly(d),done:{},notes:[]}:null;
+      return d&&typeof d==='object'?{fav:posOnly(d),done:{},notes:[],settings:null}:null;
     }catch(e){return null}
   }
   if(!/^YCALSYNC1:[A-Za-z0-9+/=]+$/.test(t))return null;
   try{
     const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(10)))));
     if(!d||typeof d!=='object')return null;
-    return {fav:posOnly(d.fav),done:posOnly(d.done),notes:decodeNotes(d.n)};
+    return {fav:posOnly(d.fav),done:posOnly(d.done),notes:decodeNotes(d.n),settings:decodeSettings(d.s)};
   }catch(e){return null}
 }
 function decodeNotes(n){   // 同步码里的备忘在导入前先收口:剔空标题、截断、字段白名单
@@ -1844,8 +1861,8 @@ function decodeNotes(n){   // 同步码里的备忘在导入前先收口:剔空�
     .filter(x=>x.t):[];
 }
 function copyStateCode(){
-  const c=stateCodeOf(FAV,DONE,NOTES);
-  if(!c){flash('还没有收藏、打钩或备忘记录');return}
+  const c=stateCodeOf(FAV,DONE,NOTES,settings);
+  if(!c){flash('还没有收藏、打钩、备忘或非默认显示设置');return}
   copyText(c).then(()=>flash('状态码已复制,在另一台设备粘贴导入'),
                    ()=>flash('复制失败,请手动复制'));
 }
@@ -1876,8 +1893,10 @@ function importStateCode(){
     }catch(e){}
     saveUserState({fav:d.fav, done:d.done});
     const nn=mergeNotes(d.notes);
+    const ns=d.settings?Object.keys(d.settings).length:0;
+    if(ns){Object.assign(settings,d.settings);saveSettings();applySettings();}
     renderView(); mountNotes();
-    flash('已导入 '+nf+' 条收藏 / '+nd+' 条打钩'+(nn?' / '+nn+' 条备忘':''));
+    flash('已导入 '+nf+' 条收藏 / '+nd+' 条打钩'+(nn?' / '+nn+' 条备忘':'')+(ns?' / 显示设置':''));
   };
   if(notesReady)apply(); else loadNotes().then(apply);   // 备忘未加载完先等它,避免导入被覆盖
 }
@@ -2143,7 +2162,7 @@ function openSettings(){
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
-        <div class="lbl">状态同步码<span class="sub">收藏 / 已做完打钩 / 备忘清单;网页与离线 APK 互导,只合并、不会取消已有的</span></div>
+        <div class="lbl">状态同步码<span class="sub">收藏 / 已做完打钩 / 备忘清单 / 显示偏好;网页与离线 APK 互导,只合并、不会取消已有的</span></div>
         <textarea id="stateCodeIn" class="note-input" style="margin:10px 0 6px;min-height:58px;font-size:12px;padding:9px" placeholder="粘贴 YCALSYNC1:… 状态码"></textarea>
         <div style="display:flex;gap:8px">
           <button class="detail-btn" style="flex:1;padding:8px 0" onclick="copyStateCode()">复制我的状态码</button>
