@@ -957,12 +957,29 @@ function statRange(w,el){
 /* 我的反馈:展示 /api/report 清单;按类型筛选 / 待核查可撤回 / 只看待核查 / 清除已处理 */
 let _repPending=false;
 let _repKind='';   // 类型筛选('' = 全部)
+let _REPORTS_CACHE=[];   // 「复制待核查」用:最近一次拉到的完整清单
 const REP_KINDS=['missing-image','no-end','wrong-time','other'];
+/* 待核查清单纯文本:游戏｜标题｜类型｜提交时间,一行一条发给核查人 */
+function reportCopyText(items){
+  const pend=(items||[]).filter(it=>!it.done);
+  if(!pend.length)return '';
+  const lines=['待核查反馈 · '+pend.length+' 条'];
+  pend.forEach(it=>lines.push('- '+gameName(it.game_id)+'｜'+(it.title||'')+'｜'
+    +(REPORT_LABEL[it.kind]||it.kind||'其他')+'｜'+String(it.at||'').replace('T',' ').slice(5,16)));
+  return lines.join('\n');
+}
+function copyPendingReports(){
+  const text=reportCopyText(_REPORTS_CACHE);
+  if(!text){flash('没有待核查反馈可复制');return}
+  const n=_REPORTS_CACHE.filter(it=>!it.done).length;
+  copyText(text).then(()=>flash('已复制 '+n+' 条待核查反馈,可发给核查人'),()=>flash('复制失败,请手动选择文字'));
+}
 function openReports(){
   const o=apiOrigin();
   if(!o){alert('离线模式看不到反馈清单,请先在 APK 里连接电脑上的服务端');return}
   fetch('/api/report').then(r=>r.json()).then(d=>{
     const all=d.items||[];
+    _REPORTS_CACHE=all;
     const pendAll=all.filter(x=>!x.done).length, doneAll=all.length-pendAll;
     const base=_repPending?all.filter(x=>!x.done):all;
     const kindOf=x=>(x.kind||'other');
@@ -984,6 +1001,7 @@ function openReports(){
       <div class="detail-body">
         <div class="rep-bar">
           <span class="stat-link" onclick="toggleRepPending()">${_repPending?'显示全部':'只看待核查'}</span>
+          ${pendAll?`<span class="stat-link" onclick="copyPendingReports()">复制待核查</span>`:''}
           ${doneAll?`<span class="stat-link" style="color:var(--red)" onclick="clearReportsDone(${doneAll})">清除已处理 · ${doneAll}</span>`:''}
         </div>
         ${(kindBar||_repKind)?`<div class="rep-kinds"><span class="rep-kind ${_repKind===''?'on':''}" onclick="repKind('')">全部 ${base.length}</span>${kindBar}</div>`:''}
