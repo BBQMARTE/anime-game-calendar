@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-10-31 · 静态文本资源也走 gzip
+
+- **首页/JS 压缩**:SW 每次版本升级都要重拉 `index.html`、`manual-data.js`、`scraper.js`(合计约 220KB)。after_request 对 HTML/JS/JSON/ICS 按 `Accept-Encoding` 压缩,浏览器透明解压,前端零改动
+- 实测:首页 109,591 → **35,570 字节(-68%)**;`scraper.js` 22,866;`manual-data.js` 11,730 —— 三个资源合计约 220KB → 约 70KB
+- 图片、已带 `Content-Encoding` 的响应(如 `/api/events` 的 gzip)与 304 不重复处理;压缩失败自动回退明文;新增 `tests/test_gzip_static.py`(首页/JS 解压一致、图片不压缩、Vary)
+
 ## 2026-10-31 · 改期写入日历修订号（SEQUENCE）
 
 - **ICS 增加 `SEQUENCE`**:此前改期只改 DTSTART,部分日历客户端会忽略「同 UID、同修订号」的时间变化。现在每次改期把该活动的修订号 +1,写进 `SEQUENCE`,订阅端能识别为第 N 次修订并原地更新

@@ -526,6 +526,39 @@ def _no_cache_static(resp):
     return resp
 
 
+_GZIP_TYPES = ('text/html', 'text/javascript', 'application/javascript',
+               'application/json', 'application/manifest+json', 'text/plain',
+               'text/calendar')
+
+
+@app.after_request
+def _gzip_text_resp(resp):
+    """文本响应按 Accept-Encoding 压缩:首屏 index.html 106KB → 约 20KB。
+
+    SW 每次版本升级都会重新拉 index/manual-data/scraper 三个文本资源,
+    远程(Tailscale)访问时未压缩合计约 220KB,压缩后约 45KB。
+    图片/已压缩响应(带 Content-Encoding)与 304 不处理;浏览器透明解压,
+    前端代码无需改动。
+    """
+    try:
+        if resp.status_code != 200 or resp.headers.get('Content-Encoding'):
+            return resp
+        if resp.mimetype not in _GZIP_TYPES:
+            return resp
+        if 'gzip' not in (request.headers.get('Accept-Encoding') or '').lower():
+            return resp
+        resp.direct_passthrough = False
+        data = resp.get_data()
+        if len(data) < 1024:
+            return resp
+        resp.set_data(gzip.compress(data, 6))
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Vary'] = 'Accept-Encoding'
+    except Exception:  # noqa: BLE001 - 压缩失败退回未压缩响应,不影响功能
+        return resp
+    return resp
+
+
 @app.route('/scraper.js')
 def scraper_js():
     return send_from_directory(app.static_folder, 'scraper.js')
