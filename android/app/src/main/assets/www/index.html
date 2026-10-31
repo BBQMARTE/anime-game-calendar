@@ -252,6 +252,8 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .chg-row .chg-main{flex:1; min-width:0}
 .chg-row .chg-title{font-size:12.5px; color:var(--label); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .chg-row .chg-sub{font-size:11px; color:var(--label3); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.chg-row .chg-del{flex:none; font-size:11px; color:var(--red); padding:2px 6px; border-radius:6px; background:var(--fill); cursor:pointer}
+.chg-row .chg-del:active{opacity:.5}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -840,7 +842,7 @@ function statRange(w,el){
   saveFilters(); render();
   flash('只看'+w+'的活动');
 }
-/* 我的反馈:只读展示 /api/report 清单(每日核查会把处理过的标成 done) */
+/* 我的反馈:展示 /api/report 清单;待核查的可以撤回,每日核查处理过的标 done */
 function openReports(){
   const o=apiOrigin();
   if(!o){alert('离线模式看不到反馈清单,请先在 APK 里连接电脑上的服务端');return}
@@ -856,10 +858,11 @@ function openReports(){
         <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
       </div>
       <div class="detail-body">
-        ${items.length?items.map(it=>`<div class="chg-row" style="cursor:default">
+        ${items.length?items.map(it=>`<div class="chg-row" style="cursor:default" data-at="${esc(it.at||'')}" data-game="${esc(it.game_id||'')}" data-title="${esc(it.title||'')}" data-kind="${esc(it.kind||'')}">
           <span class="chg-tag" style="background:${it.done?'#34C759':'#FF9500'};color:#1c1c1e">${esc(REPORT_LABEL[it.kind]||it.kind||'其他')}</span>
           <div class="chg-main"><div class="chg-title">${esc(it.title||'')}</div>
           <div class="chg-sub">${esc(gameName(it.game_id))} · ${esc(String(it.at||'').replace('T',' ').slice(5,16))} · ${it.done?'已处理':'待核查'}${it.note?(' · '+esc(it.note)):''}</div></div>
+          ${it.done?'':'<span class="chg-del" onclick="withdrawReport(this)" title="撤回这条待核查反馈">撤回</span>'}
         </div>`).join('')
           :'<div class="empty">还没有提交过反馈<br>在活动详情里点「缺图 / 缺结束时间 / 时间不对」即可</div>'}
         <div class="stat-sub" style="margin-top:12px">处理由每日核查 Agent 执行:补图、回源核实起止时间后会把状态改为「已处理」。</div>
@@ -869,6 +872,20 @@ function openReports(){
     document.body.appendChild(over);
     attachSwipeClose(over);
   }).catch(()=>alert('读取反馈失败,请确认服务端在线'));
+}
+/* 撤回一条待核查反馈:按 at+游戏+标题+类型 精确删除,已处理的不允许撤回 */
+function withdrawReport(btn){
+  const row=btn.closest('.chg-row');
+  if(!row)return;
+  const body={at:row.dataset.at,game_id:row.dataset.game,title:row.dataset.title,kind:row.dataset.kind};
+  fetch('/api/report',{method:'DELETE',headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{
+      if(!d||!d.removed){flash('撤回失败:这条反馈可能已被处理');return}
+      const ov=row.closest('.detail-overlay');
+      if(ov)ov.remove();
+      flash('已撤回 1 条反馈');
+      openReports();
+    }).catch(()=>alert('撤回失败,请确认服务端在线'));
 }
 
 /* ================= 状态 / 筛选 ================= */

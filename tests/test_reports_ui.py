@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""「我的反馈」入口测试(设置 → 我的反馈 → 只读清单)。
+"""「我的反馈」入口测试(设置 → 我的反馈 → 清单,待核查可撤回)。
 
 用户点过「缺图 / 缺结束时间 / 时间不对」后,只弹一句「已反馈」就没有下文了。
 现在设置里能打开反馈清单:显示提交了什么、什么时候、以及是「待核查」还是「已处理」
@@ -93,6 +93,7 @@ def main():
     check("显示补图备注", '已补图' in out, True)
     check("显示游戏名与时间", '崩坏：星穹铁道' in out and '10-31 09:20' in out, True)
     check("离线模式有明确提示", any('离线模式看不到反馈清单' in a for a in d['alerts']), True)
+    check("待核查反馈有撤回按钮(已处理没有)", d['html'].count('>撤回</span>'), 1)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

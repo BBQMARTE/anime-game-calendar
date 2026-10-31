@@ -5,7 +5,7 @@
   1) /api/health 关键字段与数据源 last_ok
   2) 数据质量筛选导出条数 == health 的 missing_end / missing_images / stale_unknown
   3) /api/calendar.ics 的 ETag 304、收藏订阅
-  4) 首页是否包含当前版本的前端入口(状态同步码 / 我的反馈 / 质量筛选条 / 统计快捷筛选)
+  4) 首页是否包含当前版本的前端入口(状态同步码 / 我的反馈+撤回 / 质量筛选条 / 统计快捷筛选)
   5) static 与 android assets 的 index.html / sw.js 是否逐字节一致,SW 版本号是否一致
 
 用法:
@@ -79,7 +79,7 @@ def main():
     check('收藏订阅 ETag 带 fav 标记', '-fav-' in (rf.headers.get('ETag') or ''), True)
 
     page = requests.get(BASE + '/', timeout=15).text
-    for marker in ('状态同步码', 'openReports()', 'dq-bar', "statRange('本周开始'"):
+    for marker in ('状态同步码', 'openReports()', 'withdrawReport(', 'dq-bar', "statRange('本周开始'"):
         check('首页含 %s' % marker, marker in page, True)
 
     pairs = [('static/index.html', 'android/app/src/main/assets/www/index.html'),

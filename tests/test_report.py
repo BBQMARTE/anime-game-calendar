@@ -77,6 +77,38 @@ def main():
     items = c.get('/api/report').get_json()['items']
     check("标题截断到 120", len(items[-1]['title']), 120)
 
+    # ---- 撤回:待核查可删,已处理不可删 ----
+    items = c.get('/api/report').get_json()['items']
+    target = items[0]
+    r = c.delete('/api/report', json={'at': target['at'], 'title': target['title'],
+                                      'game_id': target['game_id'], 'kind': target['kind']})
+    check("无 CSRF 头撤回被拒", r.status_code, 403)
+
+    r = c.delete('/api/report', json={'title': target['title']}, headers=H)
+    check("缺 at 撤回返回 400", r.status_code, 400)
+
+    before = len(items)
+    r = c.delete('/api/report', json={'at': target['at'], 'title': target['title'],
+                                      'game_id': target['game_id'],
+                                      'kind': target['kind']}, headers=H)
+    j = r.get_json()
+    check("撤回待核查反馈", (j.get('ok'), j.get('removed')), (True, 1))
+    check("撤回后条数 -1", len(c.get('/api/report').get_json()['items']), before - 1)
+
+    # 已经处理过的不能撤回
+    items = c.get('/api/report').get_json()['items']
+    done_item = items[-1]
+    done_item['done'] = True
+    with open(app.REPORT_FILE, 'w', encoding='utf-8') as f:
+        json.dump({'items': items}, f, ensure_ascii=False)
+    r = c.delete('/api/report', json={'at': done_item['at'], 'title': done_item['title'],
+                                      'game_id': done_item.get('game_id'),
+                                      'kind': done_item['kind']}, headers=H)
+    check("已处理反馈不能撤回", r.get_json()['removed'], 0)
+    done_item['done'] = False
+    with open(app.REPORT_FILE, 'w', encoding='utf-8') as f:
+        json.dump({'items': items}, f, ensure_ascii=False)
+
     # 上限:写入 400 条,只保留最近 300
     for i in range(400):
         c.post('/api/report', json={'title': '批量%d' % i, 'game_id': 'hsr', 'kind': 'other'}, headers=H)
@@ -116,7 +148,19 @@ const fetchStub = (u, opt) => { posted.push(JSON.parse(opt.body));
 const fn = new Function('DATA','REPORT_LABEL','fetch','alert','prompt',
   grab('reportEv') + '\nreturn reportEv;');
 fn(DATA, REPORT_LABEL, fetchStub, m => alerts.push(m), () => '')('x','no-end');
-setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0]})) , 0);
+
+// 撤回:构造一行待核查反馈,校验 DELETE 方法与请求体
+const wposted = [], flashes = [], removed = [];
+const row = {dataset:{at:'2026-10-31T10:00:00', game:'zzz', title:'活动A', kind:'missing-image'},
+  closest: sel => (sel === '.detail-overlay' ? {remove:() => removed.push(1)} : row)};
+const wbtn = {closest: sel => (sel === '.chg-row' ? row : null)};
+const wfetch = (u, opt) => { wposted.push({method:opt.method, csrf:opt.headers['X-Requested-With'],
+  body:JSON.parse(opt.body)}); return Promise.resolve({json:()=>Promise.resolve({ok:true,removed:1})}); };
+const wfn = new Function('fetch','flash','openReports', grab('withdrawReport') + '\nreturn withdrawReport;');
+wfn(wfetch, m => flashes.push(m), () => {}) (wbtn);
+
+setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0],
+  wreq:wposted[0], wflash:flashes[0], wremoved:removed.length})) , 0);
 """
         r = subprocess.run([node, '-e', loader], input=src,
                            capture_output=True, text=True, encoding='utf-8', timeout=60)
@@ -128,6 +172,14 @@ setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0]}
             check("前端上报 kind=no-end", d['payload']['kind'], 'no-end')
             check("前端带上结束时间为空", d['payload']['end'], None)
             check("反馈成功提示含类型名", '缺结束时间' in (d['alert'] or ''), True)
+            check("撤回用 DELETE 方法", d['wreq']['method'], 'DELETE')
+            check("撤回带 CSRF 头", d['wreq']['csrf'], 'ycal')
+            check("撤回请求体带定位字段",
+                  (d['wreq']['body']['at'], d['wreq']['body']['game_id'],
+                   d['wreq']['body']['title'], d['wreq']['body']['kind']),
+                  ('2026-10-31T10:00:00', 'zzz', '活动A', 'missing-image'))
+            check("撤回成功关闭面板并提示", (d['wremoved'], '已撤回' in (d['wflash'] or '')),
+                  (1, True))
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

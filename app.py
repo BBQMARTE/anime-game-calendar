@@ -978,9 +978,9 @@ def _load_reports():
         return []
 
 
-@app.route('/api/report', methods=['GET', 'POST'])
+@app.route('/api/report', methods=['GET', 'POST', 'DELETE'])
 def api_report():
-    """用户反馈:GET 读待核查清单,POST 追加一条(同游戏同标题同类型 10 分钟内不重复记)"""
+    """用户反馈:GET 读清单,POST 追加一条(10 分钟内重复去重),DELETE 撤回一条待核查反馈"""
     if request.method == 'GET':
         with _report_lock:
             return jsonify({'items': _load_reports()})
@@ -988,6 +988,30 @@ def api_report():
     if request.headers.get('X-Requested-With') != 'ycal':
         return jsonify({'ok': False, 'error': 'forbidden'}), 403
     body = request.get_json(silent=True) or {}
+    if request.method == 'DELETE':
+        at = str(body.get('at') or '')
+        if not at:
+            return jsonify({'ok': False, 'error': 'at required'}), 400
+        title = str(body.get('title') or '').strip()[:120]
+        game_id = str(body.get('game_id') or '')[:20]
+        kind = str(body.get('kind') or '')
+        with _report_lock:
+            items = _load_reports()
+            keep = [it for it in items if not (
+                str(it.get('at')) == at and it.get('title') == title
+                and str(it.get('game_id') or '') == game_id
+                and str(it.get('kind') or '') == kind
+                and not it.get('done'))]
+            removed = len(items) - len(keep)
+            if not removed:
+                return jsonify({'ok': False, 'removed': 0, 'error': 'not found'})
+            try:
+                with open(REPORT_FILE, 'w', encoding='utf-8') as f:
+                    json.dump({'items': keep}, f, ensure_ascii=False, indent=1)
+            except Exception as e:  # noqa: BLE001
+                print(f'[反馈] 撤回保存失败: {e}')
+                return jsonify({'ok': False, 'removed': 0, 'error': 'save failed'})
+        return jsonify({'ok': True, 'removed': removed, 'count': len(keep)})
     title = str(body.get('title') or '').strip()[:120]
     if not title:
         return jsonify({'ok': False, 'error': 'title required'}), 400
