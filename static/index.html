@@ -656,6 +656,9 @@ function mountOverlay(o){
     if(lbl)o.setAttribute('aria-label',lbl);
   }
   a11yScan(o);
+  // 键盘用户打开弹窗后,焦点直接落在「关闭」上,不用从页面顶部一路 Tab 进来
+  const close=o.querySelector?o.querySelector('.detail-close'):null;
+  if(close&&typeof close.focus==='function')close.focus();
   return o;
 }
 
