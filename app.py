@@ -116,6 +116,7 @@ def _dedup_against_manual(events):
 # ================= 活动变更追踪(新增 / 改期 / 移除) =================
 CHANGES_FILE = os.path.join(DATA_DIR, 'changes.json')
 _CHANGE_KEEP_DAYS = 14    # 角标保留窗口:改期信息太旧会和新排期混淆
+_CHANGE_STORE_DAYS = 180  # 文件保留窗口:改期次数(ICS SEQUENCE)要能长期累加
 _CHANGE_MAX = 300         # 历史条目上限,防止文件无限增长
 
 
@@ -147,9 +148,9 @@ def _save_changes(items):
 
 
 def _prune_changes(items, now=None):
-    """只保留最近 _CHANGE_KEEP_DAYS 天的变更,并按时间截断到 _CHANGE_MAX 条"""
+    """只保留最近 _CHANGE_STORE_DAYS 天的变更,并按时间截断到 _CHANGE_MAX 条"""
     now = now or _bj_now().replace(tzinfo=None)
-    cut = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
+    cut = (now - timedelta(days=_CHANGE_STORE_DAYS)).isoformat(timespec='seconds')
     kept = {k: v for k, v in items.items() if str((v or {}).get('at') or '') >= cut}
     if len(kept) > _CHANGE_MAX:
         newest = sorted(kept.items(), key=lambda kv: str(kv[1].get('at') or ''), reverse=True)
@@ -191,9 +192,12 @@ def _track_changes(prev, cur, now=None):
                 recorded += 1
             continue
         if (_time_of(old) != _time_of(e)):
+            # rev 累计改期次数:ICS 用它填 SEQUENCE,订阅端才认「这是同一活动的第 N 次修订」
+            prev_rec = hist.get(key) or {}
+            rev = int(prev_rec.get('rev') or 0) + 1
             hist[key] = {'type': 'moved', 'at': now.isoformat(timespec='seconds'),
                          'game_id': e.get('game_id'), 'title': e.get('title'),
-                         'from': _time_of(old), 'to': _time_of(e)}
+                         'from': _time_of(old), 'to': _time_of(e), 'rev': rev}
             recorded += 1
     for key, old in prev_map.items():
         if key in cur_map:
@@ -224,7 +228,15 @@ def _attach_changes(events, hist=None):
     hist = hist if hist is not None else _load_changes()
     for e in events or []:
         rec = hist.get(_change_key(e))
-        if not rec or str(rec.get('at') or '') < cut:
+        if not rec:
+            continue
+        # 改期次数不限角标窗口:SEQUENCE 要在 180 天的历史里持续累加
+        if rec.get('type') == 'moved' and rec.get('rev'):
+            try:
+                e['_seq'] = int(rec['rev'])
+            except (TypeError, ValueError):
+                pass
+        if str(rec.get('at') or '') < cut:
             continue
         if rec.get('type') in ('new', 'moved'):
             e['_change'] = {k: rec.get(k) for k in ('type', 'at', 'from', 'to')}
@@ -295,12 +307,19 @@ def _stabilize_event_ids(events, now=None):
     return reg
 
 
-def _changes_list(hist, limit=20):
+def _changes_list(hist, limit=20, now=None):
     """把变更历史转成按时间倒序的列表(接口用)。removed 条目已不在活动列表里,
-    只能靠这份摘要让用户知道「官方把这活动撤了」。"""
+    只能靠这份摘要让用户知道「官方把这活动撤了」。
+
+    文件里保留 180 天用于累计 SEQUENCE,但对外只展示角标窗口(14 天)内的记录。
+    """
+    now = now or _bj_now().replace(tzinfo=None)
+    cut = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
     rows = []
     for key, rec in (hist or {}).items():
         if not isinstance(rec, dict) or not rec.get('type'):
+            continue
+        if str(rec.get('at') or '') < cut:
             continue
         rows.append({'key': key, 'type': rec.get('type'), 'at': rec.get('at'),
                      'game_id': rec.get('game_id'), 'title': rec.get('title'),
@@ -1049,6 +1068,7 @@ def api_ics():
             continue
         lines += ['BEGIN:VEVENT',
                   f'UID:{e.get("id", n)}@ycal',
+                  f'SEQUENCE:{int(e.get("_seq") or 0)}',
                   f'DTSTAMP:{now}',
                   f'DTSTART:{ds}',
                   f'DTEND:{de}',

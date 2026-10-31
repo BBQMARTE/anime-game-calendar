@@ -75,6 +75,22 @@ def main():
         h = app._track_changes(cur2, cur2)
         check('未变化不重复记改期', h[app._change_key(a2)]['type'], 'moved')
 
+        # ---- 多次改期:rev 累加,ICS 写 SEQUENCE ----
+        m1 = ev('wuwa', '活动C', '2026-11-10T10:00', '2026-11-17T03:59')
+        m2 = ev('wuwa', '活动C', '2026-11-12T10:00', '2026-11-19T03:59')
+        m3 = ev('wuwa', '活动C', '2026-11-14T10:00', '2026-11-21T03:59')
+        app._track_changes([], [m1], now=datetime(2026, 10, 31, 9, 0))
+        h = app._track_changes([m1], [m2], now=datetime(2026, 10, 31, 9, 5))
+        check('第一次改期 rev=1', h[app._change_key(m2)].get('rev'), 1)
+        h = app._track_changes([m2], [m3], now=datetime(2026, 10, 31, 9, 10))
+        check('第二次改期 rev=2', h[app._change_key(m3)].get('rev'), 2)
+        app._attach_changes([m3], h)
+        check('条目带改期次数 _seq', m3.get('_seq'), 2)
+        check('条目同时带角标', m3.get('_change', {}).get('type'), 'moved')
+        app._state['events'] = [m3]
+        ics = app.app.test_client().get('/api/calendar.ics').get_data(as_text=True)
+        check('ICS 写入 SEQUENCE:2', 'SEQUENCE:2' in ics, True)
+
         # ---- 移除:未来活动消失才记录 ----
         h = app._track_changes(cur2, [b])
         check('未来活动消失记为 removed', h[app._change_key(a2)]['type'], 'removed')
@@ -87,10 +103,15 @@ def main():
         h = app._track_changes([expired], [])
         check('正常到期消失不记录', app._change_key(expired) in h, False)
 
-        # ---- 旧记录裁剪:14 天前的角标不应继续出现 ----
+        # ---- 文件保留 180 天(供 SEQUENCE 累加),但摘要只展示 14 天 ----
         app._save_changes({'old|标题': {'type': 'new', 'at': '2026-01-01T00:00:00'}})
         h = app._track_changes([], [], now=datetime(2026, 10, 31, 9, 0))
-        check('超过 14 天的变更被裁掉', len(h), 0)
+        check('超过 180 天的变更被裁掉', len(h), 0)
+        app._save_changes({'old2|标题': {'type': 'moved', 'at': '2026-09-01T00:00:00', 'rev': 1}})
+        h = app._track_changes([], [], now=datetime(2026, 10, 31, 9, 0))
+        check('60 天前的记录仍保留', 'old2|标题' in h, True)
+        check('摘要只展示 14 天内的',
+              len(app._changes_list(h, now=datetime(2026, 10, 31, 9, 0))), 0)
 
         # ---- 摘要列表:按时间倒序、含 remov​ed、最多 20 条 ----
         hist = {
