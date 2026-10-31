@@ -103,6 +103,29 @@ def main():
         h = app._track_changes([expired], [])
         check('正常到期消失不记录', app._change_key(expired) in h, False)
 
+        # ---- 同名多期(复刻/上下半场):共用一把 key,不能互相误判 ----
+        p1 = ev('ananta', '夺金大作战', '2026-10-19T05:00', '2026-11-02T04:59')
+        p2 = ev('ananta', '夺金大作战', '2026-11-16T05:00', '2026-11-30T04:59')
+        p2['id'] = 'ananta-夺金-2'
+        app._track_changes([], [p1], now=datetime(2026, 10, 31, 9, 0))      # 基线
+        h = app._track_changes([p1], [p1, p2], now=datetime(2026, 10, 31, 9, 1))
+        check('同名第二期记为 new', h[app._change_key(p2)]['type'], 'new')
+        check('第二期不继承改期次数', h[app._change_key(p2)].get('rev'), None)
+        app._attach_changes([p1, p2], h)
+        check('第一期不被误挂角标', '_change' in p1, False)
+        check('第二期挂新增角标', p2.get('_change', {}).get('type'), 'new')
+
+        # 第一期正常到期被清理、第二期仍在:不能记成「官方移除」
+        h = app._track_changes([p1, p2], [p2], now=datetime(2026, 11, 3, 9, 0))
+        check('一期到期后没有误报移除', h[app._change_key(p2)]['type'], 'new')
+
+        # 期数与时间都变:第二期确实改期时,只有它自己挂改期角标
+        p2m = ev('ananta', '夺金大作战', '2026-11-17T05:00', '2026-12-01T04:59')
+        p2m['id'] = 'ananta-夺金-2m'
+        h = app._track_changes([p1, p2], [p2m], now=datetime(2026, 10, 31, 9, 2))
+        check('新一期改期记为 moved', h[app._change_key(p2m)]['type'], 'moved')
+        check('改期原时间是上一期第二场', h[app._change_key(p2m)]['from']['start'], '2026-11-16T05:00')
+
         # ---- 文件保留 180 天(供 SEQUENCE 累加),但摘要只展示 14 天 ----
         app._save_changes({'old|标题': {'type': 'new', 'at': '2026-01-01T00:00:00'}})
         h = app._track_changes([], [], now=datetime(2026, 10, 31, 9, 0))

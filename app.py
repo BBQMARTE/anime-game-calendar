@@ -177,40 +177,118 @@ def _track_changes(prev, cur, now=None):
         out = {}
         for e in arr or []:
             if (e.get('kind') or 'event') == 'event':
-                out[_change_key(e)] = e
+                out.setdefault(_change_key(e), []).append(e)
         return out
 
     prev_map, cur_map = events_only(prev), events_only(cur)
     recorded = 0
-    for key, e in cur_map.items():
-        old = prev_map.get(key)
-        if old is None:
+    stamp = now.isoformat(timespec='seconds')
+
+    def keep_rev(key):
+        try:
+            return int((hist.get(key) or {}).get('rev') or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    # 同名多期(复刻/上下半场)不能只按 key 取「最后一条」:
+    # 先按时间窗精确配对,配不上的才可能是「改期 / 新增 / 移除」。
+    # 否则同一标题下两条并存时,旧的一期会被误判成改期或移除,另一期也会挂上改期角标。
+    for key, cur_list in cur_map.items():
+        old_list = prev_map.get(key) or []
+        if not old_list:
             if prev_map:   # 基线不算新增
-                hist[key] = {'type': 'new', 'at': now.isoformat(timespec='seconds'),
-                             'game_id': e.get('game_id'), 'title': e.get('title'),
-                             'from': None, 'to': _time_of(e)}
-                recorded += 1
+                for e in cur_list:
+                    rec = {'type': 'new', 'at': stamp,
+                           'game_id': e.get('game_id'), 'title': e.get('title'),
+                           'from': None, 'to': _time_of(e)}
+                    rev = keep_rev(key)
+                    if rev:
+                        rec['rev'] = rev
+                    hist[key] = rec
+                    recorded += 1
             continue
-        if (_time_of(old) != _time_of(e)):
-            # rev 累计改期次数:ICS 用它填 SEQUENCE,订阅端才认「这是同一活动的第 N 次修订」
-            prev_rec = hist.get(key) or {}
-            rev = int(prev_rec.get('rev') or 0) + 1
-            hist[key] = {'type': 'moved', 'at': now.isoformat(timespec='seconds'),
-                         'game_id': e.get('game_id'), 'title': e.get('title'),
-                         'from': _time_of(old), 'to': _time_of(e), 'rev': rev}
+        matched_old, matched_cur = set(), set()
+        for i, e in enumerate(cur_list):
+            for j, o in enumerate(old_list):
+                if j not in matched_old and _time_of(o) == _time_of(e):
+                    matched_old.add(j)
+                    matched_cur.add(i)
+                    break
+        old_left = [j for j in range(len(old_list)) if j not in matched_old]
+        cur_left = [i for i in range(len(cur_list)) if i not in matched_cur]
+
+        def start_ts(x):
+            try:
+                return datetime.fromisoformat(str(x.get('start') or '')[:19]).timestamp()
+            except (ValueError, TypeError):
+                return None
+
+        # 时间窗没对上但同名的,按「开始时间最接近」认成改期
+        moves, used_o, used_c = [], set(), set()
+        cand = []
+        for j in old_left:
+            for i in cur_left:
+                a, b = start_ts(old_list[j]), start_ts(cur_list[i])
+                cand.append((abs(a - b) if a is not None and b is not None else float('inf'), j, i))
+        for _d, j, i in sorted(cand):
+            if j in used_o or i in used_c:
+                continue
+            used_o.add(j)
+            used_c.add(i)
+            moves.append((j, i))
+
+        # 移除:既没配上改期、也不是正常到期
+        for j in old_left:
+            if j in used_o:
+                continue
+            o = old_list[j]
+            stop = str(o.get('end') or '')[:10]
+            if stop and stop < today:
+                continue   # 正常到期被清理,不是「官方移除」
+            if not stop and not o.get('start'):
+                continue   # 无任何时间的条目消失,无参考价值
+            hist[key] = {'type': 'removed', 'at': stamp,
+                         'game_id': o.get('game_id'), 'title': o.get('title'),
+                         'from': _time_of(o), 'to': None}
             recorded += 1
-    for key, old in prev_map.items():
+            break   # 一个 key 只留一条摘要,多期同时消失也只报一次
+
+        # 新增:本轮多出来的期数(没配上任何旧条目)
+        for i in cur_left:
+            if i in used_c or not prev_map:
+                continue   # 基线不算新增
+            e = cur_list[i]
+            rec = {'type': 'new', 'at': stamp,
+                   'game_id': e.get('game_id'), 'title': e.get('title'),
+                   'from': None, 'to': _time_of(e)}
+            rev = keep_rev(key)
+            if rev:
+                rec['rev'] = rev
+            hist[key] = rec
+            recorded += 1
+
+        # 改期最后写:同轮同时出现新增/移除时,别把更有信息量的改期摘要覆盖掉
+        for j, i in moves:
+            o, e = old_list[j], cur_list[i]
+            hist[key] = {'type': 'moved', 'at': stamp,
+                         'game_id': e.get('game_id'), 'title': e.get('title'),
+                         'from': _time_of(o), 'to': _time_of(e),
+                         'rev': keep_rev(key) + 1}
+            recorded += 1
+    for key, old_list in prev_map.items():
         if key in cur_map:
             continue
-        stop = str(old.get('end') or '')[:10]
-        if stop and stop < today:
-            continue   # 正常到期被清理,不是「官方移除」
-        if not stop and not old.get('start'):
-            continue   # 无任何时间的条目消失,无参考价值
-        hist[key] = {'type': 'removed', 'at': now.isoformat(timespec='seconds'),
-                     'game_id': old.get('game_id'), 'title': old.get('title'),
-                     'from': _time_of(old), 'to': None}
-        recorded += 1
+        for o in old_list:
+            stop = str(o.get('end') or '')[:10]
+            if stop and stop < today:
+                continue
+            if not stop and not o.get('start'):
+                continue
+            hist[key] = {'type': 'removed', 'at': stamp,
+                         'game_id': o.get('game_id'), 'title': o.get('title'),
+                         'from': _time_of(o), 'to': None}
+            recorded += 1
+            break   # 一个 key 只留一条摘要,多期同时消失也只报一次
     hist = _prune_changes(hist, now)
     _save_changes(hist)
     if recorded:
@@ -231,12 +309,16 @@ def _attach_changes(events, hist=None):
         if not rec:
             continue
         # 改期次数不限角标窗口:SEQUENCE 要在 180 天的历史里持续累加
-        if rec.get('type') == 'moved' and rec.get('rev'):
+        if rec.get('rev'):
             try:
                 e['_seq'] = int(rec['rev'])
             except (TypeError, ValueError):
                 pass
         if str(rec.get('at') or '') < cut:
+            continue
+        # 同名多期(复刻/上下半场)共用一把 key:角标只挂给时间窗与记录一致的那一期,
+        # 否则旧的一期会显示成「刚刚改期/新增」
+        if rec.get('type') in ('new', 'moved') and _time_of(e) != (rec.get('to') or {}):
             continue
         if rec.get('type') in ('new', 'moved'):
             e['_change'] = {k: rec.get(k) for k in ('type', 'at', 'from', 'to')}
