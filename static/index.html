@@ -2539,7 +2539,7 @@ function openStats(){
   const monthNew=evs.filter(e=>{const s=evStart(e);return s&&s>=mStart&&s<mEnd}).length;
   /* 缺封面图条数:数据质量一眼可见,也是每日核查的补图指标 */
   const missingN=evs.filter(e=>!(e.image||'').trim()).length;
-  const noEndN=evs.filter(e=>!e.end).length;   // 缺结束时间:与详情里的反馈入口对应,数据质量一眼可见
+  const noEndN=evs.filter(e=>!e.end&&!isPointItem(e)).length;   // 缺结束时间:与 dq=noend / health 同口径,单点里程碑不算
   const staleN=evs.filter(e=>isStaleUnknown(e,now)).length;
   /* 未来 14 天时间线:横条长度=活动覆盖区间,可直接看出时间重叠与空窗 */
   const tlEnd=new Date(now.getTime()+14*864e5);

@@ -49,6 +49,11 @@ console.log(JSON.stringify({
   pointNoend: f.dqMatch(ev({title: '4.7版本「此刻将群星付之一笑」上线', start: '2026-11-05T10:00'}), 'noend', NOW),
   pointStale: f.dqMatch(ev({title: '3.7版本前瞻通讯（直播）', start: '2026-09-01T10:00'}), 'stale', NOW),
   none: f.dqMatch(ev({image: ''}), '', NOW),
+  noEndCount: [
+    ev({title: '签到活动', start: '2026-11-01T10:00'}),
+    ev({title: '4.7版本上线', start: '2026-11-05T10:00'}),
+    ev({title: '有结束', start: '2026-11-01T10:00', end: '2026-11-10T03:59'}),
+  ].filter(e => f.dqMatch(e, 'noend', NOW)).length,
 }));
 """
 
@@ -86,6 +91,9 @@ def main():
     check("单点里程碑(版本上线)不算缺结束", d['pointNoend'], False)
     check("单点里程碑(前瞻通讯)不算更早未知", d['pointStale'], False)
     check("无质量筛选时全部通过", d['none'], True)
+    check("缺结束计数与筛选同口径(里程碑不计)", d['noEndCount'], 1)
+    check("统计面板缺结束条数也排除里程碑",
+          "evs.filter(e=>!e.end&&!isPointItem(e)).length" in open(HTML, encoding='utf-8').read(), True)
 
     src = open(HTML, encoding='utf-8').read()
     check("统计行可点进缺图", 'statQuality(\'noimg\',this)' in src, True)
