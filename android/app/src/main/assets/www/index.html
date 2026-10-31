@@ -1196,12 +1196,29 @@ function renderCal(){
   /* 选中日的活动列表:当天开始 / 进行中 / 当天结束 */
   const ev=eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate());
   const cnt=ev.starts.length+ev.runs.length+ev.ends.length;
-  h+=`<div class="sec-title" style="margin-top:16px">${dayLabel(selDay)}${cnt?' · '+cnt+' 个活动':''}</div>`;
+  h+=`<div class="sec-title" style="margin-top:16px;display:flex;align-items:center;gap:8px">${dayLabel(selDay)}${cnt?' · '+cnt+' 个活动':''}${cnt?`<span class="stat-link" style="margin-left:auto;color:var(--blue)" onclick="copyDay()">复制当天</span>`:''}</div>`;
   if(!cnt) h+='<div class="empty">当天无排期活动</div>';
   if(ev.starts.length) h+=`<div class="sec-title">当天开始 · ${ev.starts.length}</div><div class="group">${ev.starts.map(rowHtml).join('')}</div>`;
   if(ev.runs.length) h+=`<div class="sec-title">进行中 · ${ev.runs.length}</div><div class="group">${ev.runs.map(rowHtml).join('')}</div>`;
   if(ev.ends.length) h+=`<div class="sec-title">当天结束 · ${ev.ends.length}</div><div class="group">${ev.ends.map(rowHtml).join('')}</div>`;
   $('#list').innerHTML=h;
+}
+function copyDay(){
+  const text=dayCopyText(eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate()),dayLabel(selDay));
+  if(!text){flash('当天没有活动可复制');return}
+  copyText(text).then(()=>flash('已复制当天活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
+}
+/* 把选中日的活动整理成纯文本:日期 + 总数,再按「当天开始 / 进行中 / 当天结束」分组 */
+function dayCopyText(ev,label){
+  const n=ev.starts.length+ev.runs.length+ev.ends.length;
+  if(!n)return '';
+  const lines=[label+' · '+n+' 个活动'];
+  [['当天开始',ev.starts],['进行中',ev.runs],['当天结束',ev.ends]].forEach(g=>{
+    if(!g[1].length)return;
+    lines.push('','['+g[0]+' · '+g[1].length+']');
+    g[1].forEach(e=>lines.push('- '+gameName(e.game_id)+'｜'+(e.title||'')+'｜'+(evStart(e)?fmtRange(e):'时间待定')));
+  });
+  return lines.join('\n');
 }
 let _allLimit=60;  // 「全部资讯」渐进渲染:先 60 条,滚到底部追加(避免 250+ 行一次性渲染卡顿)
 /* 版本节点识别:版本号+上线 / 前瞻直播(排除签到类与版本内活动更新,如「无名勋礼」更新) */
