@@ -149,6 +149,10 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 /* 数据陈旧提示:超过 24 小时未更新才出现,点一下立即刷新 */
 .stale-bar{display:none; margin:0 0 10px; padding:9px 12px; border-radius:12px; background:rgba(255,149,0,.14); color:var(--orange); font-size:12.5px; font-weight:600; cursor:pointer; line-height:1.35}
 .stale-bar.show{display:block}
+/* 数据质量筛选条:从统计面板点「缺封面图 / 缺结束时间 / 更早开始·结束未知」进入,一键退出 */
+.dq-bar{display:flex; align-items:center; gap:8px; margin:0 0 10px; padding:8px 12px; border-radius:12px; background:rgba(0,122,255,.12); color:var(--blue); font-size:12.5px; font-weight:600}
+.dq-bar span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.dq-bar b{cursor:pointer; font-size:17px; line-height:1; color:var(--blue); padding:0 4px; font-weight:600}
 /* ---------- 月历视图 ---------- */
 .cal-card{background:var(--card); border-radius:16px; padding:12px 6px 8px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .cal-head{display:flex; align-items:center; gap:4px; padding:0 8px 10px}
@@ -224,6 +228,9 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .set-group[open]>summary::after{transform:rotate(-90deg)}
 /* 统计弹窗的「本周/本月新增」小字一行 */
 .stat-sub{font-size:12px; color:var(--label3); margin:-6px 0 14px}
+/* 统计面板里可点进数据质量筛选的行 */
+.stat-link{cursor:pointer}
+.stat-link:active{opacity:.6}
 .stat-sub b{color:var(--label); font-weight:700}
 .stat-row{display:flex; align-items:center; gap:8px; margin:7px 0}
 .stat-row .sn{width:76px; flex:none; font-size:12px; color:var(--label2); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
@@ -414,11 +421,13 @@ const CAT_COLOR={'活动':'#34C759','签到':'#AF52DE','角色与专武':'#FF2D5
 const IS_ANDROID=/[?&]platform=android/.test(location.search)||!!window.YCalNative;
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
+let dq='';   // 数据质量筛选:noimg=缺封面图 / noend=缺结束时间 / stale=更早开始·结束未知
+const DQ_LABEL={noimg:'缺封面图',noend:'缺结束时间',stale:'更早开始·结束未知'};
 /* 分享链接参数:?games=hsr,zzz&cats=活动,签到&tab=ongoing&q=崩铁
    纯函数便于测试;未知游戏 id 会在 data 载入后被过滤,非法 tab 忽略 */
 const TAB_IDS=['cal','ongoing','soon','all','fav'];
 function parseFilterParams(search){
-  const out={games:null,cats:null,tab:null,q:null};
+  const out={games:null,cats:null,tab:null,q:null,dq:null};
   try{
     const sp=new URLSearchParams(search||'');
     if(sp.has('games'))out.games=sp.get('games').split(',').map(s=>s.trim()).filter(Boolean);
@@ -426,11 +435,13 @@ function parseFilterParams(search){
     const t=sp.get('tab');
     if(t&&TAB_IDS.includes(t))out.tab=t;
     if(sp.has('q'))out.q=sp.get('q');
+    const v=sp.get('dq');
+    if(v&&['noimg','noend','stale'].includes(v))out.dq=v;   // 非法值忽略
   }catch(e){}
   return out;
 }
 /* 反向:当前筛选 → 可分享的 query(全部选中/默认 tab/空搜索不写进 URL,保持地址干净) */
-function buildFilterQuery(games,cats,tab,allGames,allCats,q){
+function buildFilterQuery(games,cats,tab,allGames,allCats,q,dq){
   const p=new URLSearchParams();
   const gs=[...games], cs=[...cats];
   if(gs.length&&gs.length<(allGames||[]).length)p.set('games',gs.join(','));
@@ -438,6 +449,7 @@ function buildFilterQuery(games,cats,tab,allGames,allCats,q){
   if(tab&&tab!=='cal')p.set('tab',tab);
   const kw=String(q||'').trim();
   if(kw)p.set('q',kw);
+  if(dq)p.set('dq',dq);
   const qs=p.toString();
   return qs?'?'+qs:'';
 }
@@ -455,6 +467,7 @@ let _urlGames=null;   // 分享链接里显式点名的游戏:即使本机设置
   if(u.games!==null){activeGames=new Set(u.games);_urlGames=new Set(u.games);}
   if(u.cats!==null)activeCats=new Set(u.cats.length?u.cats:Object.keys(CAT_COLOR));
   if(u.tab)tab=u.tab;
+  if(u.dq){dq=u.dq;tab='all';}   // 数据质量视图固定落在「全部资讯」的平铺列表
   if(u.q!==null){q=u.q;const qi=document.getElementById('q');if(qi)qi.value=u.q;}
 })();
 function saveFilters(){
@@ -466,7 +479,7 @@ function syncUrl(){
   try{
     if(!/^http/.test(location.protocol))return;
     const ids=(DATA&&DATA.games||[]).map(g=>g.id);
-    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q);
+    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq);
     history.replaceState(null,'',location.pathname+qs+location.hash);
   }catch(e){}
 }
@@ -495,7 +508,7 @@ function shareView(){
   if(!/^http/.test(location.protocol)){flash('离线模式没有可分享的网址');return}
   const ids=(DATA&&DATA.games||[]).map(g=>g.id);
   const link=location.origin+location.pathname
-    +buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q)+location.hash;
+    +buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q,dq)+location.hash;
   copyText(link).then(()=>flash('链接已复制,发给好友即可打开同一视图'),()=>flash('复制失败,请手动复制地址栏链接'));
 }
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
@@ -728,7 +741,15 @@ function filtered(){
     &&(!settings.hideDone||!isDone(e))  // 可选:已打钩做完的条目不再显示
     &&activeCats.has(e.category)
     &&(!gp||e.game_id===gp.id)
+    &&(!dq||dqMatch(e,dq,now))  // 数据质量筛选:缺图 / 缺结束 / 更早开始未知
     &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+gameShort(e.game_id)+' '+(e.category||'')).toLowerCase().includes(k))));
+}
+/* 数据质量筛选口径(与统计面板里的三项计数完全一致) */
+function dqMatch(e,k,now){
+  if(k==='noimg')return !(e.image||'').trim();
+  if(k==='noend')return !e.end;
+  if(k==='stale')return isStaleUnknown(e,now);
+  return true;
 }
 /* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
 function isEv(e){return (e.kind||'event')==='event'}
@@ -737,15 +758,27 @@ function filteredAll(){return filtered()}
 /* 当前是否有搜索词或游戏/分类筛选(用于空结果时给「清除筛选」出口) */
 function filtersActive(){
   const ids=(DATA&&DATA.games||[]).map(g=>g.id);
-  return !!q.trim()
+  return !!q.trim()||!!dq
     || (ids.length&&activeGames.size<ids.length)
     || activeCats.size<Object.keys(CAT_COLOR).length;
 }
 function clearFilters(){
   q=''; const i=$('#q'); if(i)i.value='';
+  dq='';
   activeGames=new Set((DATA&&DATA.games||[]).map(g=>g.id));
   activeCats=new Set(Object.keys(CAT_COLOR));
   saveFilters();render();
+}
+/* 从统计面板进入数据质量筛选:切到「全部资讯」平铺展示,统计弹窗顺手关掉 */
+function setQuality(k){
+  dq=DQ_LABEL[k]?k:'';
+  if(dq){tab='all';_allLimit=60;}
+  saveFilters();render();
+}
+function statQuality(k,el){
+  const o=el&&el.closest?el.closest('.detail-overlay'):null;
+  if(o)o.remove();
+  setQuality(k);
 }
 
 /* ================= 状态 / 筛选 ================= */
@@ -1095,7 +1128,9 @@ function renderList(){
     : settings.hideAuto&&(DATA&&DATA.events||[]).length
       ? '已隐藏未核实的自动条目<br>可在设置里关闭「隐藏未核实的自动条目」'
       : '暂无数据';
-  $('#list').innerHTML=html||`<div class="empty">${emptyHint}</div>`;
+  // 数据质量筛选条:显示当前口径与命中条数,点 × 退出
+  const dqHtml=dq?`<div class="dq-bar" role="status"><span>只看「${esc(DQ_LABEL[dq]||dq)}」 · ${filteredAll().length} 条</span><b onclick="setQuality('')" role="button" aria-label="退出数据质量筛选">×</b></div>`:'';
+  $('#list').innerHTML=dqHtml+(html||`<div class="empty">${emptyHint}</div>`);
 }
 let _loadingMore=false;
 window.addEventListener('scroll',()=>{  // 接近底部追加下一批(节流)
@@ -1935,9 +1970,9 @@ function openStats(){
         <div><b>${recent.length}</b><span>近30天开始</span></div>
       </div>
       <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
-      <div class="stat-sub">缺少封面图 <b>${missingN}</b> 条${missingN?' · 可在详情里点「缺图」反馈':''}</div>
-      ${noEndN?`<div class="stat-sub">缺结束时间 <b>${noEndN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">详情里可点「缺结束时间」反馈,核查会补上</span></span></div>`:''}
-      ${staleN?`<div class="stat-sub">更早开始·结束未知 <b>${staleN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">列表已折叠,也不计入「进行中」与订阅</span></span></div>`:''}
+      <div class="stat-sub ${missingN?'stat-link':''}" ${missingN?`onclick="statQuality('noimg',this)"`:''}>缺少封面图 <b>${missingN}</b> 条${missingN?' · 点此只看这些,可在详情里点「缺图」反馈':''}${missingN?'<span style="float:right;color:var(--label3)" aria-hidden="true">›</span>':''}</div>
+      ${noEndN?`<div class="stat-sub stat-link" onclick="statQuality('noend',this)">缺结束时间 <b>${noEndN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">点此只看这些;详情里可点「缺结束时间」反馈,核查会补上</span></span><span style="float:right;color:var(--label3)" aria-hidden="true">›</span></div>`:''}
+      ${staleN?`<div class="stat-sub stat-link" onclick="statQuality('stale',this)">更早开始·结束未知 <b>${staleN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">点此只看这些;列表默认折叠,也不计入「进行中」与订阅</span></span><span style="float:right;color:var(--label3)" aria-hidden="true">›</span></div>`:''}
       <div class="stat-sec">近期变更 · 近 14 天</div>
       ${chgRows.length?chgRows.map(chgRow).join(''):'<div class="sub" style="padding:6px 0">近 14 天没有抓取到新增 / 改期 / 移除</div>'}
       <div class="stat-sec">各游戏活动数</div>

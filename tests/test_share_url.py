@@ -48,6 +48,9 @@ console.log(JSON.stringify({
   buildCats: f.b(new Set(ALL_G), new Set(['活动']), 'soon', ALL_G, ALL_C),
   buildBoth: f.b(new Set(['hsr', 'zzz']), new Set(['活动', '签到']), 'fav', ALL_G, ALL_C),
   buildSearch: f.b(new Set(ALL_G), new Set(ALL_C), 'cal', ALL_G, ALL_C, ' 崩铁 '),
+  buildDq: f.b(new Set(ALL_G), new Set(ALL_C), 'all', ALL_G, ALL_C, '', 'noend'),
+  parseDq: f.p('?tab=all&dq=noend'),
+  badDq: f.p('?dq=bogus'),
   round1: round('?games=hsr&tab=all'),
   round2: round('?cats=活动,公告&tab=ongoing'),
 }));
@@ -77,12 +80,14 @@ def main():
     d = json.loads(r.stdout.strip().splitlines()[-1])
 
     check('完整参数', d['full'], {'games': ['hsr', 'zzz'], 'cats': ['活动', '签到'],
-                                  'tab': 'ongoing', 'q': None})
+                                  'tab': 'ongoing', 'q': None, 'dq': None})
     check('空格与编码', d['spaces']['games'], ['zzz', 'hsr'])
     check('非法 tab 忽略', d['badtab']['tab'], None)
-    check('无参数', d['empty'], {'games': None, 'cats': None, 'tab': None, 'q': None})
+    check('无参数', d['empty'], {'games': None, 'cats': None, 'tab': None, 'q': None, 'dq': None})
     check('games= 视为空列表', d['emptyGames']['games'], [])
     check('搜索词解码', d['search']['q'], '崩铁')
+    check('质量筛选解析', d['parseDq']['dq'], 'noend')
+    check('非法质量筛选忽略', d['badDq']['dq'], None)
 
     check('全选 + 默认页签 → 干净地址', d['buildAll'], '')
     check('只选一个游戏', d['buildGames'], '?games=hsr')
@@ -90,6 +95,7 @@ def main():
     check('组合参数', d['buildBoth'],
           '?games=hsr%2Czzz&cats=%E6%B4%BB%E5%8A%A8%2C%E7%AD%BE%E5%88%B0&tab=fav')
     check('搜索词写进链接(去首尾空格)', d['buildSearch'], '?q=%E5%B4%A9%E9%93%81')
+    check('质量筛选写进链接', d['buildDq'], '?tab=all&dq=noend')
 
     check('解析→生成往返(单游戏)', d['round1'], '?games=hsr&tab=all')
     check('解析→生成往返(分类)', d['round2'],

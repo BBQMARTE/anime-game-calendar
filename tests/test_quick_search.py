@@ -30,7 +30,7 @@ const EVENTS = {events: __EVENTS__, games: [
   {id:'hsr', name:'崩坏：星穹铁道'}, {id:'zzz', name:'绝区零'}, {id:'wuwa', name:'鸣潮'}]};
 function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
-    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];\nfunction isDone(){return false}\n"
+    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
     + "function gameShort(id){return ({hsr:'崩铁',zzz:'绝区零',wuwa:'鸣潮'})[id]||''}\n"
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')

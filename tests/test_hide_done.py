@@ -32,7 +32,7 @@ const DATA = {events: [
   {id:'b', game_id:'hsr', title:'未完成活动', category:'活动', src:'manual'},
 ]};
 const runFiltered = new Function('DATA','q','activeGames','activeCats','calVisible','settings','isDone',
-  "const QUICK_WORDS=[];\nfunction isQuickWord(){return false}\nfunction quickMatch(){return false}\nfunction gamePrefix(){return null}\n"
+  "const QUICK_WORDS=[];\nfunction isQuickWord(){return false}\nfunction quickMatch(){return false}\nfunction gamePrefix(){return null}\nlet dq='';\nfunction dqMatch(){return true}\n"
   + grab('filtered') + '\nreturn filtered();');
 console.log(JSON.stringify({
   off: runFiltered(DATA, '', new Set(['zzz','hsr']), new Set(['活动']), () => true,
