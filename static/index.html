@@ -1390,6 +1390,25 @@ function exportMonthIcs(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   flash('已导出'+y+'年'+(m+1)+'月 '+list.length+' 个活动');
 }
+/* 当前筛选导出用:只留真活动,剔除没有开始时间的条目(与订阅同口径) */
+function filterIcsList(evs){
+  return icsReadyList((evs||[]).filter(isEv));
+}
+/* 把「当前筛选」(游戏/分类、搜索词、快捷词、质量筛选都算)整体导成一个 .ics:
+   一次性把眼前这批活动塞进系统日历,离线 APK 也能用 */
+function exportFilteredIcs(){
+  const evs=filteredAll().filter(isEv);
+  if(!evs.length){flash('当前筛选没有可导出的活动');return}
+  const list=filterIcsList(evs);
+  if(!list.length){flash('当前筛选里的活动都还没确定开始时间,暂时不能加入日历');return}
+  const ics=buildDayIcs(list,'当前筛选');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download='二游活动_当前筛选.ics';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  flash('已导出 '+list.length+' 个活动'+(evs.length>list.length?' · '+(evs.length-list.length)+' 条时间待定未导出':''));
+}
 function dayCopyText(ev,label){
   const n=ev.starts.length+ev.runs.length+ev.ends.length;
   if(!n)return '';
@@ -2423,6 +2442,10 @@ function openSettings(){
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportMonthIcs()" role="button" aria-label="导出整月日历">
         <div class="lbl">导出整月 .ics<span class="sub">当前浏览的月份(没开过日历则用本月),整月排期一次导入系统日历</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="set-row" style="cursor:pointer" onclick="exportFilteredIcs()" role="button" aria-label="导出当前筛选日历">
+        <div class="lbl">导出当前筛选 .ics<span class="sub">游戏/分类、搜索词、快捷词、质量筛选都算,眼前这批活动一次导入系统日历;离线 APK 也能用</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
