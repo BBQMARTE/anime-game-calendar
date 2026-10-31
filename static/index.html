@@ -1351,10 +1351,10 @@ function showDetail(e){
       ${e.game_id?`<a class="detail-btn" href="#" style="background:var(--fill);color:var(--label)" onclick="event.preventDefault();onlyThisGame('${e.game_id}')">只看「${esc(e.game||e.game_id)}」的活动</a>`:''}
       <div class="report-row">
         <span class="report-lbl">这条有问题?</span>
-        <span class="chip" style="--c:var(--red)" onclick="reportEv('${e.id}','missing-image')">缺图</span>
-        ${e.end?'':`<span class="chip" style="--c:var(--purple)" onclick="reportEv('${e.id}','no-end')">缺结束时间</span>`}
-        <span class="chip" style="--c:var(--orange)" onclick="reportEv('${e.id}','wrong-time')">时间不对</span>
-        <span class="chip" style="--c:var(--blue)" onclick="reportEv('${e.id}','other')">其他</span>
+        <span class="chip" style="--c:var(--red)" data-rk="missing-image" onclick="reportEv('${e.id}','missing-image')">缺图</span>
+        ${e.end?'':`<span class="chip" style="--c:var(--purple)" data-rk="no-end" onclick="reportEv('${e.id}','no-end')">缺结束时间</span>`}
+        <span class="chip" style="--c:var(--orange)" data-rk="wrong-time" onclick="reportEv('${e.id}','wrong-time')">时间不对</span>
+        <span class="chip" style="--c:var(--blue)" data-rk="other" onclick="reportEv('${e.id}','other')">其他</span>
       </div>
       ${rel.length?`<div class="rel-sec">同游戏其他活动</div>${rel.map(r=>
         `<div class="rel-row" onclick="this.closest('.detail-overlay').remove();openEv('${r.id}')">
@@ -1368,6 +1368,7 @@ function showDetail(e){
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
   document.body.appendChild(overlay);
   attachSwipeClose(overlay);
+  markReported(overlay,e);   // 已提交过的反馈在按钮上标「待核查」
 }
 /* ── 单条活动加入系统日历:生成只含这一条、带提前 30 分钟提醒的 .ics ── */
 function icsEsc(s){
@@ -1539,15 +1540,39 @@ async function shareCard(id){
 }
 /* ── 一键反馈:写入服务端待核查清单(data/reports.json),每日核查优先处理 ── */
 const REPORT_LABEL={'missing-image':'缺图','wrong-time':'时间不对','other':'其他','no-end':'缺结束时间'};
+let REPORTS_PEND={};   // 当前活动已提交且未处理的反馈(键=游戏|标题|类型)
+function repKey(game,title,kind){return (game||'')+'|'+(title||'')+'|'+kind}
+/* 打开详情后拉一次反馈清单,把已提交过的按钮标成「待核查」;离线 APK 跳过 */
+function markReported(over,e){
+  const o=apiOrigin(); if(!o)return;
+  fetch('/api/report').then(r=>r.json()).then(d=>{
+    const pend={};
+    for(const it of (d.items||[])){
+      if(it.done)continue;
+      if((it.game_id||'')!==(e.game_id||'')||(it.title||'')!==(e.title||''))continue;
+      pend[repKey(it.game_id,it.title,it.kind)]=it;
+    }
+    REPORTS_PEND=pend;
+    over.querySelectorAll('[data-rk]').forEach(el=>{
+      if(!pend[repKey(e.game_id,e.title,el.dataset.rk)])return;
+      el.textContent+=' · 待核查';
+      el.style.opacity='.62';
+      el.title='已提交,正在核查;数据补全后会自动标记已处理';
+    });
+  }).catch(()=>{});
+}
 function reportEv(id,kind){
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
   if(!e)return;
+  const k=repKey(e.game_id,e.title,kind);
+  if(REPORTS_PEND[k]){alert('已反馈过「'+(REPORT_LABEL[kind]||kind)+'」,正在核查中');return}
   let note='';
   if(kind==='other')note=(prompt('补充说明(可留空):')||'').slice(0,120);
   fetch('/api/report',{method:'POST',
     headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},
     body:JSON.stringify({game_id:e.game_id,title:e.title,kind,note,start:e.start,end:e.end,link:e.link})
   }).then(r=>r.json()).then(d=>{
+    if(d&&d.ok)REPORTS_PEND[k]={game_id:e.game_id,title:e.title,kind};   // 同一次会话里再点不再重复发
     alert(d&&d.ok?('已反馈「'+(REPORT_LABEL[kind]||kind)+'」,下次核查会优先处理'):'反馈失败,请稍后再试');
   }).catch(()=>alert('当前无法连接服务端,反馈未发出(连上后再试)'));
 }

@@ -155,6 +155,8 @@ def main():
     src = open(HTML, encoding='utf-8').read()
     check("详情页有「缺结束时间」入口", "reportEv('${e.id}','no-end')" in src, True)
     check("入口受 e.end 控制", "e.end?'':" in src, True)
+    check("反馈按钮带 data-rk 便于标记", 'data-rk="missing-image"' in src, True)
+    check("详情打开后标记待核查", 'markReported(overlay,e)' in src, True)
 
     node = shutil.which('node')
     if not node:
@@ -180,9 +182,32 @@ const DATA = {events:[{id:'x',game_id:'endfield',title:'画外遗光',
 const REPORT_LABEL = {'missing-image':'缺图','wrong-time':'时间不对','other':'其他','no-end':'缺结束时间'};
 const fetchStub = (u, opt) => { posted.push(JSON.parse(opt.body));
   return Promise.resolve({json: () => Promise.resolve({ok:true})}); };
-const fn = new Function('DATA','REPORT_LABEL','fetch','alert','prompt',
-  grab('reportEv') + '\nreturn reportEv;');
-fn(DATA, REPORT_LABEL, fetchStub, m => alerts.push(m), () => '')('x','no-end');
+const pend = {};
+const fn = new Function('DATA','REPORT_LABEL','fetch','alert','prompt','REPORTS_PEND',
+  grab('repKey') + '\n' + grab('reportEv') + '\nreturn reportEv;');
+fn(DATA, REPORT_LABEL, fetchStub, m => alerts.push(m), () => '', pend)('x','no-end');
+
+// 再次点击已提交的反馈:不再发 POST,提示处理中
+const posted2 = [], alerts2 = [];
+const pend2 = {'endfield|画外遗光|no-end':{kind:'no-end'}};
+const fetchBlocked = () => { posted2.push(1); return Promise.resolve({json:()=>Promise.resolve({ok:true})}); };
+new Function('DATA','REPORT_LABEL','fetch','alert','prompt','REPORTS_PEND',
+  grab('repKey') + '\n' + grab('reportEv') + '\nreturn reportEv;')(
+  DATA, REPORT_LABEL, fetchBlocked, m => alerts2.push(m), () => '', pend2)('x','no-end');
+
+// 详情按钮标记:待核查的 kind 加「· 待核查」,已处理/无记录的不动
+const chips = [
+  {dataset:{rk:'no-end'}, textContent:'缺结束时间', style:{}, title:''},
+  {dataset:{rk:'missing-image'}, textContent:'缺图', style:{}, title:''},
+  {dataset:{rk:'wrong-time'}, textContent:'时间不对', style:{}, title:''},
+];
+const over = {querySelectorAll: () => chips};
+const markFetch = () => Promise.resolve({json:()=>Promise.resolve({items:[
+  {game_id:'endfield', title:'画外遗光', kind:'no-end', done:false},
+  {game_id:'endfield', title:'画外遗光', kind:'missing-image', done:true},
+]})});
+new Function('fetch','apiOrigin','REPORTS_PEND', grab('repKey') + '\n' + grab('markReported') + '\nreturn markReported;')(
+  markFetch, () => 'http://127.0.0.1:5000', {})(over, DATA.events[0]);
 
 // 撤回:构造一行待核查反馈,校验 DELETE 方法与请求体
 const wposted = [], flashes = [], removed = [];
@@ -195,6 +220,8 @@ const wfn = new Function('fetch','flash','openReports', grab('withdrawReport') +
 wfn(wfetch, m => flashes.push(m), () => {}) (wbtn);
 
 setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0],
+  cacheKeys:Object.keys(pend).length, blockedAlert:alerts2[0], blockedPosts:posted2.length,
+  chipTexts:chips.map(c => c.textContent),
   wreq:wposted[0], wflash:flashes[0], wremoved:removed.length})) , 0);
 """
         r = subprocess.run([node, '-e', loader], input=src,
@@ -207,6 +234,12 @@ setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0],
             check("前端上报 kind=no-end", d['payload']['kind'], 'no-end')
             check("前端带上结束时间为空", d['payload']['end'], None)
             check("反馈成功提示含类型名", '缺结束时间' in (d['alert'] or ''), True)
+            check("提交成功后记入会话缓存", d['cacheKeys'], 1)
+            check("重复点已提交反馈有提示", '已反馈过' in (d['blockedAlert'] or ''), True)
+            check("重复点不再发 POST", d['blockedPosts'], 0)
+            check("待核查按钮标「· 待核查」", d['chipTexts'][0], '缺结束时间 · 待核查')
+            check("已处理/未提交的按钮不动",
+                  (d['chipTexts'][1], d['chipTexts'][2]), ('缺图', '时间不对'))
             check("撤回用 DELETE 方法", d['wreq']['method'], 'DELETE')
             check("撤回带 CSRF 头", d['wreq']['csrf'], 'ycal')
             check("撤回请求体带定位字段",
