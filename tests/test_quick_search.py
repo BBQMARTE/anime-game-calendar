@@ -30,7 +30,7 @@ const EVENTS = {events: __EVENTS__, games: [
   {id:'hsr', name:'崩坏：星穹铁道'}, {id:'zzz', name:'绝区零'}, {id:'wuwa', name:'鸣潮'}]};
 function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
-    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
+    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
     + "function gameShort(id){return ({hsr:'崩铁',zzz:'绝区零',wuwa:'鸣潮'})[id]||''}\n"
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')
@@ -46,6 +46,7 @@ console.log(JSON.stringify({
   prefixZzzWord: run('zzz: 活动'), prefixHsrToday: run('hsr: 今天'),
   prefixUnknown: run('xxx:'),
   nextWeek: run('下周'), ended: run('已结束'), ending: run('即将结束'),
+  weekStart: run('本周开始'), monthStart: run('本月开始'),
   prefixHsrEnding: run('hsr: 即将结束'),
   shortHsr: run('崩铁'), shortZzz: run('绝区零'),
 }));
@@ -116,6 +117,8 @@ def main():
     check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g', 'i'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
     check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd', 'i'])
+    check("本周开始(只算本周内开始的)", d['weekStart'], ['c', 'g', 'i'])
+    check("本月开始(只算本月内开始的)", d['monthStart'], ['a', 'b', 'f', 'g', 'h', 'i'])
     check("无结束时间的老条目不进日期筛选", 'h' in (d['today'] + d['week'] + d['weekend'] + d['nextWeek']), False)
     check("已结束:必须真有结束时间", d['ended'], ['f'])
     check("即将结束:3 天内截止且未结束", d['ending'], ['b', 'i'])

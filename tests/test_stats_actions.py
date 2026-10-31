@@ -74,7 +74,9 @@ console.log(JSON.stringify({
                  && !/chg-row removed"[^>]*jumpToChange/.test(out),
   gameBar: out.includes("statGame('hsr',this)"),
   catBar: out.includes("statCat('活动',this)"),
-  fns: ['jumpToChange','removedFlash','showDetailById','statGame','statCat'].map(n => src.includes('function ' + n + '(')),
+  weekStart: out.includes("statRange('本周开始',this)"),
+  monthStart: out.includes("statRange('本月开始',this)"),
+  fns: ['jumpToChange','removedFlash','showDetailById','statGame','statCat','statRange'].map(n => src.includes('function ' + n + '(')),
 }));
 """
 
@@ -106,7 +108,9 @@ def main():
     check("已移除条目不跳转,只提示", d['removedNoJump'], True)
     check("游戏条形图可只看该游戏", d['gameBar'], True)
     check("分类条形图可只看该分类", d['catBar'], True)
-    check("跳转/详情函数均已定义", d['fns'], [True] * 5)
+    check("本周开始可筛列表", d['weekStart'], True)
+    check("本月开始可筛列表", d['monthStart'], True)
+    check("跳转/详情函数均已定义", d['fns'], [True] * 6)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

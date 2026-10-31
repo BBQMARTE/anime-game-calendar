@@ -691,7 +691,7 @@ async function doRefresh(){
   }
 }
 /* 搜索快捷词:输入这些词直接按时间筛选(不用记活动名) */
-const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束'];
+const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始'];
 function isQuickWord(s){return QUICK_WORDS.indexOf(s)>=0}
 function quickMatch(e,w,now){
   const s=evStart(e); if(!s)return false;
@@ -718,6 +718,15 @@ function quickMatch(e,w,now){
     const add=7-((now.getDay()+6)%7);  // 到下周一的天数(今天就是周一时取 7)
     const w0=day(add), w1=day(add+7);
     return s<w1&&te>=w0;               // 下周内开始或跨到下周的都算
+  }
+  if(w==='本周开始'){   // 只算在本周内「开始」的,与统计面板「本周开始」同口径
+    const w0=day(-((now.getDay()+6)%7)), w1=day(-((now.getDay()+6)%7)+7);
+    return s>=w0&&s<w1;
+  }
+  if(w==='本月开始'){   // 只算本月内「开始」的,与统计面板「本月开始」同口径
+    const m0=new Date(now.getFullYear(),now.getMonth(),1);
+    const m1=new Date(now.getFullYear(),now.getMonth()+1,1);
+    return s>=m0&&s<m1;
   }
   if(w==='未开始')return s>now;
   if(w==='已结束')return hasEnd&&t<now;
@@ -819,6 +828,17 @@ function statCat(c,el){
   activeCats=new Set([c]);
   saveFilters(); render();
   flash('只看「'+c+'」');
+}
+/* 统计面板的「本周开始 / 本月开始」:用同口径快捷词直接筛列表 */
+function statRange(w,el){
+  const o=el&&el.closest?el.closest('.detail-overlay'):null; if(o)o.remove();
+  q=w; const qi=$('#q'); if(qi)qi.value=w;
+  dq=''; tab='all'; _allLimit=60;
+  clearUrlGames();
+  activeGames=new Set((DATA&&DATA.games||[]).map(g=>g.id));
+  activeCats=new Set(Object.keys(CAT_COLOR));
+  saveFilters(); render();
+  flash('只看'+w+'的活动');
 }
 
 /* ================= 状态 / 筛选 ================= */
@@ -2072,7 +2092,7 @@ function openStats(){
         <div><b>${soon.length}</b><span>即将开始</span></div>
         <div><b>${recent.length}</b><span>近30天开始</span></div>
       </div>
-      <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
+      <div class="stat-sub"><span class="stat-link" onclick="statRange('本周开始',this)">本周开始 <b>${weekNew}</b> 个</span> · <span class="stat-link" onclick="statRange('本月开始',this)">本月开始 <b>${monthNew}</b> 个</span></div>
       <div class="stat-sub ${missingN?'stat-link':''}" ${missingN?`onclick="statQuality('noimg',this)"`:''}>缺少封面图 <b>${missingN}</b> 条${missingN?' · 点此只看这些,可在详情里点「缺图」反馈':''}${missingN?'<span style="float:right;color:var(--label3)" aria-hidden="true">›</span>':''}</div>
       ${noEndN?`<div class="stat-sub stat-link" onclick="statQuality('noend',this)">缺结束时间 <b>${noEndN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">点此只看这些;详情里可点「缺结束时间」反馈,核查会补上</span></span><span style="float:right;color:var(--label3)" aria-hidden="true">›</span></div>`:''}
       ${staleN?`<div class="stat-sub stat-link" onclick="statQuality('stale',this)">更早开始·结束未知 <b>${staleN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">点此只看这些;列表默认折叠,也不计入「进行中」与订阅</span></span><span style="float:right;color:var(--label3)" aria-hidden="true">›</span></div>`:''}
