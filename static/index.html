@@ -930,14 +930,25 @@ function favEvents(evs,now){
 }
 let _unknownAll=false;   // 「更早开始·结束未知」是否展开(默认折叠)
 function toggleUnknownAll(){_unknownAll=!_unknownAll;renderList()}
+/* 「更早开始·结束未知」:开始超过 30 天还没有结束时间(前端折叠 / ICS 不订阅,口径一致) */
+function isStaleUnknown(e,now){
+  const s=evStart(e);
+  return !!(s&&!e.end&&s<new Date(now.getTime()-30*864e5));
+}
+/* 真正进行中:已开始且未结束;无结束时间的老条目不冒充「进行中」(统计口径与列表一致) */
+function isOngoingEvent(e,now){
+  const s=evStart(e);
+  if(!s||s>now)return false;
+  if(!e.end)return !isStaleUnknown(e,now);
+  return evEnd(e)>=now;
+}
 /* 进行中分组:有真实结束时间的算「进行中」;结束时间未知的单列,避免与已知截止的混排 */
 function ongoingGroups(evs,now){
   const live=[],unknown=[],stale=[];
-  const cut=new Date(now.getTime()-30*864e5);   // 结束未知:最近 30 天正常展示,更早的折叠
   for(const e of evs){
     const s=evStart(e); if(!s||s>now)continue;
     if(e.end){if(evEnd(e)>=now)live.push(e)}
-    else (s<cut?stale:unknown).push(e);
+    else (isStaleUnknown(e,now)?stale:unknown).push(e);
   }
   const fav=(a,b)=>((isFav(b)?1:0)-(isFav(a)?1:0));
   live.sort((a,b)=>fav(a,b)||(evEnd(a)-evEnd(b)));
@@ -1744,7 +1755,7 @@ function copyIcsUrl(){
 function openStats(){
   const evs=(DATA&&DATA.events||[]).filter(isEv);  // 只统计真活动
   const now=new Date();
-  const ongoing=evs.filter(e=>{const s=evStart(e),t=e.end?evEnd(e):null;return s&&s<=now&&(!t||t>=now)});
+  const ongoing=evs.filter(e=>isOngoingEvent(e,now));   // 与列表「进行中」同口径,不含更早开始·结束未知
   const soon=evs.filter(e=>{const s=evStart(e);return s&&s>now});
   // 各游戏:总数 + 进行中
   const byGame=new Map();
@@ -1773,6 +1784,7 @@ function openStats(){
   const monthNew=evs.filter(e=>{const s=evStart(e);return s&&s>=mStart&&s<mEnd}).length;
   /* 缺封面图条数:数据质量一眼可见,也是每日核查的补图指标 */
   const missingN=evs.filter(e=>!(e.image||'').trim()).length;
+  const staleN=evs.filter(e=>isStaleUnknown(e,now)).length;
   /* 未来 14 天时间线:横条长度=活动覆盖区间,可直接看出时间重叠与空窗 */
   const tlEnd=new Date(now.getTime()+14*864e5);
   const tl0=now.getTime(), tlSpan=tlEnd.getTime()-tl0;
@@ -1808,6 +1820,7 @@ function openStats(){
       </div>
       <div class="stat-sub">本周开始 <b>${weekNew}</b> 个 · 本月开始 <b>${monthNew}</b> 个</div>
       <div class="stat-sub">缺少封面图 <b>${missingN}</b> 条${missingN?' · 可在详情里点「缺图」反馈':''}</div>
+      ${staleN?`<div class="stat-sub">更早开始·结束未知 <b>${staleN}</b> 条<span style="color:var(--label3)"> · <span style="font-size:11.5px">列表已折叠,也不计入「进行中」与订阅</span></span></div>`:''}
       <div class="stat-sec">近期变更 · 近 14 天</div>
       ${chgRows.length?chgRows.map(chgRow).join(''):'<div class="sub" style="padding:6px 0">近 14 天没有抓取到新增 / 改期 / 移除</div>'}
       <div class="stat-sec">各游戏活动数</div>

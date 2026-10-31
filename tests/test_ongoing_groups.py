@@ -31,7 +31,8 @@ function grab(name) {
 }
 const EVENTS = __EVENTS__;
 const FAV = new Set(__FAV__);
-const fn = new Function('evStart', 'evEnd', 'isFav', grab('ongoingGroups') + '\nreturn ongoingGroups;');
+const fn = new Function('evStart', 'evEnd', 'isFav',
+  grab('isStaleUnknown') + '\n' + grab('ongoingGroups') + '\nreturn ongoingGroups;');
 const g = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id))(EVENTS, new Date('2026-10-31T12:00:00+08:00'));
 console.log(JSON.stringify({ live: g.live.map(e => e.id), unknown: g.unknown.map(e => e.id), stale: g.stale.map(e => e.id) }));
 """
