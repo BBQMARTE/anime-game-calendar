@@ -94,7 +94,7 @@ def main():
     for marker in ('状态同步码', 'openReports()', 'withdrawReport(', 'dq-bar', "statRange('本周开始'",
                    "todayJump('今天开始')", 'hlText(e.title)', 'markReported(overlay,e)',
                    'dayParam(selDay)', 'srcInfo(this)', 'exportSearch().quick', 'buildCsvText',
-                   'exportFilteredIcs'):
+                   'exportFilteredIcs', 'exportFavIcs'):
         check('首页含 %s' % marker, marker in page, True)
 
     pairs = [('static/index.html', 'android/app/src/main/assets/www/index.html'),

@@ -54,6 +54,13 @@ console.log(JSON.stringify({
   label: src.includes('导出当前筛选 .ics'),
   usesBuild: src.includes("buildDayIcs(list,'当前筛选')"),
   icsName: src.includes('二游活动_当前筛选.ics'),
+  favFn: src.includes('function exportFavIcs('),
+  favUsesList: src.includes('const evs=favList().filter(isEv)'),
+  favBuild: src.includes("buildDayIcs(list,'我的收藏')"),
+  favName: src.includes('二游活动_收藏.ics'),
+  favEntry: src.includes('onclick="exportFavIcs()"'),
+  favEmpty: src.includes('还没有可导出的收藏活动'),
+  favNoStart: src.includes('收藏的活动都还没确定开始时间'),
 }));
 """
 
@@ -92,6 +99,13 @@ def main():
     check('入口文案清晰', d['label'], True)
     check('用 buildDayIcs 生成', d['usesBuild'], True)
     check('文件名固定可预期', d['icsName'], True)
+    check('收藏 .ics 导出已实现', d['favFn'], True)
+    check('收藏导出用 favList(与收藏页同源)', d['favUsesList'], True)
+    check('收藏导出日历名为「我的收藏」', d['favBuild'], True)
+    check('收藏导出文件名固定', d['favName'], True)
+    check('设置里有收藏 .ics 入口', d['favEntry'], True)
+    check('没有收藏时有明确提示', d['favEmpty'], True)
+    check('收藏全部无开始时间有提示', d['favNoStart'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

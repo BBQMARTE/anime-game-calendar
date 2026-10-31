@@ -1409,6 +1409,20 @@ function exportFilteredIcs(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   flash('已导出 '+list.length+' 个活动'+(evs.length>list.length?' · '+(evs.length-list.length)+' 条时间待定未导出':''));
 }
+/* 收藏的活动整体导成一个 .ics:只导收藏,不受顶部筛选影响(与收藏页同一份列表) */
+function exportFavIcs(){
+  const evs=favList().filter(isEv);
+  if(!evs.length){flash('还没有可导出的收藏活动');return}
+  const list=filterIcsList(evs);
+  if(!list.length){flash('收藏的活动都还没确定开始时间,暂时不能加入日历');return}
+  const ics=buildDayIcs(list,'我的收藏');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download='二游活动_收藏.ics';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  flash('已导出 '+list.length+' 个收藏活动'+(evs.length>list.length?' · '+(evs.length-list.length)+' 条时间待定未导出':''));
+}
 function dayCopyText(ev,label){
   const n=ev.starts.length+ev.runs.length+ev.ends.length;
   if(!n)return '';
@@ -2446,6 +2460,10 @@ function openSettings(){
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportFilteredIcs()" role="button" aria-label="导出当前筛选日历">
         <div class="lbl">导出当前筛选 .ics<span class="sub">游戏/分类、搜索词、快捷词、质量筛选都算,眼前这批活动一次导入系统日历;离线 APK 也能用</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="set-row" style="cursor:pointer" onclick="exportFavIcs()" role="button" aria-label="导出收藏日历">
+        <div class="lbl">导出收藏 .ics<span class="sub">只导已收藏的活动(与收藏页同一份列表,不受顶部筛选影响);离线 APK 也能用</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
