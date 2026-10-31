@@ -30,9 +30,9 @@ function grab(name) {
   throw new Error('unbalanced: ' + name);
 }
 const code = ['evStart','evEnd','icsEsc','icsUtc','icsDate','_u8len','icsFold',
-  'icsCalendarHead','icsVevent','buildEventIcs','buildDayIcs']
+  'icsCalendarHead','icsVevent','icsReadyList','buildEventIcs','buildDayIcs']
   .map(grab).join('\n');
-const api = new Function('Date', code + '\nreturn {buildEventIcs,buildDayIcs};')(Date);
+const api = new Function('Date', code + '\nreturn {buildEventIcs,buildDayIcs,icsReadyList};')(Date);
 const toUtc = s => new Date(s).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 const timed = {
   id:'ev1', game_id:'hsr', game:'崩坏：星穹铁道', category:'活动',
@@ -74,6 +74,8 @@ console.log(JSON.stringify({
   dayUidCount: dayUids.length,
   dayUidUnique: new Set(dayUids).size,
   dayEmpty: api.buildDayIcs([]),
+  readyCount: api.icsReadyList([timed, allDay, nodate, {id:'nostart'}]).length,
+  readyTotal: 4,
   hasEntry: src.includes('onclick="exportDayIcs()"'),
 }));
 """
@@ -117,6 +119,8 @@ def main():
     check("当天导出带日历名", d['dayCalname'], True)
     check("同一天的 UID 不重复", (d['dayUidCount'], d['dayUidUnique']), (2, 2))
     check("空列表返回空串", d['dayEmpty'], '')
+    check("时间待定的条目不写入日历(导出条数不虚报)",
+          (d['readyCount'], d['readyTotal']), (2, 4))
     check("日历当天有「导出 .ics」入口", d['hasEntry'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))

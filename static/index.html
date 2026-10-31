@@ -1262,11 +1262,17 @@ function copyDay(){
   if(!text){flash('当天没有活动可复制');return}
   copyText(text).then(()=>flash('已复制当天活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
 }
+/* 可写入日历的条目:必须有开始时间(时间待定的条目导出时会跳过,不能静默少算条数) */
+function icsReadyList(evs){
+  return (evs||[]).filter(e=>evStart(e));
+}
 /* 导出当天活动 .ics:导入系统日历后,当天所有活动都在同一个日历里 */
 function exportDayIcs(){
   const ev=eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate());
-  const list=[...ev.starts,...ev.runs,...ev.ends];
-  if(!list.length){flash('当天没有活动可导出');return}
+  const all=[...ev.starts,...ev.runs,...ev.ends];
+  if(!all.length){flash('当天没有活动可导出');return}
+  const list=icsReadyList(all);
+  if(!list.length){flash('当天活动的开始时间都还没确定,暂时不能加入日历');return}
   const label=dayLabel(selDay);
   const ics=buildDayIcs(list,label);
   const name=('二游活动_'+label).replace(/[\\/:*?"<>|·\s]/g,'_').slice(0,60)+'.ics';
@@ -1275,7 +1281,7 @@ function exportDayIcs(){
   a.download=name;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  flash('已导出当天 '+list.length+' 个活动');
+  flash('已导出当天 '+list.length+' 个活动'+(all.length>list.length?' · '+(all.length-list.length)+' 条时间待定未导出':''));
 }
 /* 周范围(周日起 7 天):start 含、end 不含,便于按日窗口判断 */
 function weekRange(base){
