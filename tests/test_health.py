@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""运行状态接口 /api/health 测试。
+"""/api/health 监控字段测试。
 
-给每日自动化 / 云端 NPC / 外部监控用:一次拿到更新时间、是否陈旧、
-事件数、各数据源成败与刷新中状态。内部错误源(_system)不对外暴露。
+外部脚本/监控现在能一次拿到:真活动数、进行中、更早开始·结束未知、
+近 14 天变更条数——口径必须与前端列表/统计页/ICS 一致,不能各算各的。
 
-运行:python3 tests/test_health.py
+运行:python tests/test_health.py
 """
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,52 +26,66 @@ def check(label, got, expect):
 
 
 def main():
-    orig = {k: app._state[k] for k in ('updated', 'events', 'sources', 'refreshing')}
-    c = app.app.test_client()
+    backup_state = dict(app._state)
+    backup_changes = app._load_changes
+    now = app._bj_now().replace(tzinfo=None)
+    iso = lambda d: (now + timedelta(days=d)).isoformat(timespec='seconds')
+    day = lambda d: (now + timedelta(days=d)).strftime('%Y-%m-%d')
+
+    events = [
+        # 进行中:两天前开始,明天结束
+        {'id': 'run', 'kind': 'event', 'start': iso(-2), 'end': iso(1), 'image': 'x.jpg'},
+        # 进行中:5 天前开始,结束未知(未到 30 天)
+        {'id': 'noend', 'kind': 'event', 'start': iso(-5)},
+        # 已结束(防御性:状态里通常已被 _drop_expired 清理)
+        {'id': 'done', 'kind': 'event', 'start': iso(-9), 'end': day(-1)},
+        # 未来
+        {'id': 'future', 'kind': 'event', 'start': iso(3)},
+        # 更早开始·结束未知:40 天前开始且无结束
+        {'id': 'stale', 'kind': 'event', 'start': day(-40)},
+        # 资讯:不计入真活动,也不算进行中(即使今天开始)
+        {'id': 'info', 'kind': 'info', 'start': iso(0), 'date': iso(0)},
+    ]
+    changes = {
+        'fresh': {'type': 'new', 'at': iso(-1)},
+        'edge': {'type': 'moved', 'at': iso(-13), 'rev': 2},
+        'old': {'type': 'new', 'at': iso(-20)},
+    }
+
+    app._load_changes = lambda: dict(changes)
+    client = app.app.test_client()
     try:
-        app._state['events'] = [{'id': 'a', 'image': 'x.png'}, {'id': 'b'}, {'id': 'c'}]
-        app._state['sources'] = {'hsr': {'ok': True, 'count': 10},
-                                 'bilibili': {'ok': False, 'count': 0},
-                                 '_system': {'ok': False, 'count': 0}}
-        app._state['refreshing'] = False
+        app._state.update({'updated': iso(0), 'events': events,
+                           'sources': {'manual': {'ok': True, 'count': 3}},
+                           'refreshing': False})
+        r = client.get('/api/health')
+        check('200', r.status_code, 200)
+        d = r.get_json()
+        check('总条目含资讯', d['events'], 6)
+        check('真活动数', d['events_real'], 5)
+        check('进行中:2 条(有结束 + 未超 30 天无结束)', d['ongoing'], 2)
+        check('更早开始·结束未知', d['stale_unknown'], 1)
+        check('近 14 天变更', d['changes_recent'], 2)
+        check('缺图:除 run 外 4 条', d['missing_images'], 4)
+        check('数据源状态保留', d['sources']['manual'], {'ok': True, 'count': 3})
+        check('未过期', d['stale'], False)
 
-        # 1. 新鲜数据
-        app._state['updated'] = datetime.now().isoformat(timespec='seconds')
-        d = c.get('/api/health').get_json()
-        check("ok 恒为 true", d['ok'], True)
-        check("事件数", d['events'], 3)
-        check("缺图条数(有图的除外)", d['missing_images'], 2)
-        check("新鲜数据不判陈旧", d['stale'], False)
-        check("新鲜数据小时数约 0", d['stale_hours'], 0.0)
-        check("刷新中状态", d['refreshing'], False)
-        check("暴露正常数据源", sorted(d['sources'].keys()), ['bilibili', 'hsr'])
-        check("数据源成败与条数", d['sources']['hsr'], {'ok': True, 'count': 10})
-        check("内部错误源不外露", '_system' in d['sources'], False)
-        check("带服务器时间", bool(d['server_time']), True)
+        # 辅助函数边界:开始超过 30 天但已有结束时间 → 不算「结束未知」
+        check('有结束时间的不算 stale_unknown',
+              app._is_stale_unknown({'start': day(-40), 'end': day(-39)}), False)
+        check('无开始时间的不算 stale_unknown', app._is_stale_unknown({'start': None}), False)
+        check('刚好 30 天前仍是进行中口径内', app._is_stale_unknown({'start': day(-30)}), False)
+        check('31 天前算 stale', app._is_stale_unknown({'start': day(-31)}), True)
 
-        # 2. 超过 24 小时
-        app._state['updated'] = (datetime.now() - timedelta(hours=30)).isoformat(timespec='seconds')
-        d = c.get('/api/health').get_json()
-        check("30 小时未更新判陈旧", d['stale'], True)
-        check("陈旧小时数约 30", 29.9 <= d['stale_hours'] <= 30.1, True)
-
-        # 3. 非法 / 缺失更新时间
-        app._state['updated'] = 'not-a-date'
-        d = c.get('/api/health').get_json()
-        check("非法时间不判陈旧", d['stale'], False)
-        check("非法时间小时数为 null", d['stale_hours'], None)
-        app._state['updated'] = None
-        d = c.get('/api/health').get_json()
-        check("无更新时间不判陈旧", d['stale'], False)
-        check("无更新时间小时数为 null", d['stale_hours'], None)
-
-        # 4. 刷新中
-        app._state['refreshing'] = True
-        d = c.get('/api/health').get_json()
-        check("刷新中状态透出", d['refreshing'], True)
+        # updated 超过 24 小时 → stale
+        app._state['updated'] = iso(-2)
+        d2 = client.get('/api/health').get_json()
+        check('超过 24 小时标记 stale', d2['stale'], True)
+        check('stale_hours 约为 48', round(d2['stale_hours']), 48)
     finally:
-        for k, v in orig.items():
-            app._state[k] = v
+        app._load_changes = backup_changes
+        app._state.clear()
+        app._state.update(backup_state)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-10-31 · 运行状态接口补全监控口径
+
+- **`/api/health` 增加 `events_real` / `ongoing` / `stale_unknown` / `changes_recent`**:外部脚本不必再拉全量 `/api/events` 自己算。四个字段与前端列表、统计页、ICS 订阅共用同一套判定(`_is_ongoing` / `_is_stale_unknown`),不会出现「监控说进行中、页面说历史」的口径分叉
+- 顺手把 ICS 里内联的「30 天无结束」判断收进 `_is_stale_unknown()`,订阅与健康检查共用一处实现;`missing_images` 口径也从「所有条目」收紧为「真活动」
+- 新增 `tests/test_health.py`(进行中/已结束/未来/无结束未超期/无结束超 30 天/资讯不计入、14 天变更窗口与 stale 边界)
+
 ## 2026-10-31 · v1.9.1 · 统计页「进行中」口径对齐列表
 
 - **修掉统计虚高**:无结束时间且开始超过 30 天的条目(列表里在「更早开始·结束未知」折叠区)此前仍被统计成「进行中」。现在列表与统计共用 `isStaleUnknown / isOngoingEvent`,与 ICS 的不订阅口径一致

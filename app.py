@@ -1051,6 +1051,46 @@ def _default_end(start_iso):
         return None
 
 
+_STALE_UNKNOWN_DAYS = 30
+
+
+def _stale_unknown_cut(now=None):
+    now = now or _bj_now().replace(tzinfo=None)
+    return (now - timedelta(days=_STALE_UNKNOWN_DAYS)).strftime('%Y-%m-%d')
+
+
+def _is_stale_unknown(e, cut=None):
+    """开始超过 30 天仍无结束时间:不构成「进行中」,也不进订阅。
+
+    与前端 isStaleUnknown() 同一口径。列表折叠、统计页与 ICS 三处共用,
+    避免出现「列表说这是历史、订阅里还挂着」这种分叉。
+    """
+    e = e or {}
+    start = str(e.get('start') or '')[:10]
+    if not start or e.get('end'):
+        return False
+    return start < (cut or _stale_unknown_cut())
+
+
+def _is_ongoing(e, now=None):
+    """与前端 isOngoingEvent() 同一口径:已开始且(有结束就比结束,无结束排除历史条目)"""
+    now = now or _bj_now().replace(tzinfo=None)
+    e = e or {}
+    try:
+        s = datetime.fromisoformat(str(e.get('start') or '')[:19])
+    except (ValueError, TypeError):
+        return False
+    if s > now:
+        return False
+    end = e.get('end')
+    if end:
+        try:
+            return datetime.fromisoformat(str(end)[:19]) >= now
+        except (ValueError, TypeError):
+            return False
+    return not _is_stale_unknown(e)
+
+
 def _ics_utc(iso, day_end=False):
     """本地 ISO 时间串 → ICS UTC 时间;day_end=True 且无时分则取当天 23:59"""
     try:
@@ -1080,7 +1120,6 @@ def api_ics():
     # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
     cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
     today = _bj_now().replace(tzinfo=None).strftime('%Y-%m-%d')
-    stale_cut = (_bj_now().replace(tzinfo=None) - timedelta(days=30)).strftime('%Y-%m-%d')
     n = 0
     for e in events:
         if games and e.get('game_id') not in games:
@@ -1098,7 +1137,7 @@ def api_ics():
             continue
         # 与前端「更早开始·结束未知」的折叠口径一致:开始超过 30 天仍无结束的,
         # 不再补默认 2 天窗口塞进订阅日历(以前会留下一堆过去的事件)
-        if not e.get('end') and str(s_iso)[:10] < stale_cut:
+        if _is_stale_unknown(e):
             continue
         ds = _ics_utc(s_iso)
         # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
@@ -1139,6 +1178,11 @@ def api_health():
             hours = max(0.0, (datetime.now() - datetime.fromisoformat(str(updated))).total_seconds() / 3600)
         except (ValueError, TypeError):
             hours = None
+    now = _bj_now().replace(tzinfo=None)
+    real = [e for e in events if (e.get('kind') or 'event') == 'event']
+    cut14 = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
+    changes_recent = sum(1 for rec in (_load_changes() or {}).values()
+                         if str((rec or {}).get('at') or '') >= cut14)
     return jsonify({
         'ok': True,
         'updated': updated,
@@ -1146,9 +1190,11 @@ def api_health():
         'stale_hours': round(hours, 1) if hours is not None else None,
         'refreshing': refreshing,
         'events': len(events),
-        'missing_images': sum(1 for e in events
-                              if (e.get('kind') or 'event') == 'event'
-                              and not (e.get('image') or '').strip()),
+        'events_real': len(real),
+        'ongoing': sum(1 for e in real if _is_ongoing(e, now)),
+        'stale_unknown': sum(1 for e in real if _is_stale_unknown(e)),
+        'changes_recent': changes_recent,
+        'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),
                         'count': (v or {}).get('count', 0)}
                     for k, v in sources.items() if not str(k).startswith('_')},
