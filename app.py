@@ -1465,6 +1465,7 @@ def api_health():
             hours = None
     now = _bj_now().replace(tzinfo=None)
     real = [e for e in events if (e.get('kind') or 'event') == 'event']
+    reports = _load_reports()
     cut14 = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
     changes_recent = sum(1 for rec in (_load_changes() or {}).values()
                          if str((rec or {}).get('at') or '') >= cut14)
@@ -1481,6 +1482,8 @@ def api_health():
         'ongoing': sum(1 for e in real if _is_ongoing(e, now)),
         'stale_unknown': sum(1 for e in real if _is_stale_unknown(e, now)),
         'changes_recent': changes_recent,
+        'feedback_total': len(reports),
+        'feedback_pending': sum(1 for r in reports if not (r or {}).get('done')),
         'missing_end': sum(1 for e in real if not e.get('end') and not _is_point_item(e)),
         'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),

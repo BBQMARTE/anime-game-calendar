@@ -53,6 +53,8 @@ def main():
     }
 
     app._load_changes = lambda: dict(changes)
+    backup_reports = app._load_reports
+    app._load_reports = lambda: [{'done': False}, {'done': True}, {'done': False}]
     client = app.app.test_client()
     try:
         app._state.update({'updated': iso(0), 'events': events,
@@ -66,6 +68,8 @@ def main():
         check('进行中:2 条(有结束 + 未超 30 天无结束)', d['ongoing'], 2)
         check('更早开始·结束未知', d['stale_unknown'], 1)
         check('近 14 天变更', d['changes_recent'], 2)
+        check('反馈总数', d['feedback_total'], 3)
+        check('待核查反馈数', d['feedback_pending'], 2)
         check('缺结束时间:noend / future / stale 共 3 条', d['missing_end'], 3)
         check('缺图:除 run 外 4 条', d['missing_images'], 4)
         check('默认无刷新错误', d['last_error'], None)
@@ -122,6 +126,7 @@ def main():
         check('内部源仍不对外', '_system' in (d3.get('sources') or {}), False)
     finally:
         app._load_changes = backup_changes
+        app._load_reports = backup_reports
         app._state.clear()
         app._state.update(backup_state)
 

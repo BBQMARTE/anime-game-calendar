@@ -53,7 +53,7 @@ def main():
         return 1
 
     for k in ('updated', 'events', 'events_real', 'missing_end', 'missing_images',
-              'stale_unknown', 'sources', 'last_error'):
+              'stale_unknown', 'sources', 'last_error', 'feedback_total', 'feedback_pending'):
         check('health 含字段 %s' % k, k in h, True)
     check('health 数据源带 last_ok',
           all('last_ok' in v for v in (h.get('sources') or {}).values()), True)
