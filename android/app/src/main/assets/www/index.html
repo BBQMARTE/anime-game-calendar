@@ -1167,7 +1167,7 @@ function renderList(){
       ? '已隐藏未核实的自动条目<br>可在设置里关闭「隐藏未核实的自动条目」'
       : '暂无数据';
   // 数据质量筛选条:显示当前口径与命中条数,点 × 退出
-  const dqHtml=dq?`<div class="dq-bar" role="status"><span>只看「${esc(DQ_LABEL[dq]||dq)}」 · ${filteredAll().length} 条</span><b onclick="setQuality('')" role="button" aria-label="退出数据质量筛选">×</b></div>`:'';
+  const dqHtml=dq?`<div class="dq-bar" role="status"><span>只看「${esc(DQ_LABEL[dq]||dq)}」 · ${filteredAll().length} 条</span><b onclick="exportCsv()" style="font-size:12.5px;padding:0 6px" role="button" aria-label="导出当前质量筛选 CSV">导出</b><b onclick="setQuality('')" role="button" aria-label="退出数据质量筛选">×</b></div>`:'';
   $('#list').innerHTML=dqHtml+(html||`<div class="empty">${emptyHint}</div>`);
 }
 let _loadingMore=false;
@@ -1950,13 +1950,14 @@ function openSettings(){
   loadNotifyCfgUI();
 }
 /* ── 当前筛选的查询串:ICS 订阅与 CSV 导出共用 ── */
-function filterQuery(){
+function filterQuery(withDq){
   const ids=[...calGamesSet()];
   const all=(DATA&&DATA.games||[]).map(g=>g.id);
   const cats=[...activeCats], allC=Object.keys(CAT_COLOR);
   const q=[];
   if(ids.length&&ids.length<all.length)q.push('games='+ids.join(','));
   if(cats.length&&cats.length<allC.length)q.push('cats='+cats.map(encodeURIComponent).join(','));
+  if(withDq&&dq)q.push('dq='+encodeURIComponent(dq));   // 只给 CSV 用;订阅链接不打包质量筛选
   return q.length?'?'+q.join('&'):'';
 }
 function apiOrigin(){
@@ -1974,7 +1975,7 @@ function exportCsv(){
   const o=apiOrigin();
   if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
   const a=document.createElement('a');
-  a.href=o+'/api/export.csv'+filterQuery();
+  a.href=o+'/api/export.csv'+filterQuery(true);   // 当前质量筛选也带进导出
   a.download='二游活动日历.csv';
   document.body.appendChild(a);a.click();a.remove();
 }

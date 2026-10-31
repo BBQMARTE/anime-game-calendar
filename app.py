@@ -1319,6 +1319,21 @@ def api_health():
     })
 
 
+def _dq_filter(rows, dq, now=None):
+    """数据质量筛选(?dq=noimg|noend|stale),与前端 dqMatch/统计计数逐条同口径。
+
+    缺图 = 图片为空或纯空白;缺结束 = 没有 end;
+    更早开始未知 = 开始超 30 天仍无结束(复用 _is_stale_unknown,与列表折叠/订阅排除一致)。
+    """
+    if dq == 'noimg':
+        return [e for e in rows if not (e.get('image') or '').strip()]
+    if dq == 'noend':
+        return [e for e in rows if not e.get('end')]
+    if dq == 'stale':
+        return [e for e in rows if _is_stale_unknown(e, now)]
+    return rows
+
+
 @app.route('/api/export.csv')
 def api_export_csv():
     """导出 CSV(Excel 直接打开):按 ?games= / ?cats= 筛选,与订阅同口径。
@@ -1338,6 +1353,8 @@ def api_export_csv():
         fav = _load_userstate().get('fav') or {}
         rows = [e for e in rows
                 if fav.get('%s|%s' % (e.get('game_id') or '', e.get('title') or ''), 0) > 0]
+    # ?dq=noimg|noend|stale:只导出当前数据质量视图里的条目(与列表筛选条同一口径)
+    rows = _dq_filter(rows, (request.args.get('dq') or '').strip())
     rows.sort(key=lambda e: (e.get('start') or e.get('date') or '~', e.get('title') or ''))
     buf = StringIO()
     w = csv.writer(buf)

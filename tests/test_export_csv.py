@@ -29,13 +29,16 @@ def check(label, got, expect):
 EVENTS = [
     {'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '活动, "限定"', 'category': '活动',
      'kind': 'event', 'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59',
-     'src': 'manual', 'link': 'https://example.com/a?b=1,2'},
+     'src': 'manual', 'link': 'https://example.com/a?b=1,2',
+     'image': 'https://example.com/cover.jpg'},
     {'game_id': 'zzz', 'game': '绝区零', 'title': '签到活动', 'category': '签到',
      'kind': 'event', 'start': '2026-10-30T10:00', 'src': 'bilibili'},
     {'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'title': '自动资讯', 'category': '资讯',
      'kind': 'info', 'date': '2026-10-20T10:00'},
     {'game_id': 'wuwa', 'game': '鸣潮', 'title': '无日期活动', 'category': '活动',
      'kind': 'event', '_nodate': True, 'date': '2026-10-21T10:00'},
+    {'game_id': 'arknights', 'game': '明日方舟', 'title': '老活动·结束未知', 'category': '活动',
+     'kind': 'event', 'start': '2026-08-01T10:00', 'src': 'bilibili'},
 ]
 
 
@@ -56,9 +59,9 @@ def main():
 
     rows = rows_of(r)
     check("表头", rows[0], ['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接'])
-    check("全部条目都导出(含资讯/无日期)", len(rows) - 1, 4)
+    check("全部条目都导出(含资讯/无日期)", len(rows) - 1, 5)
     check("按开始时间升序,无 start 用 date", [x[1] for x in rows[1:]],
-          ['自动资讯', '无日期活动', '签到活动', '活动, "限定"'])
+          ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动', '活动, "限定"'])
     by_title = {x[1]: x for x in rows[1:]}
     check("逗号/引号标题原样还原", by_title['活动, "限定"'][1], '活动, "限定"')
     check("人工条目来源标为已核实", by_title['活动, "限定"'][6], '已核实')
@@ -85,7 +88,22 @@ def main():
     rows = rows_of(c.get('/api/export.csv?fav=1&games=wuwa'))
     check("收藏 + 游戏筛选可组合", [x[1] for x in rows[1:]], ['无日期活动'])
     rows = rows_of(c.get('/api/export.csv?fav=0'))
-    check("fav=0 不过滤", len(rows) - 1, 4)
+    check("fav=0 不过滤", len(rows) - 1, 5)
+
+    # 数据质量筛选(?dq=):与列表上的「缺图 / 缺结束 / 更早开始未知」同一口径
+    rows = rows_of(c.get('/api/export.csv?dq=noimg'))
+    check("?dq=noimg 只导出缺图条目", [x[1] for x in rows[1:]],
+          ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动'])
+    rows = rows_of(c.get('/api/export.csv?dq=noend'))
+    check("?dq=noend 只导出缺结束时间条目", [x[1] for x in rows[1:]],
+          ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动'])
+    rows = rows_of(c.get('/api/export.csv?dq=stale'))
+    check("?dq=stale 只导出更早开始·结束未知", [x[1] for x in rows[1:]],
+          ['老活动·结束未知'])
+    rows = rows_of(c.get('/api/export.csv?games=arknights&dq=stale'))
+    check("质量筛选可与游戏筛选组合", [x[1] for x in rows[1:]], ['老活动·结束未知'])
+    rows = rows_of(c.get('/api/export.csv?dq=bogus'))
+    check("非法 dq 忽略(按全量导出)", len(rows) - 1, 5)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
