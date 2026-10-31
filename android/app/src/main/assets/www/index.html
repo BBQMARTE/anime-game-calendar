@@ -2294,6 +2294,7 @@ async function loadNotifyCfgUI(){
     return;
   }
   const leads=[[0,'仅当天'],[1,'提前1天'],[3,'提前3天']];
+  const endLeads=[[0,'仅当天'],[1,'今明两天'],[2,'未来3天'],[3,'未来4天']];
   box.innerHTML=`
     <div style="padding:6px 0 2px">
       <div class="lbl" style="font-size:14px">Webhook 推送地址<span class="sub">${NC.has_webhook?'已配置;填写新地址保存可覆盖,清空保存即停用':'未配置 — 支持飞书群机器人 / Bark / Server酱 / PushPlus / 通用 {title,body}'}</span></div>
@@ -2318,6 +2319,12 @@ async function loadNotifyCfgUI(){
       <div class="lbl" style="font-size:14px">提前量<span class="sub">推送时汇总未来 N 天内开始的活动</span></div>
       <div class="set-games" style="margin-top:10px">
         ${leads.map(([v,t])=>`<span class="chip ${NC.lead_days===v?'on':''}" style="--c:var(--blue)" onclick="saveNotifyCfg({lead_days:${v}})">${t}</span>`).join('')}
+      </div>
+    </div>
+    <div style="padding:2px 0 12px">
+      <div class="lbl" style="font-size:14px">结束提醒<span class="sub">早间推送里汇总未来 N 天内截止的活动;晚间只推当天结束</span></div>
+      <div class="set-games" style="margin-top:10px">
+        ${endLeads.map(([v,t])=>`<span class="chip ${NC.end_lead_days===v?'on':''}" style="--c:var(--orange)" onclick="saveNotifyCfg({end_lead_days:${v}})">${t}</span>`).join('')}
       </div>
     </div>
     <div class="set-row" style="border-bottom:none;padding:10px 0 2px">

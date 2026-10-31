@@ -1124,6 +1124,7 @@ def api_notify_config():
     if request.method == 'GET':
         return jsonify({'time': cfg.get('time') or '08:30',
                         'lead_days': _lead_days(cfg),
+                        'end_lead_days': _end_lead(cfg),
                         'evening': cfg.get('evening') or '',
                         'fav_only': bool(cfg.get('fav_only')),
                         'has_webhook': bool((cfg.get('webhook') or '').strip())})
@@ -1142,6 +1143,9 @@ def api_notify_config():
     # 提前量:只放行 0/1/3
     if 'lead_days' in body:
         cfg['lead_days'] = _lead_days({'lead_days': body.get('lead_days')})
+    # 结束提醒提前量:只放行 0/1/2/3(今天起 N+1 天)
+    if 'end_lead_days' in body:
+        cfg['end_lead_days'] = _end_lead({'end_lead_days': body.get('end_lead_days')})
     # 晚间二次提醒:HH:MM 或空串(空 = 关闭)
     if 'evening' in body:
         t = str(body.get('evening') or '').strip()
@@ -1171,6 +1175,7 @@ def api_notify_config():
         return jsonify({'ok': False, 'error': 'io'}), 500
     return jsonify({'ok': True, 'time': cfg.get('time') or '08:30',
                     'lead_days': _lead_days(cfg),
+                    'end_lead_days': _end_lead(cfg),
                     'evening': cfg.get('evening') or '',
                     'fav_only': bool(cfg.get('fav_only')),
                     'has_webhook': bool((cfg.get('webhook') or '').strip())})
@@ -1777,6 +1782,7 @@ def _bj_now():
 
 _DAY_LABELS = {0: '今天', 1: '明天', 2: '后天'}
 _LEAD_CHOICES = (0, 1, 3)  # 当天 / 今明两天(历史默认) / 提前3天
+_END_LEAD_CHOICES = (0, 1, 2, 3)  # 结束提醒:仅当天 / 今明 / 3 天 / 4 天
 
 
 def _lead_days(cfg):
@@ -1786,6 +1792,15 @@ def _lead_days(cfg):
     except (TypeError, ValueError):
         return 1
     return n if n in _LEAD_CHOICES else 1
+
+
+def _end_lead(cfg):
+    """结束提醒提前量(天):今天 + N 天;0=仅当天;缺失或非法回落 1(今明两天)"""
+    try:
+        n = int(cfg.get('end_lead_days', 1))
+    except (TypeError, ValueError):
+        return 1
+    return n if n in _END_LEAD_CHOICES else 1
 
 
 def _friendly_dt(iso):
@@ -1801,7 +1816,7 @@ def _friendly_dt(iso):
 def _daily_notify(now=None, evening=False):
     """生成并推送当日汇总(now 可注入,便于测试)。
 
-    早间:未来 lead_days+1 天开始 + 今天/明天结束;晚间:只推明天开始 + 今天结束。
+    早间:未来 lead_days+1 天开始 + 今天起 end_lead+1 天结束;晚间:只推明天开始 + 今天结束。
     返回 None=没有需要推送的内容(不算失败);True/False=推送成功/失败。
     """
     cfg = _notify_config()
@@ -1819,7 +1834,10 @@ def _daily_notify(now=None, evening=False):
     naive_now = now.replace(tzinfo=None)   # 条目时间是北京时间裸值,比较前去掉时区
     # 晚安提醒只覆盖「明天开始」与「今天结束」,避免与早间推送重复刷屏
     start_days = {tomorrow: 1} if evening else days
-    end_days = (today,) if evening else (today, tomorrow)
+    end_lead = _end_lead(cfg)
+    end_days = ((today,) if evening
+                else tuple((now + timedelta(days=i)).strftime('%Y-%m-%d')
+                           for i in range(end_lead + 1)))
     fav_only = bool(cfg.get('fav_only'))
     fav_all = _load_userstate().get('fav') or {}      # 改期提醒只针对收藏,与 fav_only 开关无关
     fav_map = fav_all if fav_only else {}

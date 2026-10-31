@@ -28,14 +28,14 @@ def ev(title, start=None, end=None, kind='event'):
             'kind': kind, 'start': start, 'end': end}
 
 
-def collected(now, events):
+def collected(now, events, end_lead=1, evening=False):
     sent = []
     app._state['events'] = events
     app._state['sources'] = {}
     app._send_notify = lambda title, body: sent.append((title, body)) or True
     app._notify_config = lambda: {'time': '08:30', 'webhook': 'http://example.invalid/hook',
-                                  'lead_days': 1}
-    app._daily_notify(now)
+                                  'lead_days': 1, 'end_lead_days': end_lead}
+    app._daily_notify(now, evening=evening)
     return sent
 
 
@@ -77,9 +77,35 @@ def main():
                               end='2026-10-30T23:59', kind='info')])
     check("info 不进结束提醒", '公告今天结束' in (sent[0][1] if sent else ''), False)
 
+    # 结束提醒范围可调:今天起 N+1 天;0=仅当天
+    check("end_lead 默认 1", app._end_lead({}), 1)
+    check("end_lead 非法回落 1", app._end_lead({'end_lead_days': 'x'}), 1)
+    check("end_lead 越界回落 1", app._end_lead({'end_lead_days': 9}), 1)
+    check("end_lead 放行 2", app._end_lead({'end_lead_days': 2}), 2)
+
+    sent = collected(now, [ev('后天结束', start='2026-10-20T10:00', end='2026-11-01T03:59')],
+                     end_lead=2)
+    check("提前2天能看到后天结束", '后天结束' in (sent[0][1] if sent else ''), True)
+    sent = collected(now, [ev('明天结束X', start='2026-10-20T10:00', end='2026-10-31T03:59')],
+                     end_lead=0)
+    check("仅当天时明天结束不推", '明天结束X' in (sent[0][1] if sent else ''), False)
+
+    # 晚间场次仍只推今天结束,不受结束提前量影响
+    sent = collected(now, [ev('后天结束E', start='2026-10-20T10:00', end='2026-11-01T03:59'),
+                           ev('明天开始E', start='2026-10-31T10:00')],
+                     end_lead=3, evening=True)
+    check("晚间仍推送明天开始", '明天开始E' in (sent[0][1] if sent else ''), True)
+    check("晚间不提前推后天结束", '后天结束E' in (sent[0][1] if sent else ''), False)
+
+    # 配置接口回传结束提前量;设置 UI 有对应入口
+    j = app.app.test_client().get('/api/notify-config').get_json()
+    check("配置接口返回 end_lead_days", 'end_lead_days' in j, True)
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+               + '/static/index.html', encoding='utf-8').read()
+    check("设置里有结束提醒选项", '结束提醒' in src and 'end_lead_days' in src, True)
+
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
-
 
 if __name__ == '__main__':
     sys.exit(main())
