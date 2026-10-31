@@ -53,6 +53,8 @@ const hl = {
   quick: mkHl('今天')('今天开始活动'),
   xss: mkHl('<b>')('<b>x'),
   amp: mkHl('&')('A&B'),
+  multiTitle: mkHl('星穹 活动')('活动A'),
+  multiGame: mkHl('星穹 活动')('星穹铁道'),
 };
 console.log(JSON.stringify({
   today: run('今天'), tomorrow: run('明天'), week: run('本周'),
@@ -64,7 +66,8 @@ console.log(JSON.stringify({
   weekStart: run('本周开始'), monthStart: run('本月开始'),
   todayStart: run('今天开始'), todayEnd: run('今天结束'), running: run('进行中'),
   prefixHsrEnding: run('hsr: 即将结束'),
-  shortHsr: run('崩铁'), shortZzz: run('绝区零'), hl: hl,
+  shortHsr: run('崩铁'), shortZzz: run('绝区零'),
+  multiMatch: run('崩铁 活动'), multiMiss: run('活动 签到'), hl: hl,
 }));
 """
 
@@ -152,6 +155,10 @@ def main():
     check("高亮:快捷词不高亮", d['hl']['quick'], '今天开始活动')
     check("高亮:输出已转义,不注入标签", d['hl']['xss'], '<mark>&lt;b&gt;</mark>x')
     check("高亮:实体字符也转义", d['hl']['amp'], 'A<mark>&amp;</mark>B')
+    check("多关键词:空格分隔按 AND", d['multiMatch'], ['a', 'd', 'g', 'i'])
+    check("多关键词:任一条件不满足即不命中", d['multiMiss'], [])
+    check("高亮:多词命中标题里的词", d['hl']['multiTitle'], '<mark>活动</mark>A')
+    check("高亮:多词命中游戏名里的词", d['hl']['multiGame'], '<mark>星穹</mark>铁道')
 
     check("列表标题/描述走高亮函数",
           '<div class="row-title">${hlText(e.title)}</div>' in src

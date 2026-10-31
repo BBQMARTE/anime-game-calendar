@@ -591,13 +591,17 @@ function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.nam
 const GAME_SHORT={hsr:'崩铁',zzz:'绝区零',endfield:'终末地',arknights:'方舟',wuwa:'鸣潮',ananta:'异环',r1999:'1999'};
 function gameShort(id){if(id&&GAME_SHORT[id])return GAME_SHORT[id];const n=gameName(id);return (typeof n==='string'&&n)?n.slice(0,2):'活动'}
 function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-/* 搜索命中高亮:普通关键词大小写不敏感,高亮第一处;快捷词/游戏前缀本身不高亮 */
+/* 搜索命中高亮:普通关键词大小写不敏感,高亮第一处;快捷词/游戏前缀本身不高亮;
+   空格分隔的多个关键词命中任意一个即高亮(与搜索的多词 AND 口径一致) */
 function hlText(s){
-  const kw=q.trim().replace(/^([a-z0-9_]+):\s*/i,'').toLowerCase();
-  if(!kw||isQuickWord(kw))return esc(s);
-  const src=String(s||''), i=src.toLowerCase().indexOf(kw);
-  if(i<0)return esc(src);
-  return esc(src.slice(0,i))+'<mark>'+esc(src.slice(i,i+kw.length))+'</mark>'+esc(src.slice(i+kw.length));
+  const raw=q.trim().replace(/^([a-z0-9_]+):\s*/i,'');
+  if(!raw||isQuickWord(raw))return esc(s);
+  const src=String(s||''), lower=src.toLowerCase();
+  for(const t of raw.toLowerCase().split(/\s+/).filter(Boolean)){
+    const i=lower.indexOf(t);
+    if(i>=0)return esc(src.slice(0,i))+'<mark>'+esc(src.slice(i,i+t.length))+'</mark>'+esc(src.slice(i+t.length));
+  }
+  return esc(src);
 }
 /* 彩色 tag 字色:亮底(绿/橙/灰/粉/亮蓝)用深字,深底(紫/红)用白字——tag 背景不随主题变,两模式都达标 */
 function tagText(bg){
@@ -765,8 +769,9 @@ function gamePrefix(raw){
 }
 function filtered(){
   const gp=gamePrefix(q.trim());
-  const raw=gp?gp.rest:q.trim(), k=raw.toLowerCase();
+  const raw=gp?gp.rest:q.trim();
   const quick=isQuickWord(raw);
+  const terms=raw?raw.toLowerCase().split(/\s+/).filter(Boolean):[];
   const now=new Date();
   return (DATA.events||[]).filter(e=>
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
@@ -776,7 +781,10 @@ function filtered(){
     &&activeCats.has(e.category)
     &&(!gp||e.game_id===gp.id)
     &&(!dq||(isEv(e)&&dqMatch(e,dq,now)))  // 数据质量筛选:只针对真活动,与统计计数同口径
-    &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+gameShort(e.game_id)+' '+(e.category||'')).toLowerCase().includes(k))));
+    &&(!raw||(quick?quickMatch(e,raw,now):(()=>{  // 多个空格分隔的关键词按 AND 匹配
+        const hay=((e.title||'')+' '+(e.game||'')+' '+gameShort(e.game_id)+' '+(e.category||'')).toLowerCase();
+        return terms.every(t=>hay.includes(t));
+      })())));
 }
 /* 数据质量筛选口径(与统计面板里的三项计数完全一致) */
 function dqMatch(e,k,now){
