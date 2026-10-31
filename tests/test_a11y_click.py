@@ -45,7 +45,10 @@ const appended = [];
 const mount = new Function('document', 'a11yScan', grab('mountOverlay') + '\nreturn mountOverlay;')(
   {body: {appendChild: x => appended.push(x)}}, fn);
 const closeBtn = mk('DIV');
-const fakeOverlay = {querySelectorAll: () => [closeBtn]};
+const title = {textContent: '数据统计'};
+const fakeOverlay = mk('DIV');
+fakeOverlay.querySelectorAll = () => [closeBtn];
+fakeOverlay.querySelector = (s) => (s === '.dtitle' ? title : null);
 const ret = mount(fakeOverlay);
 console.log(JSON.stringify({
   span: span._attrs,
@@ -60,6 +63,7 @@ console.log(JSON.stringify({
   hasMount: src.includes('function mountOverlay('),
   mountCalls: src.split('mountOverlay(').length - 1,
   mountedSpan: closeBtn._attrs,
+  overlayAttrs: fakeOverlay._attrs,
   appendedOnce: appended.length,
   returned: ret === fakeOverlay,
   closeAria: (src.match(/class="detail-close" role="button" tabindex="0" aria-label="关闭"/g) || []).length,
@@ -105,6 +109,9 @@ def main():
     check('7 个弹窗都走 mountOverlay', d['mountCalls'], 8)
     check('挂载后弹窗内 div 补上 role/tabindex',
           (d['mountedSpan'].get('tabindex'), d['mountedSpan'].get('role')), ('0', 'button'))
+    check('弹窗本身有 dialog 语义并用标题作 aria-label',
+          (d['overlayAttrs'].get('role'), d['overlayAttrs'].get('aria-modal'),
+           d['overlayAttrs'].get('aria-label')), ('dialog', 'true', '数据统计'))
     check('挂载时追加到 body 一次', d['appendedOnce'], 1)
     check('mountOverlay 返回弹窗本身', d['returned'], True)
     check('7 个弹窗关闭按钮都有语义', d['closeAria'], 7)

@@ -644,9 +644,17 @@ document.addEventListener('keydown',e=>{
     if(typeof t.click==='function')t.click();
   }
 });
-/* 弹窗统一挂载:追加到 body 后立刻扫描键盘可达,避免某个弹窗漏补 role/tabindex */
+/* 弹窗统一挂载:追加到 body 后补 dialog 语义(读屏播报标题)并扫描键盘可达,
+   避免某个弹窗漏补 role/tabindex */
 function mountOverlay(o){
   document.body.appendChild(o);
+  if(o.getAttribute&&!o.getAttribute('role'))o.setAttribute('role','dialog');
+  if(o.getAttribute&&!o.getAttribute('aria-modal'))o.setAttribute('aria-modal','true');
+  const t=o.querySelector?o.querySelector('.dtitle'):null;
+  if(t&&o.setAttribute&&!o.getAttribute('aria-label')){
+    const lbl=String(t.textContent||'').trim();
+    if(lbl)o.setAttribute('aria-label',lbl);
+  }
   a11yScan(o);
   return o;
 }
