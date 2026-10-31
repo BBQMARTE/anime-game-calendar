@@ -6,6 +6,8 @@
 
 运行:python tests/test_events_etag.py
 """
+import gzip
+import json
 import os
 import sys
 
@@ -53,6 +55,21 @@ def main():
         app._state['events'] = [{'id': 'a'}, {'id': 'b'}]
         r4 = client.get('/api/events', headers={'If-None-Match': r3.headers.get('ETag')})
         check('事件数变化也触发 200', r4.status_code, 200)
+
+        # ---- gzip:声明支持时压缩,解压后与明文一致;不支持时保持明文 ----
+        app._state['events'] = [{'id': str(i), 'title': '活动' + str(i)} for i in range(80)]
+        plain = client.get('/api/events')
+        zipped = client.get('/api/events', headers={'Accept-Encoding': 'gzip'})
+        check('gzip 响应带 Content-Encoding', zipped.headers.get('Content-Encoding'), 'gzip')
+        check('声明 Vary', zipped.headers.get('Vary'), 'Accept-Encoding')
+        check('gzip 体积更小', len(zipped.data) < len(plain.data), True)
+        check('解压后与明文 JSON 一致', json.loads(gzip.decompress(zipped.data)),
+              plain.get_json())
+        check('不支持 gzip 的客户端不动', 'Content-Encoding' in plain.headers, False)
+        z304 = client.get('/api/events', headers={'Accept-Encoding': 'gzip',
+                                                  'If-None-Match': zipped.headers.get('ETag')})
+        check('gzip 条件下 304 仍生效', z304.status_code, 304)
+        check('304 无响应体', len(z304.data), 0)
     finally:
         app._state.clear()
         app._state.update(backup)

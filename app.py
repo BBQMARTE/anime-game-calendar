@@ -3,6 +3,7 @@
 自动抓取各二游官方活动/公告,聚合成日历展示。
 运行后自动打开浏览器 http://127.0.0.1:5000
 """
+import gzip
 import hashlib
 import ipaddress
 import json
@@ -584,23 +585,28 @@ def api_thumb():
 
 @app.route('/api/events')
 def api_events():
-    """事件全量接口:带 ETag,数据没变时浏览器拿 304。
+    """事件全量接口:带 ETag,数据没变时浏览器拿 304;支持 gzip。
 
-    前端每 60 秒轮询一次,整包约 130KB;加 ETag 后未刷新时只有几百字节的
-    304 往返,省流量也省服务端 JSON 序列化。ETag 取 updated(每轮刷新必变)
-    + 事件数 + 变更数,足够区分状态。
+    前端每 60 秒轮询一次,整包约 130KB。带 ETag 后未刷新时只有几百字节的
+    304 往返;首次/刷新后则按 Accept-Encoding 压成 gzip(实测 130KB → 约 15KB,
+    Tailscale 外网访问时尤其省流量)。ETag 取 updated(每轮刷新必变)+ 事件数
+    + 变更数,足够区分状态;弱 ETag 不区分编码,304 本来就没有响应体。
     """
     with _lock:
         etag = 'W/"%s-%d-%d"' % (_state.get('updated') or '0',
                                  len(_state.get('events') or []),
                                  len(_state.get('changes') or []))
-    headers = {'ETag': etag, 'Cache-Control': 'no-cache'}
+    headers = {'ETag': etag, 'Cache-Control': 'no-cache',
+               'Vary': 'Accept-Encoding'}
     if request.headers.get('If-None-Match') == etag:
         return Response(status=304, headers=headers)
     with _lock:
         payload = jsonify(_state)
-    payload.headers.update(headers)
-    return payload
+    data = payload.get_data()
+    if 'gzip' in (request.headers.get('Accept-Encoding') or '').lower():
+        data = gzip.compress(data, 6)
+        headers['Content-Encoding'] = 'gzip'
+    return Response(data, mimetype='application/json', headers=headers)
 
 
 def _start_refresh():
