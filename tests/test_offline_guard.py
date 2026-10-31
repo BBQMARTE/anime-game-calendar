@@ -28,14 +28,16 @@ function grab(name) {
   throw new Error('unbalanced: ' + name);
 }
 const code = [grab('apiOrigin'), grab('icsUrl')].join('\n');
-const make = (origin, query) => new Function('location','filterQuery',
-  code + '\nreturn {apiOrigin,icsUrl};')({origin}, () => query);
+const make = (origin, query, icsFav) => new Function('location','filterQuery','settings',
+  code + '\nreturn {apiOrigin,icsUrl};')({origin}, () => query, {icsFav: !!icsFav});
 const web = make('http://127.0.0.1:5000', '?games=hsr');
+const fav = make('http://127.0.0.1:5000', '?games=hsr', true);
 const online = make('https://example.com', '');
 const offline = make('file:///android_asset/www/index.html', '');
 console.log(JSON.stringify({
   webOrigin: web.apiOrigin(),
   webIcs: web.icsUrl(),
+  favIcs: fav.icsUrl(),
   httpsIcs: online.icsUrl(),
   offlineOrigin: offline.apiOrigin(),
   offlineIcs: offline.icsUrl(),
@@ -68,6 +70,8 @@ def main():
     d = json.loads(r.stdout.strip().splitlines()[-1])
     check("http 首页返回自身 origin", d['webOrigin'], 'http://127.0.0.1:5000')
     check("http 下 ICS 链接带筛选", d['webIcs'], 'http://127.0.0.1:5000/api/calendar.ics?games=hsr')
+    check("订阅只含收藏时追加 fav=1", d['favIcs'],
+          'http://127.0.0.1:5000/api/calendar.ics?games=hsr&fav=1')
     check("https 下 ICS 链接可用", d['httpsIcs'], 'https://example.com/api/calendar.ics')
     check("file:// 下无服务端 origin", d['offlineOrigin'], '')
     check("file:// 下不拼 ICS 链接", d['offlineIcs'], '')

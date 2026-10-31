@@ -1202,9 +1202,19 @@ def api_ics():
     games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
     # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
     cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
-    etag = 'W/"ics-%s-%d-%s-%s"' % (updated, len(events),
-                                     ','.join(sorted(games)) or '-',
-                                     ','.join(sorted(cats)) or '-')
+    # ?fav=1:只订阅收藏的活动(收藏状态来自 data/userstate.json,键= game_id|title)
+    fav_flag = request.args.get('fav') in ('1', 'true', 'yes')
+    fav_keys = set()
+    if fav_flag:
+        fav = _load_userstate().get('fav') or {}
+        fav_keys = {k for k, v in fav.items() if v > 0}
+    # 收藏变化不一定伴随 updated 变化,单独用收藏键做签名,改收藏后日历能立刻更新
+    fav_sig = (hashlib.md5(('|'.join(sorted(fav_keys))).encode('utf-8')).hexdigest()[:8]
+               if fav_flag else '-')
+    etag = 'W/"ics-%s-%d-%s-%s-%s-%s"' % (updated, len(events),
+                                          ','.join(sorted(games)) or '-',
+                                          ','.join(sorted(cats)) or '-',
+                                          'fav' if fav_flag else 'all', fav_sig)
     headers = {'ETag': etag, 'Cache-Control': 'no-cache', 'Vary': 'Accept-Encoding'}
     if request.headers.get('If-None-Match') == etag:
         return Response(status=304, headers=headers)
@@ -1219,6 +1229,8 @@ def api_ics():
         if games and e.get('game_id') not in games:
             continue
         if cats and e.get('category') not in cats:
+            continue
+        if fav_flag and ('%s|%s' % (e.get('game_id') or '', e.get('title') or '')) not in fav_keys:
             continue
         if (e.get('kind') or 'event') != 'event':
             continue

@@ -102,7 +102,7 @@ Other devices on the LAN (tablet/phone) can use `http://<pc-ip>:5000`; for acces
 
 | Feature | Usage |
 |---|---|
-| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` for specific games or `?cats=活动,签到` for specific categories (the settings panel builds and copies this URL for you); supports `ETag` conditional requests, so unchanged data returns 304 without re-transfer |
+| **ICS calendar feed** | In your system / Google Calendar, subscribe to `http://<server>:5000/api/calendar.ics` — all real events land in your native calendar; add `?games=hsr,zzz` for specific games, `?cats=活动,签到` for specific categories, or `?fav=1` for favorites only (the settings panel builds and copies this URL for you, and has a matching favorites-only toggle); supports `ETag` conditional requests, so unchanged data returns 304 without re-transfer |
 | **Health endpoint** | `GET http://<server>:5000/api/health` returns the update time, staleness (>24h), total/real event counts, ongoing count, stale-unknown count, missing-end count, changes in the last 14 days, missing-image count, per-source status and refreshing flag — handy for automation / monitoring |
 | **Share current view** | Filtering by game / category / tab / search term updates the address bar to something like `?games=hsr,zzz&tab=ongoing&q=崩铁`; the top-bar **share button** copies it in one tap. URL params win over the recipient's local memory, and the offline APK never rewrites the address. Search also matches short game names like 崩铁 / 鸣潮 |
 | **PWA install** | Open the web app on a tablet/phone browser → "Add to Home Screen" for a full-screen app icon with offline data |
