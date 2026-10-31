@@ -987,7 +987,8 @@ def _report_title_match(report_title, event_title):
 
 def _autoclose_reports(items):
     """数据已补全的待核查反馈自动标记 done:
-    no-end → 该活动现在有结束时间;missing-image → 该活动现在有封面。
+    no-end → 该活动现在有结束时间;missing-image → 该活动现在有封面;
+    wrong-time → 同游戏同标题的活动已找不到「反馈时的开始/结束」这一版(说明时间已被更正)。
     只在同游戏、同标题(超长标题按截断前缀)、且报告带开始日期时要求日期一致,避免同名活动误关。"""
     with _lock:
         events = list(_state['events'])
@@ -999,10 +1000,24 @@ def _autoclose_reports(items):
         if it.get('done'):
             continue
         kind = it.get('kind')
-        if kind not in ('no-end', 'missing-image'):
+        if kind not in ('no-end', 'missing-image', 'wrong-time'):
             continue
         cands = idx.get(str(it.get('game_id') or ''))
         if not cands:
+            continue
+        if kind == 'wrong-time':
+            # 没有记录反馈时的开始时间就无法判断是否改过,保持待核查
+            if not str(it.get('start') or ''):
+                continue
+            snap = (str(it.get('start') or ''), str(it.get('end') or ''))
+            matched = [e for e in cands if _report_title_match(it.get('title'), e.get('title'))]
+            # 同名多期时,只要还有一期与反馈快照完全一致就不算已更正
+            if matched and not any(
+                    (str(e.get('start') or ''), str(e.get('end') or '')) == snap for e in matched):
+                it['done'] = True
+                it['note'] = ((it.get('note') or '') + ('；' if it.get('note') else '')
+                              + '自动核实: 时间已更正')[:200]
+                changed += 1
             continue
         rstart = str(it.get('start') or '')[:10]
         hit = ''

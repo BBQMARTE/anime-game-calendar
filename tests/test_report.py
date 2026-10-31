@@ -142,6 +142,29 @@ def main():
     check("有封面 → 自动标记已处理", auto_b['done'], True)
     check("封面原因写进备注", '封面' in auto_b['note'], True)
     check("同名但开始日期不符不误关", auto_c['done'], False)
+
+    # 时间不对:数据里的开始/结束已和反馈时不同 → 自动关单;完全一致则保持待核查
+    c.post('/api/report', json={'title': '自动D', 'game_id': 'hsr', 'kind': 'wrong-time',
+                                'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'}, headers=H)
+    c.post('/api/report', json={'title': '自动E', 'game_id': 'hsr', 'kind': 'wrong-time',
+                                'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'}, headers=H)
+    c.post('/api/report', json={'title': '自动F', 'game_id': 'hsr', 'kind': 'wrong-time',
+                                'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'}, headers=H)
+    app._state['events'] = [
+        {'game_id': 'hsr', 'title': '自动D', 'start': '2026-11-02T10:00', 'end': '2026-11-10T03:59'},
+        {'game_id': 'hsr', 'title': '自动E', 'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
+        # 同名两期:原快照仍在,不能因为另一期改了时间就误关
+        {'game_id': 'hsr', 'title': '自动F', 'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
+        {'game_id': 'hsr', 'title': '自动F', 'start': '2026-11-05T10:00', 'end': '2026-11-12T03:59'},
+    ]
+    items = c.get('/api/report').get_json()['items']
+    auto_d = next(i for i in items if i['title'] == '自动D')
+    auto_e = next(i for i in items if i['title'] == '自动E')
+    auto_f = next(i for i in items if i['title'] == '自动F')
+    check("时间已更正 → 自动标记已处理", auto_d['done'], True)
+    check("更正原因写进备注", '时间已更正' in auto_d['note'], True)
+    check("时间未变 → 保持待核查", auto_e['done'], False)
+    check("同名多期仍有一期未变 → 不误关", auto_f['done'], False)
     app._state['events'] = []          # 重置,避免影响后续用例
 
     # 超长标题:反馈侧被截断到 120 字,自动关单仍能按前缀匹配;短标题不做前缀误匹配
