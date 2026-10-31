@@ -744,7 +744,7 @@ function filtered(){
     &&(!settings.hideDone||!isDone(e))  // 可选:已打钩做完的条目不再显示
     &&activeCats.has(e.category)
     &&(!gp||e.game_id===gp.id)
-    &&(!dq||dqMatch(e,dq,now))  // 数据质量筛选:缺图 / 缺结束 / 更早开始未知
+    &&(!dq||(isEv(e)&&dqMatch(e,dq,now)))  // 数据质量筛选:只针对真活动,与统计计数同口径
     &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+gameShort(e.game_id)+' '+(e.category||'')).toLowerCase().includes(k))));
 }
 /* 数据质量筛选口径(与统计面板里的三项计数完全一致) */

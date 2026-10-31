@@ -92,11 +92,11 @@ def main():
 
     # 数据质量筛选(?dq=):与列表上的「缺图 / 缺结束 / 更早开始未知」同一口径
     rows = rows_of(c.get('/api/export.csv?dq=noimg'))
-    check("?dq=noimg 只导出缺图条目", [x[1] for x in rows[1:]],
-          ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动'])
+    check("?dq=noimg 只导出缺图活动(不含资讯)", [x[1] for x in rows[1:]],
+          ['老活动·结束未知', '无日期活动', '签到活动'])
     rows = rows_of(c.get('/api/export.csv?dq=noend'))
-    check("?dq=noend 只导出缺结束时间条目", [x[1] for x in rows[1:]],
-          ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动'])
+    check("?dq=noend 只导出缺结束活动(资讯本就没有结束,不算)", [x[1] for x in rows[1:]],
+          ['老活动·结束未知', '无日期活动', '签到活动'])
     rows = rows_of(c.get('/api/export.csv?dq=stale'))
     check("?dq=stale 只导出更早开始·结束未知", [x[1] for x in rows[1:]],
           ['老活动·结束未知'])
