@@ -1241,10 +1241,18 @@ def api_ics():
     # 收藏变化不一定伴随 updated 变化,单独用收藏键做签名,改收藏后日历能立刻更新
     fav_sig = (hashlib.md5(('|'.join(sorted(fav_keys))).encode('utf-8')).hexdigest()[:8]
                if fav_flag else '-')
-    etag = 'W/"ics-%s-%d-%s-%s-%s-%s"' % (updated, len(events),
-                                          ','.join(sorted(games)) or '-',
-                                          ','.join(sorted(cats)) or '-',
-                                          'fav' if fav_flag else 'all', fav_sig)
+    # ?alarm=30:在活动开始前 N 分钟由日历客户端提醒(0~1440,非法值忽略)
+    try:
+        alarm = int((request.args.get('alarm') or '').strip() or 0)
+    except ValueError:
+        alarm = 0
+    if alarm < 1 or alarm > 1440:
+        alarm = 0
+    etag = 'W/"ics-%s-%d-%s-%s-%s-%s-%s"' % (updated, len(events),
+                                            ','.join(sorted(games)) or '-',
+                                            ','.join(sorted(cats)) or '-',
+                                            'fav' if fav_flag else 'all', fav_sig,
+                                            'a%d' % alarm if alarm else '-')
     headers = {'ETag': etag, 'Cache-Control': 'no-cache', 'Vary': 'Accept-Encoding'}
     if request.headers.get('If-None-Match') == etag:
         return Response(status=304, headers=headers)
@@ -1292,6 +1300,9 @@ def api_ics():
                   f'SUMMARY:{_ics_escape("【" + (e.get("game") or "活动") + "】" + e.get("title", ""))}']
         if e.get('link'):
             lines.append(f'URL:{_ics_escape(e["link"])}')
+        if alarm:
+            lines += ['BEGIN:VALARM', 'TRIGGER:-PT%dM' % alarm, 'ACTION:DISPLAY',
+                      'DESCRIPTION:' + _ics_escape('活动开始提醒'), 'END:VALARM']
         lines += ['DESCRIPTION:数据来源:游戏官方公告', 'END:VEVENT']
         n += 1
     lines.append('END:VCALENDAR')

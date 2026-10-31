@@ -516,7 +516,7 @@ function shareView(){
   copyText(link).then(()=>flash('链接已复制,发给好友即可打开同一视图'),()=>flash('复制失败,请手动复制地址栏链接'));
 }
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
-let settings={calOn:true,calGames:null,hideAuto:false,hideDone:false,icsFav:false};
+let settings={calOn:true,calGames:null,hideAuto:false,hideDone:false,icsFav:false,icsAlarm:false};
 try{settings=Object.assign(settings,JSON.parse(localStorage.getItem('ycal_settings')||'{}'))}catch(e){}
 function saveSettings(){try{localStorage.setItem('ycal_settings',JSON.stringify(settings))}catch(e){}}
 function calGamesSet(){
@@ -1979,6 +1979,10 @@ function openSettings(){
         <div class="lbl">订阅只含收藏<span class="sub">上面生成的订阅链接只包含已收藏的活动(改收藏后日历会自动更新)</span></div>
         <label class="switch"><input type="checkbox" ${settings.icsFav?'checked':''} onchange="toggleIcsFav(this.checked)" aria-label="订阅只含收藏"><span class="tr"></span></label>
       </div>
+      <div class="set-row">
+        <div class="lbl">订阅带提前提醒<span class="sub">活动开始前 30 分钟由日历客户端提醒;改完需重新复制上面的订阅链接</span></div>
+        <label class="switch"><input type="checkbox" ${settings.icsAlarm?'checked':''} onchange="toggleIcsAlarm(this.checked)" aria-label="订阅带提前提醒"><span class="tr"></span></label>
+      </div>
       <div class="set-row" style="cursor:pointer" onclick="exportCsv()" role="button" aria-label="导出 CSV">
         <div class="lbl">导出 CSV<span class="sub">按当前显示的游戏与分类导出表格,Excel 直接打开</span></div>
         <span class="chev">›</span>
@@ -2025,7 +2029,7 @@ function apiOrigin(){
 function icsUrl(){
   const o=apiOrigin();
   if(!o)return '';
-  const qs=[filterQuery().replace(/^\?/,''), settings.icsFav?'fav=1':''].filter(Boolean).join('&');
+  const qs=[filterQuery().replace(/^\?/,''), settings.icsFav?'fav=1':'', settings.icsAlarm?'alarm=30':''].filter(Boolean).join('&');
   return o+'/api/calendar.ics'+(qs?'?'+qs:'');
 }
 /* 导出 CSV:直接下载,Excel/Numbers 打开即可透视 */
@@ -2219,6 +2223,10 @@ function toggleCalOn(on){settings.calOn=on;saveSettings();applySettings();saveFi
 function toggleIcsFav(on){
   settings.icsFav=on;saveSettings();
   if(on&&!Object.values(FAV||{}).some(v=>v>0))alert('还没有收藏的活动,这个订阅会是空的;先在列表里「收藏置顶」再复制链接');
+}
+function toggleIcsAlarm(on){
+  settings.icsAlarm=!!on;saveSettings();
+  flash('已'+(on?'开启':'关闭')+'提前提醒,重新复制「日历订阅链接」后生效');
 }
 function toggleHideAuto(on){
   settings.hideAuto=!!on;saveSettings();
