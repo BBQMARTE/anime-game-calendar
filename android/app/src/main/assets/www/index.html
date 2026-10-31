@@ -464,7 +464,10 @@ function parseFilterParams(search){
     if(dv&&/^\d{4}-\d{2}-\d{2}$/.test(dv)){
       const d=new Date(dv+'T00:00:00');
       if(!isNaN(d.getTime())&&d.getFullYear()===+dv.slice(0,4)
-        &&d.getMonth()===+dv.slice(5,7)-1&&d.getDate()===+dv.slice(8,10))out.day=dv;   // 2026-02-30 这类非法日期忽略
+        &&d.getMonth()===+dv.slice(5,7)-1&&d.getDate()===+dv.slice(8,10)){
+        out.day=dv;
+        if(!out.tab)out.tab='cal';   // 带日期的链接默认打开月历,避免被本地记忆的列表页签顶掉
+      }
     }
   }catch(e){}
   return out;

@@ -55,6 +55,7 @@ console.log(JSON.stringify({
   round1: round('?games=hsr&tab=all'),
   round2: round('?cats=活动,公告&tab=ongoing'),
   parseDay: f.p('?day=2026-11-03'),
+  parseDayTab: f.p('?day=2026-11-03&tab=ongoing'),
   badDay: f.p('?day=2026-02-30'),
   badDayFmt: f.p('?day=11-03'),
   buildDay: f.b(new Set(ALL_G), new Set(ALL_C), 'cal', ALL_G, ALL_C, '', '', '2026-11-03'),
@@ -96,6 +97,8 @@ def main():
     check('质量筛选解析', d['parseDq']['dq'], 'noend')
     check('非法质量筛选忽略', d['badDq']['dq'], None)
     check('日历选中日解析', d['parseDay']['day'], '2026-11-03')
+    check('带日期默认打开月历(不被本地页签顶掉)', d['parseDay']['tab'], 'cal')
+    check('日期+显式页签时尊重页签', d['parseDayTab']['tab'], 'ongoing')
     check('不存在的日期忽略(2026-02-30)', d['badDay']['day'], None)
     check('日期格式不对忽略', d['badDayFmt']['day'], None)
 

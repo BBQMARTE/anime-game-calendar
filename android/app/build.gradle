@@ -17,8 +17,8 @@ android {
         applicationId 'com.yoyuxi.ycal'
         minSdk 26
         targetSdk 36
-        versionCode 49
-        versionName '1.9.40'
+        versionCode 50
+        versionName '1.9.41'
     }
 
     signingConfigs {
