@@ -1728,53 +1728,82 @@ function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不
   btn.style.background=isFav(e)?'var(--orange)':'';
   btn.style.color=isFav(e)?'#fff':'var(--orange)';
 }
-/* ── 状态同步码:网页(服务端)与离线 APK(本地)互导收藏 + 打钩 ──
+/* ── 状态同步码:网页(服务端)与离线 APK(本地)互导收藏 + 打钩 + 备忘 ──
    只带正向状态(负值=取消不进码),导入走 mergeTS 合并,本机更新的操作优先;
-   兼容 v1.9.10 的 YCALFAV1(仅收藏)码。 */
+   备忘按标题去重合并(同名本机优先);兼容 v1.9.10 的 YCALFAV1(仅收藏)码。 */
 function posOnly(m){
   const out={};
   for(const k in (m||{})){ const v=+m[k]; if(v>0)out[k]=v; }
   return out;
 }
-function stateCodeOf(fav,done){
-  const f=posOnly(fav), d=posOnly(done);
-  if(!Object.keys(f).length&&!Object.keys(d).length)return '';
-  return 'YCALSYNC1:'+btoa(unescape(encodeURIComponent(JSON.stringify({fav:f,done:d}))));
+function notesSync(notes){   // 同步码里的备忘:只带标题 / 打钩 / 每周标记,最多 100 条
+  const items=(notes&&notes.items)||[];
+  return items.slice(0,100).map(it=>({t:String(it.title||'').slice(0,200),
+    d:it.done?1:0, c:it.cycle==='weekly'?'weekly':'', w:String(it.done_week||'').slice(0,10)}))
+    .filter(x=>x.t);
+}
+function stateCodeOf(fav,done,notes){
+  const f=posOnly(fav), d=posOnly(done), n=notesSync(notes);
+  if(!Object.keys(f).length&&!Object.keys(d).length&&!n.length)return '';
+  return 'YCALSYNC1:'+btoa(unescape(encodeURIComponent(JSON.stringify({fav:f,done:d,n}))));
 }
 function decodeStateCode(s){
   const t=String(s||'').trim();
   if(/^YCALFAV1:[A-Za-z0-9+/=]+$/.test(t)){     // 旧版仅收藏码
     try{
       const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));
-      return d&&typeof d==='object'?{fav:posOnly(d),done:{}}:null;
+      return d&&typeof d==='object'?{fav:posOnly(d),done:{},notes:[]}:null;
     }catch(e){return null}
   }
   if(!/^YCALSYNC1:[A-Za-z0-9+/=]+$/.test(t))return null;
   try{
     const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(10)))));
     if(!d||typeof d!=='object')return null;
-    return {fav:posOnly(d.fav),done:posOnly(d.done)};
+    return {fav:posOnly(d.fav),done:posOnly(d.done),notes:decodeNotes(d.n)};
   }catch(e){return null}
 }
+function decodeNotes(n){   // 同步码里的备忘在导入前先收口:剔空标题、截断、字段白名单
+  return Array.isArray(n)?n.slice(0,100).map(x=>({t:String((x&&x.t)||'').slice(0,200),
+    d:!!(x&&x.d), c:(x&&x.c)==='weekly'?'weekly':'', w:String((x&&x.w)||'').slice(0,10)}))
+    .filter(x=>x.t):[];
+}
 function copyStateCode(){
-  const c=stateCodeOf(FAV,DONE);
-  if(!c){flash('还没有收藏或打钩记录');return}
+  const c=stateCodeOf(FAV,DONE,NOTES);
+  if(!c){flash('还没有收藏、打钩或备忘记录');return}
   copyText(c).then(()=>flash('状态码已复制,在另一台设备粘贴导入'),
                    ()=>flash('复制失败,请手动复制'));
+}
+function mergeNotes(notes){   // 按标题去重合并,同名保留本机条目(本机操作优先)
+  if(!notesReady||!Array.isArray(NOTES.items))return 0;
+  const have=new Set(NOTES.items.map(i=>String(i.title||'')));
+  let ts=Date.now(), n=0;
+  for(const it of notes||[]){
+    const t=String((it&&it.t)||'').slice(0,200);
+    if(!t||have.has(t))continue;
+    NOTES.items.unshift({id:'n'+(ts++), title:t, done:!!(it&&it.d),
+      cycle:(it&&it.c)==='weekly'?'weekly':'', done_week:String((it&&it.w)||'').slice(0,10)});
+    have.add(t); n++;
+  }
+  if(n)saveNotes();
+  return n;
 }
 function importStateCode(){
   const el=document.getElementById('stateCodeIn');
   const d=decodeStateCode(el&&el.value);
   if(!d){flash('状态码无效,请检查是否完整复制');return}
-  const nf=Object.keys(d.fav).length, nd=Object.keys(d.done).length;
-  FAV=mergeTS(FAV,d.fav); DONE=mergeTS(DONE,d.done);
-  try{
-    localStorage.setItem('ycal_fav',JSON.stringify(FAV));
-    localStorage.setItem('ycal_done',JSON.stringify(DONE));
-  }catch(e){}
-  saveUserState({fav:d.fav, done:d.done});
-  renderView();
-  flash('已导入 '+nf+' 条收藏 / '+nd+' 条打钩');
+  const apply=()=>{
+    const nf=Object.keys(d.fav).length, nd=Object.keys(d.done).length;
+    FAV=mergeTS(FAV,d.fav); DONE=mergeTS(DONE,d.done);
+    try{
+      localStorage.setItem('ycal_fav',JSON.stringify(FAV));
+      localStorage.setItem('ycal_done',JSON.stringify(DONE));
+    }catch(e){}
+    saveUserState({fav:d.fav, done:d.done});
+    const nn=mergeNotes(d.notes);
+    renderView(); mountNotes();
+    flash('已导入 '+nf+' 条收藏 / '+nd+' 条打钩'+(nn?' / '+nn+' 条备忘':''));
+  };
+  if(notesReady)apply(); else loadNotes().then(apply);   // 备忘未加载完先等它,避免导入被覆盖
 }
 /* ================= 备忘录(置顶在活动列表最上面) ================= */
 let NOTES={items:[]}, notesReady=false;
@@ -2018,7 +2047,7 @@ function openSettings(){
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
-        <div class="lbl">状态同步码<span class="sub">收藏与「已做完」打钩;网页与离线 APK 互导,只合并、不会取消已有的</span></div>
+        <div class="lbl">状态同步码<span class="sub">收藏 / 已做完打钩 / 备忘清单;网页与离线 APK 互导,只合并、不会取消已有的</span></div>
         <textarea id="stateCodeIn" class="note-input" style="margin:10px 0 6px;min-height:58px;font-size:12px;padding:9px" placeholder="粘贴 YCALSYNC1:… 状态码"></textarea>
         <div style="display:flex;gap:8px">
           <button class="detail-btn" style="flex:1;padding:8px 0" onclick="copyStateCode()">复制我的状态码</button>
