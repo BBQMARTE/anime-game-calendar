@@ -1624,7 +1624,11 @@ def _friendly_dt(iso):
 
 
 def _daily_notify(now=None, evening=False):
-    """早间:未来 lead_days+1 天开始 + 今天/明天结束;晚间:只推明天开始 + 今天结束(now 可注入,便于测试)"""
+    """生成并推送当日汇总(now 可注入,便于测试)。
+
+    早间:未来 lead_days+1 天开始 + 今天/明天结束;晚间:只推明天开始 + 今天结束。
+    返回 None=没有需要推送的内容(不算失败);True/False=推送成功/失败。
+    """
     cfg = _notify_config()
     if not (cfg.get('webhook') or '').strip():
         return
@@ -1685,9 +1689,8 @@ def _daily_notify(now=None, evening=False):
     if not starting and not ending and not fav_moved:
         if fav_only:
             return   # 只推收藏时没有命中就静默,避免每天空推打扰
-        _send_notify('二游活动日历',
-                     '今晚没有需要注意的活动。' if evening else f'{span}没有新活动开始。')
-        return
+        return _send_notify('二游活动日历',
+                            '今晚没有需要注意的活动。' if evening else f'{span}没有新活动开始。')
     parts = []
     if starting:
         parts.append(f'{span} {len(starting)} 个活动开始')
@@ -1720,7 +1723,7 @@ def _daily_notify(now=None, evening=False):
             lines.append('· 【%s】%s:%s → %s' % (
                 gmap.get(c.get('game_id'), c.get('game_id') or ''),
                 c.get('title') or '', old, new))
-    _send_notify(('晚安提醒:' if evening else '二游活动提醒:') + ' / '.join(parts), '\n'.join(lines))
+    return _send_notify(('晚安提醒:' if evening else '二游活动提醒:') + ' / '.join(parts), '\n'.join(lines))
 
 
 def _notify_due(now, cfg_time):
@@ -1732,23 +1735,76 @@ def _notify_due(now, cfg_time):
     return now.strftime('%Y-%m-%d') if (now.hour, now.minute) >= (hh, mm) else None
 
 
+NOTIFY_STATE_FILE = os.path.join(DATA_DIR, 'notify_state.json')   # 已推送标记(运行时生成,不入库)
+_notify_state_lock = threading.Lock()
+_NOTIFY_MAX_TRIES = 3
+
+
+def _load_notify_marks():
+    try:
+        with open(NOTIFY_STATE_FILE, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        m = d.get('marks') if isinstance(d, dict) else None
+        return m if isinstance(m, dict) else {}
+    except Exception:  # noqa: BLE001 - 文件不存在/损坏按空标记
+        return {}
+
+
+def _save_notify_marks(marks):
+    with _notify_state_lock:
+        try:
+            with open(NOTIFY_STATE_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'marks': marks}, f, ensure_ascii=False, indent=1)
+        except Exception as e:  # noqa: BLE001
+            print(f'[提醒] 标记保存失败: {e}')
+
+
+def _prune_notify_marks(marks, now):
+    """只保留最近 7 天的标记,文件不无限增长"""
+    cut = (now - timedelta(days=7)).strftime('%Y-%m-%d')
+    return {k: v for k, v in marks.items() if str(k).split(':')[0] >= cut}
+
+
+def _notify_once(now=None, marks=None):
+    """一轮到点检查:每天每个时段只推一次,失败最多重试 _NOTIFY_MAX_TRIES 次。
+
+    标记落盘而不是只存内存:08:30 已经推过的服务在中午重启,不能再把当天汇总
+    推一遍(以前 sent 只在进程内,重启就会重复推送)。推送失败(webhook 短暂
+    不可用)的记录会保留,下一分钟继续重试,而不是整天不再提醒。
+    """
+    now = now or _bj_now()
+    marks = marks if marks is not None else _load_notify_marks()
+    cfg = _notify_config()
+    for slot, field in (('main', 'time'), ('evening', 'evening')):
+        t = cfg.get(field)
+        if slot == 'evening' and not (str(t or '').strip()):
+            continue   # 未配置晚间时刻 = 关闭
+        day = _notify_due(now, t)
+        if not day:
+            continue
+        key = f'{day}:{slot}'
+        rec = marks.get(key) or {}
+        if rec.get('done'):
+            continue
+        ok = _daily_notify(now, evening=(slot == 'evening'))
+        tries = int(rec.get('tries') or 0) + 1
+        done = ok is None or bool(ok) or tries >= _NOTIFY_MAX_TRIES
+        marks[key] = {'done': done,
+                      'ok': None if ok is None else bool(ok),   # None=没有内容需要推送
+                      'tries': tries, 'at': now.isoformat(timespec='seconds')}
+    marks = _prune_notify_marks(marks, now)
+    _save_notify_marks(marks)
+    return marks
+
+
 def _notify_loop():
-    """每天到点推送:早间汇总(lead_days) + 可选的晚间「晚安提醒」(evening,只推明天开始/今天结束)"""
-    sent = set()   # {'YYYY-MM-DD:slot'} 已发标记,跨日自动失效
+    """每天到点推送:早间汇总(lead_days) + 可选的晚间「晚安提醒」"""
+    marks = _load_notify_marks()
     while True:
-        now = _bj_now()
-        cfg = _notify_config()
-        for slot, field in (('main', 'time'), ('evening', 'evening')):
-            t = cfg.get(field)
-            if slot == 'evening' and not (str(t or '').strip()):
-                continue   # 未配置晚间时刻 = 关闭
-            day = _notify_due(now, t)
-            key = f'{day}:{slot}' if day else ''
-            if key and key not in sent:
-                sent.add(key)
-                if len(sent) > 30:            # 只留最近几天的标记
-                    sent = {k for k in sent if k.split(':')[0] >= (now - timedelta(days=7)).strftime('%Y-%m-%d')}
-                _daily_notify(now, evening=(slot == 'evening'))
+        try:
+            marks = _notify_once(marks=marks)
+        except Exception as e:  # noqa: BLE001 - 单轮异常不能让提醒线程退出
+            print(f'[提醒] 本轮检查失败: {e}')
         time.sleep(60)
 
 

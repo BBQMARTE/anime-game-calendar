@@ -19,6 +19,8 @@ data/reports.json
 # 用户配置(含 webhook 凭据):首次启动由 app.py::_ensure_notify_file() 自动生成,
 # 示例见 data/notify.example.json;不跟踪,避免 webhook 被 git add 带进仓库
 data/notify.json
+# 每日提醒是否已推送(重启后不重复推送),运行时生成
+data/notify_state.json
 tests/_out*.txt
 
 # Android 构建产物与本地配置
