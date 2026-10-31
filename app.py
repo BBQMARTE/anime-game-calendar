@@ -1189,19 +1189,30 @@ def _ics_utc(iso, day_end=False):
 
 @app.route('/api/calendar.ics')
 def api_ics():
-    """ICS 订阅源:系统日历/Google 日历可直接订阅(仅真活动,含手动录入)"""
+    """ICS 订阅源:系统日历/Google 日历可直接订阅(仅真活动,含手动录入)
+
+    带 ETag:日历客户端（Apple/Google）周期拉取时数据没变就只回 304,
+    不必每次重新生成并传输整份日历。
+    """
     now = datetime.now(_CST).strftime('%Y%m%dT%H%M%SZ')
+    with _lock:
+        events = list(_state['events'])
+        updated = _state.get('updated') or '0'
+    # ?games=hsr,zzz:只订阅自己玩的游戏(逗号分隔;未知 id 自然筛不出事件,无需白名单)
+    games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
+    # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
+    cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
+    etag = 'W/"ics-%s-%d-%s-%s"' % (updated, len(events),
+                                     ','.join(sorted(games)) or '-',
+                                     ','.join(sorted(cats)) or '-')
+    headers = {'ETag': etag, 'Cache-Control': 'no-cache', 'Vary': 'Accept-Encoding'}
+    if request.headers.get('If-None-Match') == etag:
+        return Response(status=304, headers=headers)
     lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
              'PRODID:-//yoyuxi//anime-game-calendar//CN',
              'CALSCALE:GREGORIAN',
              'X-WR-CALNAME:二游活动日历',
              'X-WR-TIMEZONE:Asia/Shanghai']
-    with _lock:
-        events = list(_state['events'])
-    # ?games=hsr,zzz:只订阅自己玩的游戏(逗号分隔;未知 id 自然筛不出事件,无需白名单)
-    games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
-    # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
-    cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
     today = _bj_now().replace(tzinfo=None).strftime('%Y-%m-%d')
     n = 0
     for e in events:
@@ -1244,7 +1255,7 @@ def api_ics():
     lines.append('END:VCALENDAR')
     print(f'[订阅] 生成 ICS: {n} 个事件')
     body = '\r\n'.join(_ics_fold(l) for l in lines)
-    return Response(body + '\r\n', mimetype='text/calendar; charset=utf-8')
+    return Response(body + '\r\n', mimetype='text/calendar; charset=utf-8', headers=headers)
 
 
 @app.route('/api/health')
