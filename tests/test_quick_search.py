@@ -39,6 +39,21 @@ function makeFiltered(w) {
      e => new Date(e.start), e => (e.end ? new Date(e.end) : null), FakeDate);
 }
 const run = (w) => makeFiltered(w).filtered().map(e => e.id);
+// 搜索命中高亮(hlText):普通关键词大小写不敏感、只高亮第一处;快捷词不标;输出始终转义
+const QW = ['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始','今天开始','今天结束','进行中'];
+const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mkHl = q => new Function('esc','isQuickWord','q', grab('hlText') + '\nreturn hlText;')(
+  escH, w => QW.indexOf(w) >= 0, q);
+const hl = {
+  cn: mkHl('活动')('活动A'),
+  prefixed: mkHl('hsr: 活动')('活动A'),
+  caseInsensitive: mkHl('ABC')('abc活动'),
+  miss: mkHl('活动')('没有'),
+  quick: mkHl('今天')('今天开始活动'),
+  xss: mkHl('<b>')('<b>x'),
+  amp: mkHl('&')('A&B'),
+};
 console.log(JSON.stringify({
   today: run('今天'), tomorrow: run('明天'), week: run('本周'),
   weekend: run('周末'), notStarted: run('未开始'), plain: run('活动A'),
@@ -49,7 +64,7 @@ console.log(JSON.stringify({
   weekStart: run('本周开始'), monthStart: run('本月开始'),
   todayStart: run('今天开始'), todayEnd: run('今天结束'), running: run('进行中'),
   prefixHsrEnding: run('hsr: 即将结束'),
-  shortHsr: run('崩铁'), shortZzz: run('绝区零'),
+  shortHsr: run('崩铁'), shortZzz: run('绝区零'), hl: hl,
 }));
 """
 
@@ -100,7 +115,8 @@ def main():
         print('SKIP: 未找到 node，跳过快捷词测试')
         return 0
     loader = LOADER.replace('__EVENTS__', json.dumps(EV, ensure_ascii=False))
-    r = subprocess.run([node, '-e', loader], input=open(HTML, encoding='utf-8').read(),
+    src = open(HTML, encoding='utf-8').read()
+    r = subprocess.run([node, '-e', loader], input=src,
                        capture_output=True, text=True, encoding='utf-8', timeout=60)
     if r.returncode != 0:
         print('FAIL: node 执行失败\n' + r.stderr[:800])
@@ -129,6 +145,17 @@ def main():
     check("进行中:已开始且未结束(无结束时间也算)", d['running'], ['a', 'b', 'g', 'h', 'i'])
     check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i'])
     check("搜索游戏全名「绝区零」命中绝区零全部", d['shortZzz'], ['b', 'e', 'h'])
+    check("高亮:中文关键词包一层 mark", d['hl']['cn'], '<mark>活动</mark>A')
+    check("高亮:游戏前缀不算关键词", d['hl']['prefixed'], '<mark>活动</mark>A')
+    check("高亮:大小写不敏感", d['hl']['caseInsensitive'], '<mark>abc</mark>活动')
+    check("高亮:未命中保持原文", d['hl']['miss'], '没有')
+    check("高亮:快捷词不高亮", d['hl']['quick'], '今天开始活动')
+    check("高亮:输出已转义,不注入标签", d['hl']['xss'], '<mark>&lt;b&gt;</mark>x')
+    check("高亮:实体字符也转义", d['hl']['amp'], 'A<mark>&amp;</mark>B')
+
+    check("列表标题/描述走高亮函数",
+          '<div class="row-title">${hlText(e.title)}</div>' in src
+          and '<div class="row-desc">${hlText(descFor(e))}</div>' in src, True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

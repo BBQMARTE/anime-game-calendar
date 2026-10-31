@@ -129,6 +129,7 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .thumb.ph{background:linear-gradient(150deg,rgba(255,255,255,.28),rgba(0,0,0,.26)),var(--c); text-shadow:0 1px 2px rgba(0,0,0,.28); line-height:1.1; text-align:center}
 .row-main{flex:1; min-width:0}
 .row-title{font-size:14px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+mark{background:rgba(255,214,10,.45); color:inherit; border-radius:3px; padding:0 1px}
 .row-sub{font-size:11.5px; color:var(--label2); margin-top:3px; display:flex; align-items:center; gap:6px}
 .row-desc{font-size:11.5px; color:var(--label2); margin-top:3px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden}
 .tag{font-size:9.5px; font-weight:700; color:#fff; background:var(--tc); border-radius:5px; padding:1px 5px}
@@ -590,6 +591,14 @@ function gameName(id){const g=(DATA.games||[]).find(g=>g.id===id);return g?g.nam
 const GAME_SHORT={hsr:'崩铁',zzz:'绝区零',endfield:'终末地',arknights:'方舟',wuwa:'鸣潮',ananta:'异环',r1999:'1999'};
 function gameShort(id){if(id&&GAME_SHORT[id])return GAME_SHORT[id];const n=gameName(id);return (typeof n==='string'&&n)?n.slice(0,2):'活动'}
 function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+/* 搜索命中高亮:普通关键词大小写不敏感,高亮第一处;快捷词/游戏前缀本身不高亮 */
+function hlText(s){
+  const kw=q.trim().replace(/^([a-z0-9_]+):\s*/i,'').toLowerCase();
+  if(!kw||isQuickWord(kw))return esc(s);
+  const src=String(s||''), i=src.toLowerCase().indexOf(kw);
+  if(i<0)return esc(src);
+  return esc(src.slice(0,i))+'<mark>'+esc(src.slice(i,i+kw.length))+'</mark>'+esc(src.slice(i+kw.length));
+}
 /* 彩色 tag 字色:亮底(绿/橙/灰/粉/亮蓝)用深字,深底(紫/红)用白字——tag 背景不随主题变,两模式都达标 */
 function tagText(bg){
   return ({'活动':'#0b3d20','公告':'#4d2e00','资讯':'#002d63','B站':'#4a0e2e','手动':'#1c1c1e'})[bg]||'#fff';
@@ -1046,8 +1055,8 @@ function rowHtml(e){
   return `<div class="row${isDone(e)?' doneev':''}" style="--c:${c}" onclick="openEv('${e.id}')">
     ${thumb}
     <div class="row-main">
-      <div class="row-title">${esc(e.title)}</div>
-      <div class="row-desc">${esc(descFor(e))}</div>
+      <div class="row-title">${hlText(e.title)}</div>
+      <div class="row-desc">${hlText(descFor(e))}</div>
       <div class="row-sub"><span class="tag" style="--tc:${cc};color:${tagText(e.category)}">${e.category}</span>${e.src==='manual'?`<span class="tag" style="--tc:#34C759;color:${tagText('活动')}" title="AI Agent 联网核实后人工录入">已核实</span>`:e.src==='bilibili'?`<span class="tag" style="--tc:#FB7299;color:${tagText('B站')}">B站</span>`:`<span class="tag" style="--tc:#8e8e93;color:${tagText('手动')}" title="官方接口自动抓取,未经人工核实">自动</span>`}${chgBadge(e)}<span>${esc(e.game)} · ${fmtRange(e)}</span></div>
       ${cd&&!isDone(e)&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
     </div>
