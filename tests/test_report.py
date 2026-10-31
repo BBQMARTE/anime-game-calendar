@@ -144,6 +144,25 @@ def main():
     check("同名但开始日期不符不误关", auto_c['done'], False)
     app._state['events'] = []          # 重置,避免影响后续用例
 
+    # 超长标题:反馈侧被截断到 120 字,自动关单仍能按前缀匹配;短标题不做前缀误匹配
+    long_title = '超长标题' * 30
+    c.post('/api/report', json={'title': long_title, 'game_id': 'wuwa', 'kind': 'no-end',
+                                'start': '2026-11-02T10:00'}, headers=H)
+    app._state['events'] = [{'game_id': 'wuwa', 'title': long_title + '尾巴',
+                             'start': '2026-11-02T10:00', 'end': '2026-11-12T03:59'}]
+    items = c.get('/api/report').get_json()['items']
+    t_long = next(i for i in items if i['title'] == long_title)
+    check("超长标题按截断前缀自动关单", t_long['done'], True)
+
+    c.post('/api/report', json={'title': '短标题', 'game_id': 'wuwa', 'kind': 'no-end',
+                                'start': '2026-11-02T10:00'}, headers=H)
+    app._state['events'] = [{'game_id': 'wuwa', 'title': '短标题plus',
+                             'start': '2026-11-02T10:00', 'end': '2026-11-12T03:59'}]
+    items = c.get('/api/report').get_json()['items']
+    t_short = next(i for i in items if i['title'] == '短标题')
+    check("短标题不做前缀误关", t_short['done'], False)
+    app._state['events'] = []
+
     # 上限:写入 400 条,只保留最近 300
     for i in range(400):
         c.post('/api/report', json={'title': '批量%d' % i, 'game_id': 'hsr', 'kind': 'other'}, headers=H)

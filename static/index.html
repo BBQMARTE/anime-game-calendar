@@ -1953,7 +1953,7 @@ function openMemoTpl(){
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
-      <div id="tplList">${tpl.length?tpl.map((t,i)=>`<div class="note-row" data-i="${i}"><span class="note-title">${esc(t)}</span><span class="note-del" data-tdel="${i}">×</span></div>`).join(''):'<div class="empty" style="padding:18px 0">模板还是空的,先加几条</div>'}</div>
+      <div id="tplList">${tpl.length?tpl.map((t,i)=>`<div class="note-row" data-i="${i}"><span class="note-title">${esc(t)}</span><span class="note-edit" data-tedit="${i}" title="修改模板">✎</span><span class="note-del" data-tdel="${i}">×</span></div>`).join(''):'<div class="empty" style="padding:18px 0">模板还是空的,先加几条</div>'}</div>
       <input id="tplTitle" class="note-input" placeholder="加一条每周固定事项,比如:清体力 / 打周本">
       <button class="note-add" onclick="addMemoTpl()">+ 加入模板</button>
       ${tpl.length?`<button class="note-add" style="color:var(--blue)" onclick="importMemoTpl();this.closest('.detail-overlay').remove()">⤓ 导入全部到本周清单</button>`:''}
@@ -1961,6 +1961,8 @@ function openMemoTpl(){
   </div>`;
   o.addEventListener('click',function(ev){
     if(ev.target===this)this.remove();
+    const ed=ev.target.closest('[data-tedit]');
+    if(ed){editMemoTplRow(+ed.dataset.tedit);return}
     const del=ev.target.closest('[data-tdel]');
     if(del){const a=memoTpl();a.splice(+del.dataset.tdel,1);saveMemoTpl(a);this.remove();openMemoTpl()}
   });
@@ -1977,6 +1979,15 @@ function addMemoTpl(){
   saveMemoTpl(a);
   closeTopOverlay();
   openMemoTpl();
+}
+/* 修改每周模板条目:只改这一条的文案;与现有条目重名时拒绝,避免导入时被去重跳过 */
+function editMemoTplRow(i){
+  const a=memoTpl(), cur=a[i]||'';
+  const t=(prompt('修改每周模板:',cur)||'').trim().slice(0,200);
+  if(!t||t===cur)return;
+  if(a.some((x,k)=>k!==i&&x===t)){alert('模板里已有同名条目');return}
+  a[i]=t;saveMemoTpl(a);
+  closeTopOverlay();openMemoTpl();
 }
 function noteHtml(){
   const items=NOTES.items;

@@ -978,15 +978,22 @@ def _load_reports():
         return []
 
 
+def _report_title_match(report_title, event_title):
+    """反馈标题与活动标题是否同一条:完全相等,或反馈标题达到 120 字截断上限时按前缀匹配"""
+    rt = str(report_title or '')
+    et = str(event_title or '')
+    return rt == et or (len(rt) >= 120 and et.startswith(rt))
+
+
 def _autoclose_reports(items):
     """数据已补全的待核查反馈自动标记 done:
     no-end → 该活动现在有结束时间;missing-image → 该活动现在有封面。
-    只在同游戏同标题、且报告带开始日期时要求日期一致,避免同名活动误关。"""
+    只在同游戏、同标题(超长标题按截断前缀)、且报告带开始日期时要求日期一致,避免同名活动误关。"""
     with _lock:
         events = list(_state['events'])
     idx = {}
     for e in events:
-        idx.setdefault(((e.get('game_id') or ''), (e.get('title') or '')), []).append(e)
+        idx.setdefault((e.get('game_id') or ''), []).append(e)
     changed = 0
     for it in items:
         if it.get('done'):
@@ -994,12 +1001,14 @@ def _autoclose_reports(items):
         kind = it.get('kind')
         if kind not in ('no-end', 'missing-image'):
             continue
-        cands = idx.get((str(it.get('game_id') or ''), it.get('title') or ''))
+        cands = idx.get(str(it.get('game_id') or ''))
         if not cands:
             continue
         rstart = str(it.get('start') or '')[:10]
         hit = ''
         for e in cands:
+            if not _report_title_match(it.get('title'), e.get('title')):
+                continue
             estart = str(e.get('start') or '')[:10]
             if rstart and estart and rstart != estart:
                 continue

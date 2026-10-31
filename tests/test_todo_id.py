@@ -201,5 +201,49 @@ console.log(JSON.stringify({ title: after.title, done: after.done, cycle: after.
         check('修改后重渲染', d['mounts'], 1)
         check('修改成功有提示', '修改' in (d['flash'] or ''), True)
 
+    # 每周模板修改:同名拒绝、空值不改、改名后保存并重开面板
+    tpl_src = r"""
+const fs = require('fs');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+function grab(name) {
+  const i = src.indexOf('function ' + name + '(');
+  if (i < 0) throw new Error('not found: ' + name);
+  let d = 0, go = false;
+  for (let k = src.indexOf('{', i); k < src.length; k++) {
+    if (src[k] === '{') { d++; go = true; }
+    else if (src[k] === '}') { d--; if (go && !d) return src.slice(i, k + 1); }
+  }
+  throw new Error('unbalanced: ' + name);
+}
+let cur = ['清体力', '打周本'];
+let answer = '  清理体力  ';
+const saved = [], alerts = [], reopened = [];
+const fn = new Function('memoTpl','saveMemoTpl','prompt','alert','closeTopOverlay','openMemoTpl',
+  grab('editMemoTplRow') + '\nreturn editMemoTplRow;')(
+  () => cur.slice(), a => { cur = a.slice(); saved.push(cur); },
+  () => answer, m => alerts.push(m), () => {}, () => reopened.push(1));
+fn(0);                 // 改名成功
+answer = '打周本'; fn(0);   // 与另一条重名 → 拒绝
+answer = '   ';   fn(0);   // 空白 → 不保存
+answer = '打周本'; fn(1);   // 内容未变 → 不保存
+console.log(JSON.stringify({cur: cur, saves: saved.length, reopened: reopened.length,
+  alerts: alerts}));
+"""
+    t = subprocess.run(['node', '-e', tpl_src, 'node',
+                        os.path.join(ROOT, 'static', 'index.html')],
+                       capture_output=True, text=True)
+    if t.returncode != 0:
+        print('FAIL: 模板修改 node 执行失败: %s' % t.stderr.strip())
+        bad += 1
+    else:
+        d = json.loads(t.stdout.strip().splitlines()[-1])
+        check('模板改名生效', d['cur'], ['清理体力', '打周本'])
+        check('模板只保存一次(重名/空白/未改不写)', d['saves'], 1)
+        check('模板改名后重开面板', d['reopened'], 1)
+        check('重名有提示', any('同名' in a for a in d['alerts']), True)
+
+check_true('模板行有修改入口', 'data-tedit="${i}"' in html)
+check_true('模板操作走 editMemoTplRow', 'editMemoTplRow(+ed.dataset.tedit)' in html)
+
 print('ALL PASS' if bad == 0 else 'SOME FAILED')
 sys.exit(1 if bad else 0)
