@@ -1282,7 +1282,8 @@ function renderCal(){
     const colors=[...new Set(ev.starts.concat(ev.runs,ev.ends).map(e=>gameColor(e.game_id)))].slice(0,3);
     const cls=[!inM?'dim':'', sameDay(d,now)?'today':'', sameDay(d,selDay)?'sel':''].join(' ');
     const mini=calWeek?weekMiniNames(ev):[];   // 周视图直接给出活动名,月视图保持只有圆点
-    return `<div class="cal-cell ${cls}" onclick="pickDay(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
+    const cntDay=ev.starts.length+ev.runs.length+ev.ends.length;
+    return `<div class="cal-cell ${cls}" aria-label="${d.getMonth()+1}月${d.getDate()}日${cntDay?'，'+cntDay+' 个活动':''}" onclick="pickDay(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
       <span class="d">${d.getDate()}</span>
       <span class="cal-dots">${colors.map(c=>`<i style="background:${c}"></i>`).join('')}</span>
       ${mini.map(t=>`<span class="cal-ev">${esc(t)}</span>`).join('')}

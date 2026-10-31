@@ -71,6 +71,8 @@ console.log(JSON.stringify({
   returned: ret === fakeOverlay,
   closeAria: (src.match(/class="detail-close" role="button" tabindex="0" aria-label="关闭"/g) || []).length,
   notifyScan: src.includes('a11yScan(box)'),
+  calAria: (src.match(/class="cal-cell[^>]*aria-label="\$\{[^}]*\}月\$\{[^}]*\}日/g) || []).length,
+  calAriaCount: src.includes("'，'+cntDay+' 个活动'"),
 }));
 """
 
@@ -120,6 +122,8 @@ def main():
     check('mountOverlay 返回弹窗本身', d['returned'], True)
     check('7 个弹窗关闭按钮都有语义', d['closeAria'], 7)
     check('异步渲染的提醒配置也扫描', d['notifyScan'], True)
+    check('日历格有「月日 + 活动数」的 aria-label', d['calAria'] >= 1, True)
+    check('日历格 aria-label 带活动条数', d['calAriaCount'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
