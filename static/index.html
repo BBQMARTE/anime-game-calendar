@@ -1648,41 +1648,53 @@ function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不
   btn.style.background=isFav(e)?'var(--orange)':'';
   btn.style.color=isFav(e)?'#fff':'var(--orange)';
 }
-/* ── 收藏同步码:网页(服务端)与离线 APK(本地)互导收藏 ──
-   只带正向收藏(值为时间戳),导入时走 mergeTS 合并,不会把本机更新的取消状态覆盖掉。 */
-function favCodeOf(fav){
+/* ── 状态同步码:网页(服务端)与离线 APK(本地)互导收藏 + 打钩 ──
+   只带正向状态(负值=取消不进码),导入走 mergeTS 合并,本机更新的操作优先;
+   兼容 v1.9.10 的 YCALFAV1(仅收藏)码。 */
+function posOnly(m){
   const out={};
-  for(const k in (fav||{})){ const v=+fav[k]; if(v>0)out[k]=v; }
-  if(!Object.keys(out).length)return '';
-  return 'YCALFAV1:'+btoa(unescape(encodeURIComponent(JSON.stringify(out))));
+  for(const k in (m||{})){ const v=+m[k]; if(v>0)out[k]=v; }
+  return out;
 }
-function decodeFavCode(s){
+function stateCodeOf(fav,done){
+  const f=posOnly(fav), d=posOnly(done);
+  if(!Object.keys(f).length&&!Object.keys(d).length)return '';
+  return 'YCALSYNC1:'+btoa(unescape(encodeURIComponent(JSON.stringify({fav:f,done:d}))));
+}
+function decodeStateCode(s){
   const t=String(s||'').trim();
-  if(!/^YCALFAV1:[A-Za-z0-9+/=]+$/.test(t))return null;
+  if(/^YCALFAV1:[A-Za-z0-9+/=]+$/.test(t)){     // 旧版仅收藏码
+    try{
+      const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));
+      return d&&typeof d==='object'?{fav:posOnly(d),done:{}}:null;
+    }catch(e){return null}
+  }
+  if(!/^YCALSYNC1:[A-Za-z0-9+/=]+$/.test(t))return null;
   try{
-    const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));
+    const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(10)))));
     if(!d||typeof d!=='object')return null;
-    const out={};
-    for(const k in d){ const v=+d[k]; if(v>0)out[k]=v; }   // 只接受正向收藏
-    return out;
+    return {fav:posOnly(d.fav),done:posOnly(d.done)};
   }catch(e){return null}
 }
-function copyFavCode(){
-  const c=favCodeOf(FAV);
-  if(!c){flash('还没有收藏的活动');return}
-  copyText(c).then(()=>flash('收藏码已复制,在另一台设备粘贴导入'),
+function copyStateCode(){
+  const c=stateCodeOf(FAV,DONE);
+  if(!c){flash('还没有收藏或打钩记录');return}
+  copyText(c).then(()=>flash('状态码已复制,在另一台设备粘贴导入'),
                    ()=>flash('复制失败,请手动复制'));
 }
-function importFavCode(){
-  const el=document.getElementById('favCodeIn');
-  const d=decodeFavCode(el&&el.value);
-  if(!d){flash('收藏码无效,请检查是否完整复制');return}
-  const n=Object.keys(d).length;
-  FAV=mergeTS(FAV,d);
-  try{localStorage.setItem('ycal_fav',JSON.stringify(FAV))}catch(e){}
-  saveUserState({fav:d});
+function importStateCode(){
+  const el=document.getElementById('stateCodeIn');
+  const d=decodeStateCode(el&&el.value);
+  if(!d){flash('状态码无效,请检查是否完整复制');return}
+  const nf=Object.keys(d.fav).length, nd=Object.keys(d.done).length;
+  FAV=mergeTS(FAV,d.fav); DONE=mergeTS(DONE,d.done);
+  try{
+    localStorage.setItem('ycal_fav',JSON.stringify(FAV));
+    localStorage.setItem('ycal_done',JSON.stringify(DONE));
+  }catch(e){}
+  saveUserState({fav:d.fav, done:d.done});
   renderView();
-  flash('已导入 '+n+' 条收藏');
+  flash('已导入 '+nf+' 条收藏 / '+nd+' 条打钩');
 }
 /* ================= 备忘录(置顶在活动列表最上面) ================= */
 let NOTES={items:[]}, notesReady=false;
@@ -1922,11 +1934,11 @@ function openSettings(){
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
-        <div class="lbl">收藏同步码<span class="sub">网页与离线 APK 互导收藏:复制后在另一台设备粘贴导入,只合并收藏、不会取消已有的</span></div>
-        <textarea id="favCodeIn" class="note-input" style="margin:10px 0 6px;min-height:58px;font-size:12px;padding:9px" placeholder="粘贴 YCALFAV1:… 收藏码"></textarea>
+        <div class="lbl">状态同步码<span class="sub">收藏与「已做完」打钩;网页与离线 APK 互导,只合并、不会取消已有的</span></div>
+        <textarea id="stateCodeIn" class="note-input" style="margin:10px 0 6px;min-height:58px;font-size:12px;padding:9px" placeholder="粘贴 YCALSYNC1:… 状态码"></textarea>
         <div style="display:flex;gap:8px">
-          <button class="detail-btn" style="flex:1;padding:8px 0" onclick="copyFavCode()">复制我的收藏码</button>
-          <button class="detail-btn" style="flex:1;padding:8px 0;background:var(--fill);color:var(--label)" onclick="importFavCode()">导入收藏码</button>
+          <button class="detail-btn" style="flex:1;padding:8px 0" onclick="copyStateCode()">复制我的状态码</button>
+          <button class="detail-btn" style="flex:1;padding:8px 0;background:var(--fill);color:var(--label)" onclick="importStateCode()">导入状态码</button>
         </div>
       </div>
       </details>
