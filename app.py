@@ -1411,6 +1411,16 @@ def _lead_days(cfg):
     return n if n in _LEAD_CHOICES else 1
 
 
+def _friendly_dt(iso):
+    """'2026-11-05T10:00' → '11月5日 10:00';空/非法 → 时间待定(推送文案用)"""
+    try:
+        d = datetime.fromisoformat(str(iso or '')[:19])
+    except ValueError:
+        return '时间待定'
+    txt = f'{d.month}月{d.day}日'
+    return txt + (f' {d:%H:%M}' if (d.hour or d.minute) else '')
+
+
 def _daily_notify(now=None, evening=False):
     """早间:未来 lead_days+1 天开始 + 今天/明天结束;晚间:只推明天开始 + 今天结束(now 可注入,便于测试)"""
     cfg = _notify_config()
@@ -1430,7 +1440,23 @@ def _daily_notify(now=None, evening=False):
     start_days = {tomorrow: 1} if evening else days
     end_days = (today,) if evening else (today, tomorrow)
     fav_only = bool(cfg.get('fav_only'))
-    fav_map = (_load_userstate().get('fav') or {}) if fav_only else {}
+    fav_all = _load_userstate().get('fav') or {}      # 改期提醒只针对收藏,与 fav_only 开关无关
+    fav_map = fav_all if fav_only else {}
+    # 收藏活动改期提醒:最近 24 小时内抓到的 moved 记录(早晚只推早间,避免重复)
+    fav_moved = []
+    if not evening:
+        with _lock:
+            changes = list(_state.get('changes') or [])
+        cut = (naive_now - timedelta(hours=24)).isoformat(timespec='seconds')
+        for c in changes:
+            if (c or {}).get('type') != 'moved':
+                continue
+            if str((c or {}).get('at') or '') < cut:
+                continue
+            key = f"{c.get('game_id') or ''}|{c.get('title') or ''}"
+            if fav_all.get(key, 0) <= 0:
+                continue
+            fav_moved.append(c)
     starting, ending = [], []
     for e in events:
         if (e.get('kind') or 'event') != 'event':
@@ -1454,7 +1480,7 @@ def _daily_notify(now=None, evening=False):
                 pass
             ending.append((ed, e))
     span = '明天' if evening else ({0: '今天', 1: '今明两天'}.get(lead) or f'未来 {lead + 1} 天')
-    if not starting and not ending:
+    if not starting and not ending and not fav_moved:
         if fav_only:
             return   # 只推收藏时没有命中就静默,避免每天空推打扰
         _send_notify('二游活动日历',
@@ -1465,6 +1491,8 @@ def _daily_notify(now=None, evening=False):
         parts.append(f'{span} {len(starting)} 个活动开始')
     if ending:
         parts.append(f'{len(ending)} 个活动即将结束')
+    if fav_moved:
+        parts.append(f'{len(fav_moved)} 个收藏活动改期')
     lines = []
     for s, e in sorted(starting, key=lambda x: x[0]):
         i = start_days[s[:10]]
@@ -1479,6 +1507,17 @@ def _daily_notify(now=None, evening=False):
             when = '今天' if ed[:10] == today else '明天'
             tm = ed[11:16] if len(ed) >= 16 else ''
             lines.append(f'· {when}{tm and " " + tm} 截止 【{e.get("game") or ""}】{e.get("title", "")}')
+    if fav_moved:
+        if lines:
+            lines.append('')
+        lines.append('🔁 收藏活动改期:')
+        gmap = {g['id']: g['name'] for g in scrapers.GAMES_META}
+        for c in sorted(fav_moved, key=lambda x: str(x.get('at') or ''), reverse=True):
+            old = _friendly_dt((c.get('from') or {}).get('start'))
+            new = _friendly_dt((c.get('to') or {}).get('start'))
+            lines.append('· 【%s】%s:%s → %s' % (
+                gmap.get(c.get('game_id'), c.get('game_id') or ''),
+                c.get('title') or '', old, new))
     _send_notify(('晚安提醒:' if evening else '二游活动提醒:') + ' / '.join(parts), '\n'.join(lines))
 
 
