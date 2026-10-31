@@ -32,9 +32,15 @@ function grab(name) {
 }
 const EVENTS = __EVENTS__;
 const FAV = new Set(__FAV__);
-const fn = new Function('evStart', 'evEnd', 'isFav',
+const evS = e => new Date(e.start);
+const evE = e => (e.end ? new Date(e.end) : null);
+// 用真实的 isOngoingEvent(含 isPointItem / isStaleUnknown),验证收藏分组与列表/统计同口径
+const ongoing = new Function('evStart', 'evEnd',
+  grab('isPointItem') + '\n' + grab('isStaleUnknown') + '\n' + grab('isOngoingEvent')
+  + '\nreturn isOngoingEvent;')(evS, evE);
+const fn = new Function('evStart', 'evEnd', 'isFav', 'isOngoingEvent',
   grab('favRank') + '\n' + grab('favEvents') + '\nreturn {favEvents,favRank};');
-const api = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id));
+const api = fn(evS, evE, e => FAV.has(e.id), ongoing);
 const now = new Date('2026-10-31T12:00:00+08:00');
 const arr = api.favEvents(EVENTS, now);
 const ranks = EVENTS.map(e => [e.id, api.favRank(e, now)]);
@@ -59,6 +65,8 @@ EV = [
     {'id': 'd', 'start': '2026-10-01T12:00', 'end': '2026-10-20T12:00'},
     {'id': 'e', 'start': '2026-10-05T12:00'},
     {'id': 'f', 'start': '2026-10-31T12:00', 'end': '2026-11-05T12:00'},
+    {'id': 'g', 'start': '2026-09-01T12:00'},   # 60 天前仍无结束 → 不算进行中
+    {'id': 'h', 'title': '4.2版本上线', 'start': '2026-10-20T12:00'},   # 单点里程碑不算进行中
 ]
 FAV = ['a', 'b', 'c', 'd', 'e']
 
@@ -104,8 +112,10 @@ def main():
           got['ids'], ['b', 'a', 'e', 'c', 'd'])
     check('收藏页按三类分组', got['groups'],
           {'live': ['b', 'a', 'e'], 'upcoming': ['c'], 'past': ['d']})
-    check('分组口径(0 进行中 / 1 即将开始 / 2 已结束 / 3 无开始时间)',
-          got['ranks'], [['a', 0], ['b', 0], ['c', 1], ['d', 2], ['e', 0], ['f', 0]])
+    check('分组口径(0 进行中 / 1 即将开始 / 2 已结束或时间未知 / 3 无开始时间)',
+          got['ranks'], [['a', 0], ['b', 0], ['c', 1], ['d', 2], ['e', 0], ['f', 0],
+                         ['g', 2], ['h', 2]])
+    check('更早开始·结束未知不排进进行中', [e for e in got['groups']['live'] if e == 'g'], [])
     check('页面有「即将开始」分组标题', '即将开始 · ' in html, True)
     check('页面有「已结束 / 时间未知」分组标题', '已结束 / 时间未知 · ' in html, True)
     check('页签按钮存在', 'data-tab="fav"' in html, True)
