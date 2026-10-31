@@ -68,6 +68,8 @@ console.log(JSON.stringify({
   prefixHsrEnding: run('hsr: 即将结束'),
   shortHsr: run('崩铁'), shortZzz: run('绝区零'),
   multiMatch: run('崩铁 活动'), multiMiss: run('活动 签到'), hl: hl,
+  staleRun: makeFiltered('进行中').quickMatch({start:'2026-09-01T10:00'}, '进行中', FakeDate()),
+  recentRun: makeFiltered('进行中').quickMatch({start:'2026-10-20T10:00'}, '进行中', FakeDate()),
 }));
 """
 
@@ -146,6 +148,8 @@ def main():
     check("今天开始:只算今天起点的", d['todayStart'], ['g'])
     check("今天结束:只算真有结束时间且今天截止的", d['todayEnd'], ['b'])
     check("进行中:已开始且未结束(无结束时间也算)", d['running'], ['a', 'b', 'g', 'h', 'i'])
+    check("进行中:更早开始·结束未知不算", d['staleRun'], False)
+    check("进行中:30 天内的未知结束仍算", d['recentRun'], True)
     check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i'])
     check("搜索游戏全名「绝区零」命中绝区零全部", d['shortZzz'], ['b', 'e', 'h'])
     check("高亮:中文关键词包一层 mark", d['hl']['cn'], '<mark>活动</mark>A')

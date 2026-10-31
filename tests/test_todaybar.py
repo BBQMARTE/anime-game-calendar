@@ -29,10 +29,16 @@ function FakeDate(...a) {
   return a.length ? new Date(...a) : new Date('2026-10-31T20:30:00+08:00');
 }
 const box = { innerHTML: '' };
+const evStart = e => new Date(e.start);
+const evEnd = e => (e.end ? new Date(e.end) : null);
+const isStaleUnknown = new Function('evStart', 'Date',
+  grab('isStaleUnknown') + '\nreturn isStaleUnknown;')(evStart, FakeDate);
+const isOngoing = new Function('evStart', 'evEnd', 'isStaleUnknown',
+  grab('isOngoingEvent') + '\nreturn isOngoingEvent;')(evStart, evEnd, isStaleUnknown);
 const fn = new Function('$', 'filteredEvents', 'evStart', 'evEnd', 'jumpToday', 'Date',
-  grab('renderTodayBar') + '\nreturn renderTodayBar;');
-fn(() => box, () => EVENTS, e => new Date(e.start), e => (e.end ? new Date(e.end) : null),
-   () => {}, FakeDate)();
+  'isOngoingEvent', grab('renderTodayBar') + '\nreturn renderTodayBar;');
+fn(() => box, () => EVENTS, evStart, evEnd,
+   () => {}, FakeDate, isOngoing)();
 const nums = [...box.innerHTML.matchAll(/<b>(\d+)<\/b>/g)].map(m => +m[1]);
 console.log(JSON.stringify({ nums, html: box.innerHTML.length }));
 """
@@ -48,6 +54,8 @@ EV = [
     {'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
     # 今天开始但未写结束时间:算今天开始与进行中,不算今天结束
     {'start': '2026-10-31T09:00'},
+    # 更早开始·结束未知(60 天前、无结束):不算进行中(与统计/列表同口径)
+    {'start': '2026-09-01T10:00'},
 ]
 
 bad = 0
@@ -77,7 +85,7 @@ def main():
     check("渲染出三个计数", len(d['nums']), 3)
     check("今天开始 = 2(含未写结束时间的一条)", d['nums'][0], 2)
     check("今天结束 = 1", d['nums'][1], 1)
-    check("进行中 = 4(含今天起止与未写结束时间)", d['nums'][2], 4)
+    check("进行中 = 4(含今天起止与未写结束时间,不含 60 天前无结束的一条)", d['nums'][2], 4)
     check("输出非空", d['html'] > 0, True)
 
     src = open(HTML, encoding='utf-8').read()
