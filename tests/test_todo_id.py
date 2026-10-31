@@ -115,6 +115,8 @@ check_true('noteHtml 不再内联拼接 id',
            and "delNote('${it.id}')\"" not in html)
 check_true('改用 data-id 且经 esc 转义', 'data-id="${esc(it.id)}"' in html)
 check_true('存在事件委托绑定', "host.addEventListener('click'" in html)
+check_true('备忘行有修改入口', '<span class="note-edit" data-edit="1"' in html)
+check_true('委托优先处理修改', "closest('.note-edit')" in html and 'editNote(id)' in html)
 
 if not shutil.which('node'):
     print('SKIP: 未找到 node，跳过前端行为断言')
@@ -154,6 +156,50 @@ console.log(JSON.stringify({ html: noteHtml(NOTES, true, esc, () => [], () => '#
         check_true('id 经 HTML 实体化后落在 data-id', 'data-id="x&#39;);document.title=&#39;pwned&#39;;//"' in row)
         check_true('渲染结果无未转义单引号', "x');" not in row)
         check_true('标题中的 <img> 已转义', '<img' not in row and '&lt;img' in row)
+
+    # 修改备忘:只改标题,保留 id / 打钩 / 每周标记;空值与未改动不保存
+    edit_src = r"""
+const fs = require('fs');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+function grab(name) {
+  const i = src.indexOf('function ' + name + '(');
+  if (i < 0) throw new Error('not found: ' + name);
+  let d = 0, go = false;
+  for (let k = src.indexOf('{', i); k < src.length; k++) {
+    if (src[k] === '{') { d++; go = true; }
+    else if (src[k] === '}') { d--; if (go && !d) return src.slice(i, k + 1); }
+  }
+  throw new Error('unbalanced: ' + name);
+}
+const NOTES = { items: [{ id: 'n1', title: '清体力', done: true, cycle: 'weekly', done_week: '2026-W44' }] };
+const saved = [], mounted = [], flashed = [];
+let answer = '  领邮件  ';
+const fn = new Function('NOTES','prompt','saveNotes','mountNotes','flash',
+  grab('editNote') + '\nreturn editNote;')(
+  NOTES, () => answer, () => saved.push(1), () => mounted.push(1), m => flashed.push(m));
+fn('n1');
+const after = NOTES.items[0];
+answer = '领邮件'; fn('n1');   // 内容未变:不保存
+answer = '   ';   fn('n1');   // 空白:不保存
+fn('nope');                   // 未知 id:不保存
+console.log(JSON.stringify({ title: after.title, done: after.done, cycle: after.cycle,
+  week: after.done_week, saves: saved.length, mounts: mounted.length,
+  flash: flashed[flashed.length - 1] }));
+"""
+    q = subprocess.run(['node', '-e', edit_src, 'node',
+                        os.path.join(ROOT, 'static', 'index.html')],
+                       capture_output=True, text=True)
+    if q.returncode != 0:
+        print('FAIL: 备修改 node 执行失败: %s' % q.stderr.strip())
+        bad += 1
+    else:
+        d = json.loads(q.stdout.strip().splitlines()[-1])
+        check('修改后备忘标题(去空格)', d['title'], '领邮件')
+        check('修改保留打钩状态', d['done'], True)
+        check('修改保留每周标记', (d['cycle'], d['week']), ('weekly', '2026-W44'))
+        check('只保存一次(空值/未改/未知 id 不写)', d['saves'], 1)
+        check('修改后重渲染', d['mounts'], 1)
+        check('修改成功有提示', '修改' in (d['flash'] or ''), True)
 
 print('ALL PASS' if bad == 0 else 'SOME FAILED')
 sys.exit(1 if bad else 0)

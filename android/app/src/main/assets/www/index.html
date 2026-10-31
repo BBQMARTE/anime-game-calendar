@@ -337,6 +337,11 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
   font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center;
 }
 .note-del:active{background:var(--fill)}
+.note-edit{
+  flex:none; width:26px; height:26px; border-radius:50%; color:var(--label3);
+  font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.note-edit:active{background:var(--fill)}
 .note-add{
   width:100%; padding:10px; border:none; background:none; color:var(--blue);
   font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; text-align:center;
@@ -1943,6 +1948,7 @@ function noteHtml(){
   const row=it=>`<div class="note-row${it.done?' done':''}" data-id="${esc(it.id)}">
     <span class="note-box"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>
     <span class="note-title">${esc(it.title)}${it.cycle==='weekly'?`<span class="tag" style="--tc:var(--blue);color:${tagText('资讯')};margin-left:6px">每周</span>`:''}</span>
+    <span class="note-edit" data-edit="1" title="修改备忘">✎</span>
     <span class="note-del" data-del="1">×</span>
   </div>`;
   let h=`<div class="notes"><div class="sec-title">备忘</div><div class="group">`;
@@ -1965,7 +1971,8 @@ function mountNotes(){
     host.addEventListener('click',ev=>{
       const row=ev.target.closest('.note-row');if(!row)return;
       const id=row.dataset.id||'';
-      if(ev.target.closest('.note-del'))delNote(id);else toggleNote(id);
+      if(ev.target.closest('.note-edit'))editNote(id);
+      else if(ev.target.closest('.note-del'))delNote(id);else toggleNote(id);
     });
   }
 }
@@ -1975,6 +1982,13 @@ function toggleNote(id){
   saveNotes();mountNotes();
 }
 function delNote(id){NOTES.items=NOTES.items.filter(x=>x.id!==id);saveNotes();mountNotes()}
+/* 修改备忘标题:保留 id / 每周标记 / 打钩状态,只改文字;空值或未改动作什么都不做 */
+function editNote(id){
+  const it=NOTES.items.find(x=>x.id===id);if(!it)return;
+  const t=(prompt('修改备忘内容:',it.title)||'').trim().slice(0,200);
+  if(!t||t===it.title)return;
+  it.title=t;saveNotes();mountNotes();flash('备忘已修改');
+}
 function openNoteAdd(){
   const o=document.createElement('div');
   o.className='detail-overlay';
