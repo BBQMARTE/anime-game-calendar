@@ -2411,11 +2411,11 @@ function openSettings(){
         <label class="switch"><input type="checkbox" ${settings.icsAlarm?'checked':''} onchange="toggleIcsAlarm(this.checked)" aria-label="订阅带提前提醒"><span class="tr"></span></label>
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportCsv()" role="button" aria-label="导出 CSV">
-        <div class="lbl">导出 CSV<span class="sub">按当前显示的游戏与分类导出表格,Excel 直接打开</span></div>
+        <div class="lbl">导出 CSV<span class="sub">按当前筛选(游戏 / 分类 / 搜索词 / 数据质量)导出表格,Excel 直接打开;离线 APK 也能导出</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportFavCsv()" role="button" aria-label="导出收藏 CSV">
-        <div class="lbl">导出收藏 CSV<span class="sub">只导出已收藏的活动,不受顶部筛选影响</span></div>
+        <div class="lbl">导出收藏 CSV<span class="sub">只导出已收藏的活动,不受顶部筛选影响;离线 APK 同样可导出</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportMonthIcs()" role="button" aria-label="导出整月日历">
@@ -2479,22 +2479,64 @@ function icsUrl(){
   const qs=[filterQuery().replace(/^\?/,''), settings.icsFav?'fav=1':'', settings.icsAlarm?'alarm=30':''].filter(Boolean).join('&');
   return o+'/api/calendar.ics'+(qs?'?'+qs:'');
 }
-/* 导出 CSV:直接下载,Excel/Numbers 打开即可透视 */
+/* 导出 CSV:直接下载,Excel/Numbers 打开即可透视;离线 APK 用本地数据同口径生成 */
 function exportCsv(){
   const o=apiOrigin();
-  if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
+  if(!o){   // 离线模式:没有服务端,用本地当前列表生成同样的表格
+    const evs=filteredAll();
+    if(!evs.length){flash('当前筛选没有可导出的条目');return}
+    downloadCsvFile('二游活动日历.csv',buildCsvText(evs));
+    flash('已导出 '+evs.length+' 条到 CSV(离线)');
+    return;
+  }
   const a=document.createElement('a');
   a.href=o+'/api/export.csv'+filterQuery(true);   // 当前搜索词 / 质量筛选也带进导出
   a.download='二游活动日历.csv';
   document.body.appendChild(a);a.click();a.remove();
   if(exportSearch().quick)flash('快捷词只在列表生效,本次 CSV 未按它过滤');
 }
-/* 导出收藏 CSV:收藏状态在服务端 userstate,后端按 ?fav=1 过滤 */
+/* 离线 CSV:字段与 /api/export.csv 完全一致(游戏,标题,分类,开始,结束,类型,来源,链接,收藏,已做完) */
+function csvCell(v){
+  const s=String(v==null?'':v);
+  return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function buildCsvText(events){
+  const srcLabel={manual:'已核实',bilibili:'B站'};
+  const head=['游戏','标题','分类','开始','结束','类型','来源','链接','收藏','已做完'];
+  const rows=(events||[]).slice().sort((a,b)=>{
+    const ka=a.start||a.date||'~', kb=b.start||b.date||'~';
+    if(ka!==kb)return ka<kb?-1:1;
+    const ta=a.title||'', tb=b.title||'';
+    return ta===tb?0:(ta<tb?-1:1);
+  }).map(e=>[
+    e.game||e.game_id||'', e.title||'', e.category||'',
+    e.start||'', e.end||'',
+    (e.kind||'event')==='event'?'活动':'资讯',
+    srcLabel[e.src]||'自动', e.link||'',
+    isFav(e)?'是':'否', isDone(e)?'是':'否'
+  ]);
+  return '\ufeff'+[head].concat(rows).map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+}
+function downloadCsvFile(name,text){
+  const blob=new Blob([text],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=u; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+/* 导出收藏 CSV:收藏状态在服务端 userstate,后端按 ?fav=1 过滤;离线用本地收藏 */
 function exportFavCsv(){
   const o=apiOrigin();
-  if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
   const n=Object.values(FAV||{}).filter(v=>v>0).length;
   if(!n){alert('还没有收藏的活动:在列表里点「收藏置顶」后再导出');return}
+  if(!o){
+    const evs=(DATA&&DATA.events||[]).filter(isFav);
+    if(!evs.length){flash('收藏的活动当前不在本地数据里');return}
+    downloadCsvFile('二游活动日历-收藏.csv',buildCsvText(evs));
+    flash('已导出 '+evs.length+' 条收藏到 CSV(离线)');
+    return;
+  }
   const a=document.createElement('a');
   a.href=o+'/api/export.csv?fav=1';
   a.download='二游活动日历-收藏.csv';

@@ -2,8 +2,8 @@
 """离线模式导出口测试。
 
 APK 本地模式(run 在 file:// 下)没有 Flask 服务端:此时拼 127.0.0.1:5000
-会得到一个打不开的链接。apiOrigin() 在非 http(s) 时返回空串,调用方给出
-「请先连接服务端」的提示。
+会得到一个打不开的链接。apiOrigin() 在非 http(s) 时返回空串;
+ICS 订阅给「请先连接服务端」的提示,CSV 则改用本地数据生成(离线可导出)。
 
 运行:python3 tests/test_offline_guard.py(node 缺失则 SKIP)
 """
@@ -44,6 +44,7 @@ console.log(JSON.stringify({
   offlineOrigin: offline.apiOrigin(),
   offlineIcs: offline.icsUrl(),
   guardCsv: html.includes('离线模式无法导出 CSV'),
+  localCsv: html.includes('function buildCsvText('),
   guardIcs: html.includes('离线模式无法生成订阅链接'),
 }));
 """
@@ -79,7 +80,8 @@ def main():
     check("https 下 ICS 链接可用", d['httpsIcs'], 'https://example.com/api/calendar.ics')
     check("file:// 下无服务端 origin", d['offlineOrigin'], '')
     check("file:// 下不拼 ICS 链接", d['offlineIcs'], '')
-    check("CSV 导出有离线提示", d['guardCsv'], True)
+    check("离线 CSV 改走本地生成(不再提示去连电脑)", d['guardCsv'], False)
+    check("本地 CSV 生成函数存在", d['localCsv'], True)
     check("ICS 订阅有离线提示", d['guardIcs'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
