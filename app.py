@@ -584,8 +584,23 @@ def api_thumb():
 
 @app.route('/api/events')
 def api_events():
+    """事件全量接口:带 ETag,数据没变时浏览器拿 304。
+
+    前端每 60 秒轮询一次,整包约 130KB;加 ETag 后未刷新时只有几百字节的
+    304 往返,省流量也省服务端 JSON 序列化。ETag 取 updated(每轮刷新必变)
+    + 事件数 + 变更数,足够区分状态。
+    """
     with _lock:
-        return jsonify(_state)
+        etag = 'W/"%s-%d-%d"' % (_state.get('updated') or '0',
+                                 len(_state.get('events') or []),
+                                 len(_state.get('changes') or []))
+    headers = {'ETag': etag, 'Cache-Control': 'no-cache'}
+    if request.headers.get('If-None-Match') == etag:
+        return Response(status=304, headers=headers)
+    with _lock:
+        payload = jsonify(_state)
+    payload.headers.update(headers)
+    return payload
 
 
 def _start_refresh():
