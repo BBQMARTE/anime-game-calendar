@@ -32,9 +32,9 @@ const box = { innerHTML: '' };
 const evStart = e => new Date(e.start);
 const evEnd = e => (e.end ? new Date(e.end) : null);
 const isStaleUnknown = new Function('evStart', 'Date',
-  grab('isStaleUnknown') + '\nreturn isStaleUnknown;')(evStart, FakeDate);
+  grab('isPointItem') + '\n' + grab('isStaleUnknown') + '\nreturn isStaleUnknown;')(evStart, FakeDate);
 const isOngoing = new Function('evStart', 'evEnd', 'isStaleUnknown',
-  grab('isOngoingEvent') + '\nreturn isOngoingEvent;')(evStart, evEnd, isStaleUnknown);
+  grab('isPointItem') + '\n' + grab('isOngoingEvent') + '\nreturn isOngoingEvent;')(evStart, evEnd, isStaleUnknown);
 const fn = new Function('$', 'filteredEvents', 'evStart', 'evEnd', 'jumpToday', 'Date',
   'isOngoingEvent', grab('renderTodayBar') + '\nreturn renderTodayBar;');
 fn(() => box, () => EVENTS, evStart, evEnd,

@@ -32,8 +32,8 @@ function grab(name) {
   }
   throw new Error('unbalanced: ' + name);
 }
-const fn = new Function(grab('evStart') + '\n' + grab('isStaleUnknown') + '\n' + grab('dqMatch') +
-  '\nreturn {dqMatch};');
+const fn = new Function(grab('evStart') + '\n' + grab('isPointItem') + '\n' + grab('isStaleUnknown')
+  + '\n' + grab('dqMatch') + '\nreturn {dqMatch};');
 const f = fn();
 const NOW = new Date(2026, 9, 31, 12, 0, 0);   // 2026-10-31,与测试注释同口径
 const ev = (o) => Object.assign({kind: 'event'}, o);
@@ -46,6 +46,8 @@ console.log(JSON.stringify({
   staleYes: f.dqMatch(ev({start: '2026-09-01T10:00'}), 'stale', NOW),
   staleNo: f.dqMatch(ev({start: '2026-10-20T10:00'}), 'stale', NOW),
   staleHasEnd: f.dqMatch(ev({start: '2026-09-01T10:00', end: '2026-10-05T03:59'}), 'stale', NOW),
+  pointNoend: f.dqMatch(ev({title: '4.7版本「此刻将群星付之一笑」上线', start: '2026-11-05T10:00'}), 'noend', NOW),
+  pointStale: f.dqMatch(ev({title: '3.7版本前瞻通讯（直播）', start: '2026-09-01T10:00'}), 'stale', NOW),
   none: f.dqMatch(ev({image: ''}), '', NOW),
 }));
 """
@@ -81,6 +83,8 @@ def main():
     check("更早开始未知:40 天前无结束命中", d['staleYes'], True)
     check("更早开始未知:11 天前不命中", d['staleNo'], False)
     check("更早开始未知:有结束不命中", d['staleHasEnd'], False)
+    check("单点里程碑(版本上线)不算缺结束", d['pointNoend'], False)
+    check("单点里程碑(前瞻通讯)不算更早未知", d['pointStale'], False)
     check("无质量筛选时全部通过", d['none'], True)
 
     src = open(HTML, encoding='utf-8').read()

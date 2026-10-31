@@ -813,7 +813,7 @@ function filtered(){
 /* 数据质量筛选口径(与统计面板里的三项计数完全一致) */
 function dqMatch(e,k,now){
   if(k==='noimg')return !(e.image||'').trim();
-  if(k==='noend')return !e.end;
+  if(k==='noend')return !e.end&&!isPointItem(e);
   if(k==='stale')return isStaleUnknown(e,now);
   return true;
 }
@@ -1298,15 +1298,21 @@ function favGroups(arr,now){
 }
 let _unknownAll=false;   // 「更早开始·结束未知」是否展开(默认折叠)
 function toggleUnknownAll(){_unknownAll=!_unknownAll;renderList()}
+/* 单点里程碑:版本上线 / 前瞻直播这类只有时刻、没有持续期的条目。
+   本来就没有结束时间,不算「进行中」,也不该进「缺结束时间 / 更早开始未知」的数据质量统计。 */
+function isPointItem(e){
+  return (e.kind||'event')==='event'
+    && /(\d+\.\d+\s*版本.*上线)|(正式上线)|(前瞻.*(节目|通讯|直播))/.test(String(e.title||''));
+}
 /* 「更早开始·结束未知」:开始超过 30 天还没有结束时间(前端折叠 / ICS 不订阅,口径一致) */
 function isStaleUnknown(e,now){
   const s=evStart(e);
-  return !!(s&&!e.end&&s<new Date(now.getTime()-30*864e5));
+  return !!(s&&!e.end&&!isPointItem(e)&&s<new Date(now.getTime()-30*864e5));
 }
-/* 真正进行中:已开始且未结束;无结束时间的老条目不冒充「进行中」(统计口径与列表一致) */
+/* 真正进行中:已开始且未结束;无结束时间的老条目与单点里程碑不冒充「进行中」 */
 function isOngoingEvent(e,now){
   const s=evStart(e);
-  if(!s||s>now)return false;
+  if(!s||s>now||isPointItem(e))return false;
   if(!e.end)return !isStaleUnknown(e,now);
   return evEnd(e)>=now;
 }
@@ -1314,7 +1320,7 @@ function isOngoingEvent(e,now){
 function ongoingGroups(evs,now){
   const live=[],unknown=[],stale=[];
   for(const e of evs){
-    const s=evStart(e); if(!s||s>now)continue;
+    const s=evStart(e); if(!s||s>now||isPointItem(e))continue;
     if(e.end){if(evEnd(e)>=now)live.push(e)}
     else (isStaleUnknown(e,now)?stale:unknown).push(e);
   }

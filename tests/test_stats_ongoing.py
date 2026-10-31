@@ -42,7 +42,7 @@ function grab(name) {
 const evStart = e => (e.start ? new Date(e.start) : null);
 const evEnd = e => (e.end ? new Date(e.end) : null);
 const fn = new Function('evStart', 'evEnd',
-  grab('isStaleUnknown') + '\n' + grab('isOngoingEvent')
+  grab('isPointItem') + '\n' + grab('isStaleUnknown') + '\n' + grab('isOngoingEvent')
   + '\nreturn {isStaleUnknown, isOngoingEvent};');
 const f = fn(evStart, evEnd);
 const now = new Date('2026-10-31T12:00:00');

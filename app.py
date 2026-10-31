@@ -1264,6 +1264,18 @@ def _default_end(start_iso):
 
 _STALE_UNKNOWN_DAYS = 30
 
+# 单点里程碑:版本上线 / 前瞻直播这类只有开始时刻、没有持续期的条目。
+# 它们本来就没有结束时间,不该算「缺结束」「更早开始未知」,也不该冒充「进行中」。
+_POINT_TITLE_RE = re.compile(r'(\d+\.\d+\s*版本.*上线)|(正式上线)|(前瞻.*(节目|通讯|直播))')
+
+
+def _is_point_item(e):
+    """是否为单点里程碑(与前端 isPointItem() 同一正则)。"""
+    e = e or {}
+    if (e.get('kind') or 'event') != 'event':
+        return False
+    return bool(_POINT_TITLE_RE.search(str(e.get('title') or '')))
+
 
 def _is_stale_unknown(e, now=None):
     """开始超过 30 天仍无结束时间:不构成「进行中」,也不进订阅。
@@ -1271,8 +1283,11 @@ def _is_stale_unknown(e, now=None):
     与前端 isStaleUnknown() 逐秒同口径(now - 30 天,而不是只看日期),
     避免「30 天前 20:00 开始的条目页面已折叠、订阅却还挂着」这种半天的分叉。
     只有日期没有时分的 start 按当天 0 点算,两端都是这个行为。
+    单点里程碑(版本上线/前瞻直播)本来就没有结束时间,不在此列。
     """
     e = e or {}
+    if _is_point_item(e):
+        return False
     start = e.get('start')
     if not start or e.get('end'):
         return False
@@ -1285,9 +1300,11 @@ def _is_stale_unknown(e, now=None):
 
 
 def _is_ongoing(e, now=None):
-    """与前端 isOngoingEvent() 同一口径:已开始且(有结束就比结束,无结束排除历史条目)"""
+    """与前端 isOngoingEvent() 同一口径:已开始且(有结束就比结束,无结束排除历史条目与单点里程碑)"""
     now = now or _bj_now().replace(tzinfo=None)
     e = e or {}
+    if _is_point_item(e):
+        return False
     try:
         s = datetime.fromisoformat(str(e.get('start') or '')[:19])
     except (ValueError, TypeError):
@@ -1382,6 +1399,10 @@ def api_ics():
         # 不再补默认 2 天窗口塞进订阅日历(以前会留下一堆过去的事件)
         if _is_stale_unknown(e):
             continue
+        # 单点里程碑(版本上线/前瞻直播)不在 stale 口径里,这里单独跳过已经过去的日子,
+        # 避免补 2 天窗口后把旧直播又塞回订阅生成一堆过期事件
+        if _is_point_item(e) and str(s_iso)[:10] < today:
+            continue
         ds = _ics_utc(s_iso)
         # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
         # 显式 end 无时分时取当天 23:59(既有口径);补出的默认窗口已是「起点 + 2 天」,
@@ -1445,7 +1466,7 @@ def api_health():
         'ongoing': sum(1 for e in real if _is_ongoing(e, now)),
         'stale_unknown': sum(1 for e in real if _is_stale_unknown(e, now)),
         'changes_recent': changes_recent,
-        'missing_end': sum(1 for e in real if not e.get('end')),
+        'missing_end': sum(1 for e in real if not e.get('end') and not _is_point_item(e)),
         'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),
                         'count': (v or {}).get('count', 0),
@@ -1459,7 +1480,7 @@ def _dq_filter(rows, dq, now=None):
     """数据质量筛选(?dq=noimg|noend|stale),与前端/统计计数逐条同口径。
 
     只针对真活动(kind=event):资讯条目本来就没有结束时间,算进来只会虚高。
-    缺图 = 图片为空或纯空白;缺结束 = 没有 end;
+    缺图 = 图片为空或纯空白;缺结束 = 没有 end 且不是单点里程碑(版本上线/前瞻直播);
     更早开始未知 = 开始超 30 天仍无结束(复用 _is_stale_unknown,与列表折叠/订阅排除一致)。
     """
     if dq not in ('noimg', 'noend', 'stale'):
@@ -1468,7 +1489,7 @@ def _dq_filter(rows, dq, now=None):
     if dq == 'noimg':
         return [e for e in rows if not (e.get('image') or '').strip()]
     if dq == 'noend':
-        return [e for e in rows if not e.get('end')]
+        return [e for e in rows if not e.get('end') and not _is_point_item(e)]
     return [e for e in rows if _is_stale_unknown(e, now)]
 
 

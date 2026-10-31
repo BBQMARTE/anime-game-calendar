@@ -26,7 +26,7 @@ function grab(name) {
   }
   throw new Error('unbalanced braces: ' + name);
 }
-const code = ['esc','evStart','evEnd','isEv','gameColor','gameName','isStaleUnknown','isOngoingEvent'].map(grab).join('\n');
+const code = ['esc','evStart','evEnd','isEv','gameColor','gameName','isPointItem','isStaleUnknown','isOngoingEvent'].map(grab).join('\n');
 const CAT = src.match(/const CAT_COLOR=[^\n]+/)[0];
 const stats = grab('openStats');
 const now = new Date(2026, 9, 31, 12, 0, 0);

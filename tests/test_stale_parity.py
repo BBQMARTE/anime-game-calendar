@@ -68,7 +68,7 @@ function grab(name) {
 const CASES = __CASES__;
 const NOW = new Date(2026, 9, 31, 12, 0, 0);
 const fn = new Function('evStart', 'evEnd', 'now',
-  grab('isStaleUnknown') + '\n' + grab('isOngoingEvent') +
+  grab('isPointItem') + '\n' + grab('isStaleUnknown') + '\n' + grab('isOngoingEvent') +
   '\nreturn {stale: isStaleUnknown, ongoing: isOngoingEvent};');
 const fns = fn(e => (e.start ? new Date(e.start) : null),
   e => (e.end ? new Date(e.end) : (e.start ? new Date(new Date(e.start).getFullYear(),
