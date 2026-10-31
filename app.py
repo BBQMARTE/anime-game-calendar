@@ -1054,22 +1054,23 @@ def _default_end(start_iso):
 _STALE_UNKNOWN_DAYS = 30
 
 
-def _stale_unknown_cut(now=None):
-    now = now or _bj_now().replace(tzinfo=None)
-    return (now - timedelta(days=_STALE_UNKNOWN_DAYS)).strftime('%Y-%m-%d')
-
-
-def _is_stale_unknown(e, cut=None):
+def _is_stale_unknown(e, now=None):
     """开始超过 30 天仍无结束时间:不构成「进行中」,也不进订阅。
 
-    与前端 isStaleUnknown() 同一口径。列表折叠、统计页与 ICS 三处共用,
-    避免出现「列表说这是历史、订阅里还挂着」这种分叉。
+    与前端 isStaleUnknown() 逐秒同口径(now - 30 天,而不是只看日期),
+    避免「30 天前 20:00 开始的条目页面已折叠、订阅却还挂着」这种半天的分叉。
+    只有日期没有时分的 start 按当天 0 点算,两端都是这个行为。
     """
     e = e or {}
-    start = str(e.get('start') or '')[:10]
+    start = e.get('start')
     if not start or e.get('end'):
         return False
-    return start < (cut or _stale_unknown_cut())
+    try:
+        s = datetime.fromisoformat(str(start)[:19])
+    except (ValueError, TypeError):
+        return False
+    now = now or _bj_now().replace(tzinfo=None)
+    return s < now - timedelta(days=_STALE_UNKNOWN_DAYS)
 
 
 def _is_ongoing(e, now=None):
@@ -1088,7 +1089,7 @@ def _is_ongoing(e, now=None):
             return datetime.fromisoformat(str(end)[:19]) >= now
         except (ValueError, TypeError):
             return False
-    return not _is_stale_unknown(e)
+    return not _is_stale_unknown(e, now)
 
 
 def _ics_utc(iso, day_end=False):
@@ -1192,7 +1193,7 @@ def api_health():
         'events': len(events),
         'events_real': len(real),
         'ongoing': sum(1 for e in real if _is_ongoing(e, now)),
-        'stale_unknown': sum(1 for e in real if _is_stale_unknown(e)),
+        'stale_unknown': sum(1 for e in real if _is_stale_unknown(e, now)),
         'changes_recent': changes_recent,
         'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),

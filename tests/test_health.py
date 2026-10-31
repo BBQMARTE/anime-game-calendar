@@ -28,7 +28,7 @@ def check(label, got, expect):
 def main():
     backup_state = dict(app._state)
     backup_changes = app._load_changes
-    now = app._bj_now().replace(tzinfo=None)
+    now = app._bj_now().replace(tzinfo=None, microsecond=0)
     iso = lambda d: (now + timedelta(days=d)).isoformat(timespec='seconds')
     day = lambda d: (now + timedelta(days=d)).strftime('%Y-%m-%d')
 
@@ -74,8 +74,13 @@ def main():
         check('有结束时间的不算 stale_unknown',
               app._is_stale_unknown({'start': day(-40), 'end': day(-39)}), False)
         check('无开始时间的不算 stale_unknown', app._is_stale_unknown({'start': None}), False)
-        check('刚好 30 天前仍是进行中口径内', app._is_stale_unknown({'start': day(-30)}), False)
-        check('31 天前算 stale', app._is_stale_unknown({'start': day(-31)}), True)
+        # 与前端一致按时刻比较(不是只看日期):正好 30 天前同刻不算,早 1 分钟就算
+        check('刚好 30 天前(同刻)不算 stale',
+              app._is_stale_unknown({'start': iso(-30)}, now=now), False)
+        check('30 天前再多 1 分钟算 stale',
+              app._is_stale_unknown({'start': (now - timedelta(days=30, minutes=1))
+                                     .isoformat(timespec='seconds')}, now=now), True)
+        check('31 天前算 stale', app._is_stale_unknown({'start': day(-31)}, now=now), True)
 
         # updated 超过 24 小时 → stale
         app._state['updated'] = iso(-2)
