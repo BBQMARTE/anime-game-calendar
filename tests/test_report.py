@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """用户报错/缺图反馈(/api/report)测试。
-
 离线跑:临时文件替换真实 data/reports.json,不产生副作用。
 运行:python3 tests/test_report.py
 """
@@ -108,6 +107,19 @@ def main():
     done_item['done'] = False
     with open(app.REPORT_FILE, 'w', encoding='utf-8') as f:
         json.dump({'items': items}, f, ensure_ascii=False)
+
+    # 清除已处理:只删 done,待核查保留
+    items = c.get('/api/report').get_json()['items']
+    items[0]['done'] = True
+    items[-1]['done'] = True
+    with open(app.REPORT_FILE, 'w', encoding='utf-8') as f:
+        json.dump({'items': items}, f, ensure_ascii=False)
+    before = len(items)
+    r = c.delete('/api/report', json={'done': True}, headers=H)
+    j = r.get_json()
+    check("清除已处理反馈", (j.get('ok'), j.get('removed')), (True, 2))
+    left = c.get('/api/report').get_json()['items']
+    check("清除后只剩待核查", (len(left), any(x.get('done') for x in left)), (before - 2, False))
 
     # 上限:写入 400 条,只保留最近 300
     for i in range(400):

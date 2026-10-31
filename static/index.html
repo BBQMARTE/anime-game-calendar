@@ -254,6 +254,8 @@ main{max-width:860px; margin:0 auto; padding:4px 20px 40px}
 .chg-row .chg-sub{font-size:11px; color:var(--label3); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .chg-row .chg-del{flex:none; font-size:11px; color:var(--red); padding:2px 6px; border-radius:6px; background:var(--fill); cursor:pointer}
 .chg-row .chg-del:active{opacity:.5}
+/* 我的反馈工具栏:只看待核查 / 清除已处理 */
+.rep-bar{display:flex; gap:14px; justify-content:space-between; align-items:center; margin:0 0 10px; font-size:12px}
 .cd.urgent{color:var(--red)}
 #list .sec-title{margin:16px 6px 8px}
 #list .sec-title:first-child{margin-top:4px}
@@ -845,29 +847,37 @@ function statRange(w,el){
   saveFilters(); render();
   flash('只看'+w+'的活动');
 }
-/* 我的反馈:展示 /api/report 清单;待核查的可以撤回,每日核查处理过的标 done */
+/* 我的反馈:展示 /api/report 清单;待核查可撤回 / 只看待核查 / 清除已处理 */
+let _repPending=false;
 function openReports(){
   const o=apiOrigin();
   if(!o){alert('离线模式看不到反馈清单,请先在 APK 里连接电脑上的服务端');return}
   fetch('/api/report').then(r=>r.json()).then(d=>{
-    const items=(d.items||[]).slice(-60).reverse();
-    const pend=items.filter(x=>!x.done).length;
+    const all=d.items||[];
+    const pendAll=all.filter(x=>!x.done).length, doneAll=all.length-pendAll;
+    const src=_repPending?all.filter(x=>!x.done):all;
+    const items=src.slice(-60).reverse();
     const over=document.createElement('div');
     over.className='detail-overlay';
     over.innerHTML=`<div class="detail-sheet">
       <div class="detail-header" style="--c:var(--orange)">
         <div class="dthumb" style="font-size:15px">反</div>
-        <div class="dmeta"><div class="dtitle">我的反馈</div><div class="dsub">共 ${items.length} 条 · 待核查 ${pend} 条 · 每日核查会优先处理</div></div>
+        <div class="dmeta"><div class="dtitle">我的反馈</div><div class="dsub">共 ${all.length} 条 · 待核查 ${pendAll} 条 · 每日核查会优先处理</div></div>
         <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
       </div>
       <div class="detail-body">
+        <div class="rep-bar">
+          <span class="stat-link" onclick="toggleRepPending()">${_repPending?'显示全部':'只看待核查'}</span>
+          ${doneAll?`<span class="stat-link" style="color:var(--red)" onclick="clearReportsDone(${doneAll})">清除已处理 · ${doneAll}</span>`:''}
+        </div>
         ${items.length?items.map(it=>`<div class="chg-row" style="cursor:default" data-at="${esc(it.at||'')}" data-game="${esc(it.game_id||'')}" data-title="${esc(it.title||'')}" data-kind="${esc(it.kind||'')}">
           <span class="chg-tag" style="background:${it.done?'#34C759':'#FF9500'};color:#1c1c1e">${esc(REPORT_LABEL[it.kind]||it.kind||'其他')}</span>
           <div class="chg-main"><div class="chg-title">${esc(it.title||'')}</div>
           <div class="chg-sub">${esc(gameName(it.game_id))} · ${esc(String(it.at||'').replace('T',' ').slice(5,16))} · ${it.done?'已处理':'待核查'}${it.note?(' · '+esc(it.note)):''}</div></div>
           ${it.done?'':'<span class="chg-del" onclick="withdrawReport(this)" title="撤回这条待核查反馈">撤回</span>'}
         </div>`).join('')
-          :'<div class="empty">还没有提交过反馈<br>在活动详情里点「缺图 / 缺结束时间 / 时间不对」即可</div>'}
+          :(_repPending?'<div class="empty">没有待核查反馈<br>都处理完了</div>'
+            :'<div class="empty">还没有提交过反馈<br>在活动详情里点「缺图 / 缺结束时间 / 时间不对」即可</div>')}
         <div class="stat-sub" style="margin-top:12px">处理由每日核查 Agent 执行:补图、回源核实起止时间后会把状态改为「已处理」。</div>
       </div>
     </div>`;
@@ -875,6 +885,24 @@ function openReports(){
     document.body.appendChild(over);
     attachSwipeClose(over);
   }).catch(()=>alert('读取反馈失败,请确认服务端在线'));
+}
+/* 重开面板(切换筛选 / 清除后刷新),复用同一套渲染 */
+function refreshReports(){
+  document.querySelectorAll('.detail-overlay').forEach(o=>{
+    const t=o.querySelector('.dtitle');
+    if(t&&t.textContent==='我的反馈')o.remove();
+  });
+  openReports();
+}
+function toggleRepPending(){_repPending=!_repPending;refreshReports()}
+function clearReportsDone(n){
+  if(!confirm('清除 '+n+' 条已处理反馈?待核查的会保留'))return;
+  fetch('/api/report',{method:'DELETE',headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},body:JSON.stringify({done:true})})
+    .then(r=>r.json()).then(d=>{
+      if(!d||!d.removed){flash('没有可清除的已处理反馈');return}
+      flash('已清除 '+d.removed+' 条已处理反馈');
+      refreshReports();
+    }).catch(()=>alert('清除失败,请确认服务端在线'));
 }
 /* 撤回一条待核查反馈:按 at+游戏+标题+类型 精确删除,已处理的不允许撤回 */
 function withdrawReport(btn){

@@ -989,6 +989,20 @@ def api_report():
         return jsonify({'ok': False, 'error': 'forbidden'}), 403
     body = request.get_json(silent=True) or {}
     if request.method == 'DELETE':
+        if body.get('done') is True:            # 清除全部已处理反馈(保留待核查)
+            with _report_lock:
+                items = _load_reports()
+                keep = [it for it in items if not it.get('done')]
+                removed = len(items) - len(keep)
+                if not removed:
+                    return jsonify({'ok': False, 'removed': 0, 'error': 'not found'})
+                try:
+                    with open(REPORT_FILE, 'w', encoding='utf-8') as f:
+                        json.dump({'items': keep}, f, ensure_ascii=False, indent=1)
+                except Exception as e:  # noqa: BLE001
+                    print(f'[反馈] 清除已处理失败: {e}')
+                    return jsonify({'ok': False, 'removed': 0, 'error': 'save failed'})
+            return jsonify({'ok': True, 'removed': removed, 'count': len(keep)})
         at = str(body.get('at') or '')
         if not at:
             return jsonify({'ok': False, 'error': 'at required'}), 400

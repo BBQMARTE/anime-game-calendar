@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""「我的反馈」入口测试(设置 → 我的反馈 → 清单,待核查可撤回)。
+"""「我的反馈」入口测试(设置 → 我的反馈 → 清单,待核查可撤回 / 只看待核查 / 清除已处理)。
 
 用户点过「缺图 / 缺结束时间 / 时间不对」后,只弹一句「已反馈」就没有下文了。
 现在设置里能打开反馈清单:显示提交了什么、什么时候、以及是「待核查」还是「已处理」
@@ -43,17 +43,28 @@ const items = [
 ];
 const fetchStub = () => Promise.resolve({ json: () => Promise.resolve({ items }) });
 const mk = (origin) => new Function('fetch','document','apiOrigin','esc','gameName','REPORT_LABEL',
-  'attachSwipeClose','alert', grab('openReports') + '\nreturn openReports;')(
+  'attachSwipeClose','alert','_repPending', grab('openReports') + '\nreturn openReports;')(
     fetchStub, documentStub, () => origin, esc, gameName, REPORT_LABEL, () => {},
-    (m) => alerts.push(m));
+    (m) => alerts.push(m), false);
 mk('http://127.0.0.1:5000')();
 mk('')();   // 离线:apiOrigin 为空
+// 清除已处理:DElETE {done:true}
+const clearReq = [], clearFlash = [];
+const clearFetch = (u, opt) => { clearReq.push({method: opt.method, body: JSON.parse(opt.body),
+  csrf: opt.headers['X-Requested-With']}); return Promise.resolve({json: () => Promise.resolve({ok: true, removed: 1})}); };
+const clearFn = new Function('fetch','flash','refreshReports','confirm',
+  grab('clearReportsDone') + '\nreturn clearReportsDone;')(
+    clearFetch, m => clearFlash.push(m), () => {}, () => true);
+clearFn(1);
 setTimeout(() => {
   console.log(JSON.stringify({
     html: captured.length ? captured[0].innerHTML : '',
     alerts,
     hasEntry: src.includes('onclick="openReports()"'),
     hasFn: src.includes('function openReports('),
+    hasToggle: src.includes('function toggleRepPending(') && src.includes("_repPending?'显示全部':'只看待核查'"),
+    hasClear: src.includes('function clearReportsDone('),
+    clearReq: clearReq[0], clearFlash: clearFlash[0],
   }));
 }, 20);
 """
@@ -94,6 +105,14 @@ def main():
     check("显示游戏名与时间", '崩坏：星穹铁道' in out and '10-31 09:20' in out, True)
     check("离线模式有明确提示", any('离线模式看不到反馈清单' in a for a in d['alerts']), True)
     check("待核查反馈有撤回按钮(已处理没有)", d['html'].count('>撤回</span>'), 1)
+    check("有「只看待核查」入口", ('只看待核查' in out), True)
+    check("有「清除已处理」入口并带条数", '清除已处理 · 1' in out, True)
+    check("toggleRepPending 已实现", d['hasToggle'], True)
+    check("clearReportsDone 已实现", d['hasClear'], True)
+    check("清除请求用 DELETE + CSRF + done:true",
+          (d['clearReq']['method'], d['clearReq']['body'], d['clearReq']['csrf']),
+          ('DELETE', {'done': True}, 'ycal'))
+    check("清除成功有提示", '已清除' in (d['clearFlash'] or ''), True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
