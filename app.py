@@ -111,6 +111,131 @@ def _dedup_against_manual(events):
     return kept
 
 
+# ================= 活动变更追踪(新增 / 改期 / 移除) =================
+CHANGES_FILE = os.path.join(DATA_DIR, 'changes.json')
+_CHANGE_KEEP_DAYS = 14    # 角标保留窗口:改期信息太旧会和新排期混淆
+_CHANGE_MAX = 300         # 历史条目上限,防止文件无限增长
+
+
+def _change_key(e):
+    """变更比对主键 = 游戏 + 归一化标题。
+
+    不能用条目自带的 id:id 是「标题|开始时间」的内容哈希,官方一改期 id 就变,
+    同一条活动会被拆成「新增 + 移除」两条记录。标题才是在改期中稳定不变的锚点。
+    """
+    return '%s|%s' % (e.get('game_id') or '', _norm_title(e.get('title')))
+
+
+def _load_changes():
+    try:
+        with open(CHANGES_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        items = data.get('items') if isinstance(data, dict) else None
+        return items if isinstance(items, dict) else {}
+    except Exception:  # noqa: BLE001 - 文件不存在/损坏都按空历史处理
+        return {}
+
+
+def _save_changes(items):
+    try:
+        with open(CHANGES_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'items': items}, f, ensure_ascii=False)
+    except Exception as e:  # noqa: BLE001
+        print(f'[变更] 保存失败: {e}')
+
+
+def _prune_changes(items, now=None):
+    """只保留最近 _CHANGE_KEEP_DAYS 天的变更,并按时间截断到 _CHANGE_MAX 条"""
+    now = now or _bj_now().replace(tzinfo=None)
+    cut = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
+    kept = {k: v for k, v in items.items() if str((v or {}).get('at') or '') >= cut}
+    if len(kept) > _CHANGE_MAX:
+        newest = sorted(kept.items(), key=lambda kv: str(kv[1].get('at') or ''), reverse=True)
+        kept = dict(newest[:_CHANGE_MAX])
+    return kept
+
+
+def _time_of(e):
+    return {'start': (e or {}).get('start') or '', 'end': (e or {}).get('end') or ''}
+
+
+def _track_changes(prev, cur, now=None):
+    """对比上一轮与本轮的真活动,累计「新增 / 改期 / 移除」历史。
+
+    只跟踪 kind=event:资讯类条目每天大量增删,记进来只会变成噪声。
+    prev 为空(首次抓取/换库)时只做基线,不把现有活动全部标成「新增」。
+    返回 history dict;当前条目上的 _change 由 _attach_changes 统一挂载。
+    """
+    now = now or _bj_now().replace(tzinfo=None)
+    today = now.strftime('%Y-%m-%d')
+    hist = _load_changes()
+
+    def events_only(arr):
+        out = {}
+        for e in arr or []:
+            if (e.get('kind') or 'event') == 'event':
+                out[_change_key(e)] = e
+        return out
+
+    prev_map, cur_map = events_only(prev), events_only(cur)
+    recorded = 0
+    for key, e in cur_map.items():
+        old = prev_map.get(key)
+        if old is None:
+            if prev_map:   # 基线不算新增
+                hist[key] = {'type': 'new', 'at': now.isoformat(timespec='seconds'),
+                             'game_id': e.get('game_id'), 'title': e.get('title'),
+                             'from': None, 'to': _time_of(e)}
+                recorded += 1
+            continue
+        if (_time_of(old) != _time_of(e)):
+            hist[key] = {'type': 'moved', 'at': now.isoformat(timespec='seconds'),
+                         'game_id': e.get('game_id'), 'title': e.get('title'),
+                         'from': _time_of(old), 'to': _time_of(e)}
+            recorded += 1
+    for key, old in prev_map.items():
+        if key in cur_map:
+            continue
+        stop = str(old.get('end') or '')[:10]
+        if stop and stop < today:
+            continue   # 正常到期被清理,不是「官方移除」
+        if not stop and not old.get('start'):
+            continue   # 无任何时间的条目消失,无参考价值
+        hist[key] = {'type': 'removed', 'at': now.isoformat(timespec='seconds'),
+                     'game_id': old.get('game_id'), 'title': old.get('title'),
+                     'from': _time_of(old), 'to': None}
+        recorded += 1
+    hist = _prune_changes(hist, now)
+    _save_changes(hist)
+    if recorded:
+        print(f'[变更] 本轮记录 {recorded} 条活动变更(新增/改期/移除)')
+    return hist
+
+
+def _attach_changes(events, hist=None):
+    """把窗口内的「新增 / 改期」挂到当前条目上(前端据此显示角标与原时间)。
+
+    removed 不挂:条目已不在列表里,没有可展示的宿主。
+    """
+    now = _bj_now().replace(tzinfo=None)
+    cut = (now - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
+    hist = hist if hist is not None else _load_changes()
+    for e in events or []:
+        rec = hist.get(_change_key(e))
+        if not rec or str(rec.get('at') or '') < cut:
+            continue
+        if rec.get('type') in ('new', 'moved'):
+            e['_change'] = {k: rec.get(k) for k in ('type', 'at', 'from', 'to')}
+
+
+def _strip_stale_changes(events):
+    """启动载入旧缓存时清掉过期的 _change 角标(否则界面会一直显示几周前的改期)"""
+    cut = (_bj_now().replace(tzinfo=None) - timedelta(days=_CHANGE_KEEP_DAYS)).isoformat(timespec='seconds')
+    return [({k: v for k, v in e.items() if k != '_change'}
+             if str(((e.get('_change') or {}).get('at')) or '') < cut else e)
+            for e in events or []]
+
+
 def _load_cache():
     if os.path.exists(CACHE_FILE):
         try:
@@ -121,7 +246,8 @@ def _load_cache():
             evs = [e for e in data.get('events', [])
                    if e.get('game_id') in valid or e.get('src') == 'manual']
             evs = _drop_expired(evs)                # 缓存可能落后于现实(隔天启动),过期活动不放行
-            _state['events'] = _dedup_against_manual(evs)   # 旧缓存可能存着跨源重复条目,载入时清掉
+            # 旧缓存可能存着跨源重复条目,载入时清掉;顺带清掉过期的改期角标
+            _state['events'] = _strip_stale_changes(_dedup_against_manual(evs))
             _state['sources'] = {k: v for k, v in (data.get('sources') or {}).items()
                                  if k in valid or k == 'bilibili'}
             _state['updated'] = data.get('updated')
@@ -220,8 +346,9 @@ def do_refresh():
         events.extend(_manual_events())
         # 降级容错:本轮失败的源沿用上一轮该源的条目,避免一次网络抖动让整源活动消失 30 分钟
         with _lock:
+            prev_all = list(_state['events'])
             prev_by_src = {}
-            for e in _state['events']:
+            for e in prev_all:
                 prev_by_src.setdefault(e.get('src'), []).append(e)
         for src_name, st in list(sources.items()):
             if not (st or {}).get('ok'):
@@ -245,6 +372,8 @@ def do_refresh():
         # 合并全部来源(抓取/手动)后统一校验,与 App 端 scraper.js::fetchAll 的时机一致
         scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
+        # 与上一轮对比,记录官方新增/改期/移除,并把近期变更挂到条目上(前端角标)
+        _attach_changes(events, _track_changes(prev_all, events))
         with _lock:
             _state['events'] = events
             _state['sources'] = sources

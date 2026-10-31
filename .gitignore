@@ -8,6 +8,8 @@ __pycache__/
 # 运行时数据与测试输出
 data/cache.json
 data/todo.json
+# 抓取变更留痕(新增/改期),运行时生成,不入库
+data/changes.json
 # 个人打钩/收藏状态(每台设备不同,不入库),接口见 /api/userstate
 data/userstate.json
 # 用户点「这条有问题」产生的待核查清单

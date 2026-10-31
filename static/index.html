@@ -729,6 +729,28 @@ function imgAt(u,w){
   return u;
 }
 function thumbUrl(u){return imgAt(u,200)}
+/* 官方变更角标:改期/新增。服务端比对两次抓取后挂在条目 _change 上;
+   离线模式没有该字段,自然不显示 */
+function chgLabel(e){
+  const c=(e&&e._change)||{};
+  return c.type==='moved'?'改期':c.type==='new'?'新增':'';
+}
+function chgFromText(e){
+  const f=(e&&e._change&&e._change.from)||{};
+  return f.start?fmtRange({start:f.start,end:f.end}):'';
+}
+function chgBadge(e){
+  const l=chgLabel(e);
+  if(!l)return '';
+  const moved=l==='改期';
+  const tip=moved?('官方改期:原 '+(chgFromText(e)||'时间待定')):'最近新增';
+  return `<span class="tag" style="--tc:${moved?'#FF9500':'#34C759'};color:${tagText('手动')}" title="${esc(tip)}">${l}</span>`;
+}
+function chgMovedLine(e){
+  const c=(e&&e._change)||{};
+  if(c.type!=='moved'||!c.from||!c.from.start)return '';
+  return '官方改期 · 原 '+fmtRange({start:c.from.start,end:c.from.end})+' → 现 '+fmtRange(e);
+}
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
   const cd=cdText(e);
@@ -743,7 +765,7 @@ function rowHtml(e){
     <div class="row-main">
       <div class="row-title">${esc(e.title)}</div>
       <div class="row-desc">${esc(descFor(e))}</div>
-      <div class="row-sub"><span class="tag" style="--tc:${cc};color:${tagText(e.category)}">${e.category}</span>${e.src==='manual'?`<span class="tag" style="--tc:#34C759;color:${tagText('活动')}" title="AI Agent 联网核实后人工录入">已核实</span>`:e.src==='bilibili'?`<span class="tag" style="--tc:#FB7299;color:${tagText('B站')}">B站</span>`:`<span class="tag" style="--tc:#8e8e93;color:${tagText('手动')}" title="官方接口自动抓取,未经人工核实">自动</span>`}<span>${esc(e.game)} · ${fmtRange(e)}</span></div>
+      <div class="row-sub"><span class="tag" style="--tc:${cc};color:${tagText(e.category)}">${e.category}</span>${e.src==='manual'?`<span class="tag" style="--tc:#34C759;color:${tagText('活动')}" title="AI Agent 联网核实后人工录入">已核实</span>`:e.src==='bilibili'?`<span class="tag" style="--tc:#FB7299;color:${tagText('B站')}">B站</span>`:`<span class="tag" style="--tc:#8e8e93;color:${tagText('手动')}" title="官方接口自动抓取,未经人工核实">自动</span>`}${chgBadge(e)}<span>${esc(e.game)} · ${fmtRange(e)}</span></div>
       ${cd&&!isDone(e)&&cd.prog!==undefined?`<div class="prog"><i style="width:${Math.min(100,Math.max(0,cd.prog))}%"></i></div>`:''}
     </div>
     <div class="row-side">
@@ -1009,6 +1031,7 @@ function showDetail(e){
       ${e.image?`<img src="${esc(imgAt(e.image,800))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
       ${!e.end&&e.start?`<div class="detail-cd" style="color:var(--label2)">已开始 · 结束时间未知</div>`:''}
+      ${chgMovedLine(e)?`<div class="detail-cd" style="color:var(--orange)">${esc(chgMovedLine(e))}</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>
       <a class="detail-btn ${isDone(e)?'isdone':'done-btn'}" href="#" onclick="event.preventDefault();toggleDone(event,'${e.id}')">${isDone(e)?'✓ 已标记做完 · 点击取消':'标记这个活动做完 ✓'}</a>
       <a class="detail-btn" href="#" style="${isFav(e)?'background:var(--orange);color:#fff':'color:var(--orange)'}" onclick="event.preventDefault();toggleFav(event,'${e.id}');favBtnState(this,'${e.id}')">${isFav(e)?'★ 已收藏置顶 · 点击取消':'☆ 收藏置顶'}</a>
