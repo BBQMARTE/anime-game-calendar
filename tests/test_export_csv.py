@@ -50,6 +50,14 @@ def rows_of(resp):
 def main():
     app._state['events'] = EVENTS
     c = app.app.test_client()
+    real_us = app._load_userstate
+    app._load_userstate = lambda: {
+        'fav': {'hsr|活动, "限定"': 1690000000000,
+                'wuwa|无日期活动': 1690000000001,
+                'zzz|已取消的收藏': -1690000000002},
+        'done': {'hsr|活动, "限定"': 1690000000005,
+                 'zzz|签到活动': -1690000000006},
+    }
 
     r = c.get('/api/export.csv')
     check("导出返回 200", r.status_code, 200)
@@ -58,7 +66,8 @@ def main():
     check("附件下载头", 'attachment' in (r.headers.get('Content-Disposition') or ''), True)
 
     rows = rows_of(r)
-    check("表头", rows[0], ['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接'])
+    check("表头", rows[0],
+          ['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接', '收藏', '已做完'])
     check("全部条目都导出(含资讯/无日期)", len(rows) - 1, 5)
     check("按开始时间升序,无 start 用 date", [x[1] for x in rows[1:]],
           ['老活动·结束未知', '自动资讯', '无日期活动', '签到活动', '活动, "限定"'])
@@ -69,6 +78,10 @@ def main():
     check("爬虫条目来源标为自动", by_title['自动资讯'][6], '自动')
     check("资讯条目标为资讯", by_title['自动资讯'][5], '资讯')
     check("带逗号的链接完整还原", by_title['活动, "限定"'][7], 'https://example.com/a?b=1,2')
+    check("收藏列标记已收藏", by_title['活动, "限定"'][8], '是')
+    check("已做完列标记已完成", by_title['活动, "限定"'][9], '是')
+    check("未收藏列为否", by_title['签到活动'][8], '否')
+    check("取消打钩的条目列为否", by_title['签到活动'][9], '否')
 
     rows = rows_of(c.get('/api/export.csv?games=hsr'))
     check("?games=hsr 只导出该游戏", [x[1] for x in rows[1:]], ['自动资讯', '活动, "限定"'])
@@ -79,10 +92,7 @@ def main():
     rows = rows_of(c.get('/api/export.csv?games=hsr&cats=活动'))
     check("游戏+分类组合筛选", [x[1] for x in rows[1:]], ['活动, "限定"'])
 
-    # 收藏导出:只看 userstate 里的收藏键(hsr|活动 / wuwa|无日期),忽略筛选
-    app._load_userstate = lambda: {'fav': {'hsr|活动, "限定"': 1690000000000,
-                                           'wuwa|无日期活动': 1690000000001,
-                                           'zzz|已取消的收藏': -1690000000002}}
+    # 收藏导出:只看 userstate 里的收藏键,忽略筛选
     rows = rows_of(c.get('/api/export.csv?fav=1'))
     check("?fav=1 只导出收藏", [x[1] for x in rows[1:]], ['无日期活动', '活动, "限定"'])
     rows = rows_of(c.get('/api/export.csv?fav=1&games=wuwa'))
@@ -104,6 +114,8 @@ def main():
     check("质量筛选可与游戏筛选组合", [x[1] for x in rows[1:]], ['老活动·结束未知'])
     rows = rows_of(c.get('/api/export.csv?dq=bogus'))
     check("非法 dq 忽略(按全量导出)", len(rows) - 1, 5)
+
+    app._load_userstate = real_us
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

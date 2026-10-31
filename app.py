@@ -1386,9 +1386,12 @@ def api_export_csv():
     rows = [e for e in events
             if (not games or e.get('game_id') in games)
             and (not cats or e.get('category') in cats)]
-    # ?fav=1:只导出收藏的活动(收藏状态来自 data/userstate.json,键= game_id|title)
+    # 收藏 / 已做完来自 data/userstate.json(键= game_id|title,正值=已标记)
+    userstate = _load_userstate()
+    fav = userstate.get('fav') or {}
+    done = userstate.get('done') or {}
+    # ?fav=1:只导出收藏的活动
     if request.args.get('fav') in ('1', 'true', 'yes'):
-        fav = _load_userstate().get('fav') or {}
         rows = [e for e in rows
                 if fav.get('%s|%s' % (e.get('game_id') or '', e.get('title') or ''), 0) > 0]
     # ?dq=noimg|noend|stale:只导出当前数据质量视图里的条目(与列表筛选条同一口径)
@@ -1396,9 +1399,10 @@ def api_export_csv():
     rows.sort(key=lambda e: (e.get('start') or e.get('date') or '~', e.get('title') or ''))
     buf = StringIO()
     w = csv.writer(buf)
-    w.writerow(['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接'])
+    w.writerow(['游戏', '标题', '分类', '开始', '结束', '类型', '来源', '链接', '收藏', '已做完'])
     src_label = {'manual': '已核实', 'bilibili': 'B站'}
     for e in rows:
+        key = '%s|%s' % (e.get('game_id') or '', e.get('title') or '')
         w.writerow([
             e.get('game') or e.get('game_id') or '',
             e.get('title') or '',
@@ -1408,6 +1412,8 @@ def api_export_csv():
             '活动' if (e.get('kind') or 'event') == 'event' else '资讯',
             src_label.get(e.get('src'), '自动'),
             e.get('link') or '',
+            '是' if fav.get(key, 0) > 0 else '否',
+            '是' if done.get(key, 0) > 0 else '否',
         ])
     body = '\ufeff' + buf.getvalue()
     return Response(body, content_type='text/csv; charset=utf-8',

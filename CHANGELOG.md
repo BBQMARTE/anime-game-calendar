@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-10-31 · CSV 导出带「收藏 / 已做完」列
+
+- `/api/export.csv` 末尾新增「收藏」「已做完」两列(是/否),状态来自 `data/userstate.json`(键= `game_id|title`,正值=已标记);`?fav=1`、游戏/分类、质量筛选的口径不变
+- 扩展 `tests/test_export_csv.py`(表头 10 列、收藏=是、已做完=是、未收藏/已取消=否);全量 74 个测试文件 0 失败;后端改动,**无 SW / APK 变更**
+- 三语 README 同步说明导出列
+
 ## 2026-10-31 · v1.9.18 · 订阅可带开始前提醒
 
 - **`/api/calendar.ics` 支持 `?alarm=30`**:每条事件写入 `VALARM`(提前 30 分钟 `TRIGGER:-PT30M` / `ACTION:DISPLAY` / `DESCRIPTION:活动开始提醒`),由系统日历本地提醒;有效范围 1~1440 分钟,非法值忽略

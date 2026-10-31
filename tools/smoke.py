@@ -63,6 +63,10 @@ def main():
         check('?dq=%s 导出 200' % dq, r.status_code, 200)
         check('?dq=%s 行数 == health.%s' % (dq, key), csv_rows(r), h.get(key))
 
+    rc = requests.get(BASE + '/api/export.csv', timeout=15)
+    header = rc.content.decode('utf-8-sig').splitlines()[0]
+    check('CSV 表头含收藏/已做完列', ('收藏' in header and '已做完' in header), True)
+
     r1 = requests.get(BASE + '/api/calendar.ics', timeout=15)
     check('ICS 200', r1.status_code, 200)
     check('ICS 含日历头', b'BEGIN:VCALENDAR' in r1.content, True)
