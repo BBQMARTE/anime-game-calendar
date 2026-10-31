@@ -2441,11 +2441,27 @@ function filterQuery(withDq){
   const ids=[...calGamesSet()];
   const all=(DATA&&DATA.games||[]).map(g=>g.id);
   const cats=[...activeCats], allC=Object.keys(CAT_COLOR);
-  const q=[];
-  if(ids.length&&ids.length<all.length)q.push('games='+ids.join(','));
-  if(cats.length&&cats.length<allC.length)q.push('cats='+cats.map(encodeURIComponent).join(','));
-  if(withDq&&dq)q.push('dq='+encodeURIComponent(dq));   // 只给 CSV 用;订阅链接不打包质量筛选
-  return q.length?'?'+q.join('&'):'';
+  const ex=withDq?exportSearch():null;
+  // 游戏前缀(hsr: 今天)只影响列表:导出时把点名游戏收窄成唯一游戏
+  let gids=ids;
+  if(ex&&ex.gameId&&ids.indexOf(ex.gameId)>=0)gids=[ex.gameId];
+  const qs=[];
+  if(gids.length&&gids.length<all.length)qs.push('games='+gids.join(','));
+  if(cats.length&&cats.length<allC.length)qs.push('cats='+cats.map(encodeURIComponent).join(','));
+  if(withDq&&dq)qs.push('dq='+encodeURIComponent(dq));   // 只给 CSV 用;订阅链接不打包质量筛选
+  // 搜索关键词同样只给 CSV:订阅只按游戏/分类过滤,把关键词写进订阅会让日历越用越窄
+  if(withDq&&ex&&ex.terms.length)qs.push('q='+encodeURIComponent(ex.terms.join(' ')));
+  return qs.length?'?'+qs.join('&'):'';
+}
+/* 导出能带到服务端的搜索条件:CSV 只支持关键词,快捷词(今天/本周…)是前端算的时间筛选,
+   带不过去,导出时用轻提示说明一声,避免「导出的和看到的不是一回事」 */
+function exportSearch(){
+  const raw0=(q||'').trim();
+  const gp=gamePrefix(raw0);
+  const raw=(gp?gp.rest:raw0).trim();
+  if(!raw)return {gameId:gp?gp.id:null,terms:[],quick:false};
+  if(isQuickWord(raw))return {gameId:gp?gp.id:null,terms:[],quick:true};
+  return {gameId:gp?gp.id:null,terms:raw.toLowerCase().split(/\s+/).filter(Boolean),quick:false};
 }
 function apiOrigin(){
   // APK 本地离线模式是 file://,没有服务端;返回空串让调用方提示,而不是拼一个打不开的地址
@@ -2462,9 +2478,10 @@ function exportCsv(){
   const o=apiOrigin();
   if(!o){alert('离线模式无法导出 CSV,请先在 APK 里连接电脑上的服务端');return}
   const a=document.createElement('a');
-  a.href=o+'/api/export.csv'+filterQuery(true);   // 当前质量筛选也带进导出
+  a.href=o+'/api/export.csv'+filterQuery(true);   // 当前搜索词 / 质量筛选也带进导出
   a.download='二游活动日历.csv';
   document.body.appendChild(a);a.click();a.remove();
+  if(exportSearch().quick)flash('快捷词只在列表生效,本次 CSV 未按它过滤');
 }
 /* 导出收藏 CSV:收藏状态在服务端 userstate,后端按 ?fav=1 过滤 */
 function exportFavCsv(){

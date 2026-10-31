@@ -68,6 +68,14 @@ def main():
     header = rc.content.decode('utf-8-sig').splitlines()[0]
     check('CSV 表头含收藏/已做完列', ('收藏' in header and '已做完' in header), True)
 
+    # ?q=:导出要跟列表搜索同口径,命中数必须真的少于全量,且每条都含关键词
+    rq = requests.get(BASE + '/api/export.csv?q=%E6%B4%BB%E5%8A%A8', timeout=15)   # q=活动
+    check('?q=活动 导出 200', rq.status_code, 200)
+    check('?q=活动 条数少于全量', csv_rows(rq) < csv_rows(rc), True)
+    qrows = list(csv.reader(io.StringIO(rq.content.decode('utf-8-sig'))))
+    check('?q=活动 每条都命中检索串',
+          all('活动' in (x[0] + x[1] + x[2]) for x in qrows[1:]) if len(qrows) > 1 else False, True)
+
     r1 = requests.get(BASE + '/api/calendar.ics', timeout=15)
     check('ICS 200', r1.status_code, 200)
     check('ICS 含日历头', b'BEGIN:VCALENDAR' in r1.content, True)
@@ -85,7 +93,7 @@ def main():
     page = requests.get(BASE + '/', timeout=15).text
     for marker in ('状态同步码', 'openReports()', 'withdrawReport(', 'dq-bar', "statRange('本周开始'",
                    "todayJump('今天开始')", 'hlText(e.title)', 'markReported(overlay,e)',
-                   'dayParam(selDay)', 'srcInfo(this)'):
+                   'dayParam(selDay)', 'srcInfo(this)', 'exportSearch().quick'):
         check('首页含 %s' % marker, marker in page, True)
 
     pairs = [('static/index.html', 'android/app/src/main/assets/www/index.html'),

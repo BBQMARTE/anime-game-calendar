@@ -1508,9 +1508,30 @@ def _dq_filter(rows, dq, now=None):
     return [e for e in rows if _is_stale_unknown(e, now)]
 
 
+# 游戏简称,与前端 GAME_SHORT 逐项一致(搜索「崩铁」能命中「崩坏：星穹铁道」)
+_GAME_SHORT = {'hsr': '崩铁', 'zzz': '绝区零', 'endfield': '终末地', 'arknights': '方舟',
+               'wuwa': '鸣潮', 'ananta': '异环', 'r1999': '1999'}
+
+
+def _q_hay(e):
+    """搜索检索串 = 标题 + 游戏名 + 游戏简称 + 分类,与前端列表搜索同口径。"""
+    gid = e.get('game_id') or ''
+    name = e.get('game') or ''
+    return ' '.join([e.get('title') or '', name, _GAME_SHORT.get(gid) or name[:2],
+                     e.get('category') or '']).lower()
+
+
+def _q_filter(rows, q):
+    """?q=:空格分隔的关键词逐个 AND 匹配检索串,大小写不敏感。"""
+    terms = [t for t in (q or '').lower().split() if t]
+    if not terms:
+        return rows
+    return [e for e in rows if all(t in _q_hay(e) for t in terms)]
+
+
 @app.route('/api/export.csv')
 def api_export_csv():
-    """导出 CSV(Excel 直接打开):按 ?games= / ?cats= 筛选,与订阅同口径。
+    """导出 CSV(Excel 直接打开):按 ?games= / ?cats= / ?q= 筛选,与列表视口同口径。
 
     带 UTF-8 BOM,否则 Windows Excel 打开会把中文识别成乱码;内容含全部条目
     (活动与公告资讯),「类型」列区分,方便用户在表格里自行透视。
@@ -1522,6 +1543,8 @@ def api_export_csv():
     rows = [e for e in events
             if (not games or e.get('game_id') in games)
             and (not cats or e.get('category') in cats)]
+    # ?q=:当前搜索词(空格分隔按 AND),导出与屏幕上一模一样的条目
+    rows = _q_filter(rows, (request.args.get('q') or '').strip())
     # 收藏 / 已做完来自 data/userstate.json(键= game_id|title,正值=已标记)
     userstate = _load_userstate()
     fav = userstate.get('fav') or {}

@@ -115,6 +115,27 @@ def main():
     rows = rows_of(c.get('/api/export.csv?dq=bogus'))
     check("非法 dq 忽略(按全量导出)", len(rows) - 1, 5)
 
+    # 搜索词(?q=):与列表搜索同一口径(标题 / 游戏名 / 游戏简称 / 分类,空格 AND)
+    rows = rows_of(c.get('/api/export.csv?q=%E9%99%90%E5%AE%9A'))   # q=限定
+    check("?q= 命中标题关键词", [x[1] for x in rows[1:]], ['活动, "限定"'])
+    rows = rows_of(c.get('/api/export.csv?q=%E5%B4%A9%E9%93%81'))   # q=崩铁
+    check("?q= 命中游戏简称", [x[1] for x in rows[1:]], ['自动资讯', '活动, "限定"'])
+    rows = rows_of(c.get('/api/export.csv?q=%E9%B8%A3%E6%BD%AE'))   # q=鸣潮
+    check("?q= 命中游戏全名", [x[1] for x in rows[1:]], ['无日期活动'])
+    rows = rows_of(c.get('/api/export.csv?q=%E6%B4%BB%E5%8A%A8'))   # q=活动(分类名/标题都含)
+    check("?q= 命中分类名", [x[1] for x in rows[1:]],
+          ['老活动·结束未知', '无日期活动', '签到活动', '活动, "限定"'])
+    rows = rows_of(c.get('/api/export.csv?q=%E7%AD%BE%E5%88%B0%20%E7%BB%9D%E5%8C%BA%E9%9B%B6'))
+    check("?q= 多个关键词按 AND", [x[1] for x in rows[1:]], ['签到活动'])
+    rows = rows_of(c.get('/api/export.csv?q=%E7%AD%BE%E5%88%B0%20%E6%98%9F%E7%A9%B9'))
+    check("?q= AND 无交集时导出为空", [x[1] for x in rows[1:]], [])
+    rows = rows_of(c.get('/api/export.csv?q=%20%20'))
+    check("?q= 纯空白不过滤", len(rows) - 1, 5)
+    rows = rows_of(c.get('/api/export.csv?games=hsr&q=%E8%B5%84%E8%AE%AF'))
+    check("?q= 可与游戏筛选组合", [x[1] for x in rows[1:]], ['自动资讯'])
+    rows = rows_of(c.get('/api/export.csv?dq=noend&q=%E7%AD%BE%E5%88%B0'))
+    check("?q= 可与质量筛选组合", [x[1] for x in rows[1:]], ['签到活动'])
+
     app._load_userstate = real_us
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
