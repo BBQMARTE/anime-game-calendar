@@ -849,9 +849,12 @@ function gamePrefix(raw){
         ||gs.find(g=>String(g.id).toLowerCase().startsWith(key));  // 允许 hs: 这类缩写前缀
   return hit?{id:hit.id, rest:m[2].trim()}:null;
 }
-function filtered(){
-  const gp=gamePrefix(q.trim());
-  const raw=gp?gp.rest:q.trim();
+/* 列表过滤。ignoreSearch=true 时不应用搜索词(今日摘要计数用:点进快捷词会替换掉
+   当前搜索,数字必须按同一个范围算,否则「看到的数」和「点进去的行」对不上) */
+function filtered(ignoreSearch){
+  const qt=ignoreSearch?'':q.trim();
+  const gp=gamePrefix(qt);
+  const raw=gp?gp.rest:qt;
   const quick=isQuickWord(raw);
   const terms=raw?raw.toLowerCase().split(/\s+/).filter(Boolean):[];
   const now=new Date();
@@ -877,8 +880,8 @@ function dqMatch(e,k,now){
 }
 /* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
 function isEv(e){return (e.kind||'event')==='event'}
-function filteredEvents(){return filtered().filter(isEv)}
-function filteredAll(){return filtered()}
+function filteredEvents(ignoreSearch){return filtered(ignoreSearch).filter(isEv)}
+function filteredAll(ignoreSearch){return filtered(ignoreSearch)}
 /* 当前是否有搜索词或游戏/分类筛选(用于空结果时给「清除筛选」出口) */
 function filtersActive(){
   const ids=(DATA&&DATA.games||[]).map(g=>g.id);
@@ -2023,7 +2026,7 @@ function renderTodayBar(){
   const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const t1=new Date(t0.getTime()+864e5);
   let start=0,end=0,run=0;
-  for(const e of filteredEvents()){
+  for(const e of filteredEvents(true)){   // 数字口径:不含搜索词(点进快捷词会替换搜索)
     const s=evStart(e); if(!s)continue;
     const t=e.end?evEnd(e):null;   // 无结束时间不伪造「今天结束」
     if(s>=t0&&s<t1)start++;

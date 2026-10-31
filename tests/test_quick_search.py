@@ -73,6 +73,8 @@ console.log(JSON.stringify({
   recentRun: makeFiltered('进行中').quickMatch({start:'2026-10-20T10:00'}, '进行中', FakeDate()),
   pointRun: makeFiltered('进行中').quickMatch(
     {title:'4.2版本「此刻将群星付之一笑」上线', start:'2026-10-20T10:00'}, '进行中', FakeDate()),
+  ignoreQ: makeFiltered('活动').filtered(true).length,   // 今日摘要计数:忽略搜索词
+  rawAll: EVENTS.events.length,
 }));
 """
 
@@ -158,6 +160,7 @@ def main():
     check("进行中:30 天内的未知结束仍算", d['recentRun'], True)
     check("进行中:单点里程碑不算", d['pointRun'], False)
     check("进行中列表里不含里程碑", 'p' in d['running'], False)
+    check("忽略搜索词时返回全部(今日摘要计数口径)", d['ignoreQ'], d['rawAll'])
     check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i', 'p'])
     check("搜索游戏全名「绝区零」命中绝区零全部", d['shortZzz'], ['b', 'e', 'h'])
     check("高亮:中文关键词包一层 mark", d['hl']['cn'], '<mark>活动</mark>A')
