@@ -62,6 +62,9 @@ header{
 .refresh-btn:active{transform:scale(.9)}
 .refresh-btn svg{width:16px; height:16px; fill:var(--blue)}
 .refresh-btn.loading svg{animation:spin 1s linear infinite}
+/* 轻提示(复制链接等):不打断操作,1.8 秒自动消失 */
+.flash{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(10px); background:rgba(0,0,0,.84); color:#fff; font-size:13px; font-weight:600; padding:9px 16px; border-radius:11px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:80; max-width:80vw}
+.flash.on{opacity:1; transform:translateX(-50%) translateY(0)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .large-title{
   max-width:1180px; margin:0 auto; padding:2px 20px 10px;
@@ -369,6 +372,9 @@ footer{max-width:1180px; margin:0 auto; padding:0 20px 30px; color:var(--label3)
     <div class="nav-title" id="navTitle">二游活动聚合</div>
     <div class="spacer"></div>
     <span class="updated" id="updated"></span>
+    <button class="refresh-btn" id="shareBtn" onclick="shareView()" title="复制当前视图链接" aria-label="复制当前视图链接">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.04.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+    </button>
     <button class="refresh-btn" id="settingsBtn" onclick="openSettings()" title="设置" aria-label="设置">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-4c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h4c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
     </button>
@@ -408,27 +414,30 @@ const CAT_COLOR={'活动':'#34C759','签到':'#AF52DE','角色与专武':'#FF2D5
 const IS_ANDROID=/[?&]platform=android/.test(location.search)||!!window.YCalNative;
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
-/* 分享链接参数:?games=hsr,zzz&cats=活动,签到&tab=ongoing
+/* 分享链接参数:?games=hsr,zzz&cats=活动,签到&tab=ongoing&q=崩铁
    纯函数便于测试;未知游戏 id 会在 data 载入后被过滤,非法 tab 忽略 */
 const TAB_IDS=['cal','ongoing','soon','all','fav'];
 function parseFilterParams(search){
-  const out={games:null,cats:null,tab:null};
+  const out={games:null,cats:null,tab:null,q:null};
   try{
     const sp=new URLSearchParams(search||'');
     if(sp.has('games'))out.games=sp.get('games').split(',').map(s=>s.trim()).filter(Boolean);
     if(sp.has('cats'))out.cats=sp.get('cats').split(',').map(s=>s.trim()).filter(Boolean);
     const t=sp.get('tab');
     if(t&&TAB_IDS.includes(t))out.tab=t;
+    if(sp.has('q'))out.q=sp.get('q');
   }catch(e){}
   return out;
 }
-/* 反向:当前筛选 → 可分享的 query(全部选中/默认 tab 不写进 URL,保持地址干净) */
-function buildFilterQuery(games,cats,tab,allGames,allCats){
+/* 反向:当前筛选 → 可分享的 query(全部选中/默认 tab/空搜索不写进 URL,保持地址干净) */
+function buildFilterQuery(games,cats,tab,allGames,allCats,q){
   const p=new URLSearchParams();
   const gs=[...games], cs=[...cats];
   if(gs.length&&gs.length<(allGames||[]).length)p.set('games',gs.join(','));
   if(cs.length<(allCats||[]).length)p.set('cats',cs.join(','));
   if(tab&&tab!=='cal')p.set('tab',tab);
+  const kw=String(q||'').trim();
+  if(kw)p.set('q',kw);
   const qs=p.toString();
   return qs?'?'+qs:'';
 }
@@ -446,6 +455,7 @@ let _urlGames=null;   // 分享链接里显式点名的游戏:即使本机设置
   if(u.games!==null){activeGames=new Set(u.games);_urlGames=new Set(u.games);}
   if(u.cats!==null)activeCats=new Set(u.cats.length?u.cats:Object.keys(CAT_COLOR));
   if(u.tab)tab=u.tab;
+  if(u.q!==null){q=u.q;const qi=document.getElementById('q');if(qi)qi.value=u.q;}
 })();
 function saveFilters(){
   try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}
@@ -456,9 +466,37 @@ function syncUrl(){
   try{
     if(!/^http/.test(location.protocol))return;
     const ids=(DATA&&DATA.games||[]).map(g=>g.id);
-    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR));
+    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q);
     history.replaceState(null,'',location.pathname+qs+location.hash);
   }catch(e){}
+}
+/* 顶部「分享」按钮:复制当前视图链接(含筛选与搜索词),离线包提示不可用 */
+function flash(msg){
+  let el=document.getElementById('flashBar');
+  if(!el){el=document.createElement('div');el.id='flashBar';el.className='flash';document.body.appendChild(el);}
+  el.textContent=msg;el.classList.add('on');
+  clearTimeout(flash._t);flash._t=setTimeout(()=>el.classList.remove('on'),1800);
+}
+function copyText(text){
+  return new Promise((ok,bad)=>{
+    const fallback=()=>{
+      try{
+        const t=document.createElement('textarea');t.value=text;
+        t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);
+        t.select();document.execCommand('copy');document.body.removeChild(t);ok();
+      }catch(e){bad(e)}
+    };
+    if(navigator.clipboard&&navigator.clipboard.writeText)
+      navigator.clipboard.writeText(text).then(ok,fallback);   // 权限/焦点被拒时退回 execCommand
+    else fallback();
+  });
+}
+function shareView(){
+  if(!/^http/.test(location.protocol)){flash('离线模式没有可分享的网址');return}
+  const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+  const link=location.origin+location.pathname
+    +buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR),q)+location.hash;
+  copyText(link).then(()=>flash('链接已复制,发给好友即可打开同一视图'),()=>flash('复制失败,请手动复制地址栏链接'));
 }
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
 let settings={calOn:true,calGames:null,hideAuto:false,hideDone:false};
@@ -477,7 +515,7 @@ function applySettings(){
 }
 let _qT=null;
 function onSearch(v){
-  q=v;clearTimeout(_qT);_qT=setTimeout(renderView,200);  // 防抖,避免每击键全量重绘
+  q=v;clearTimeout(_qT);_qT=setTimeout(()=>{renderView();syncUrl()},200);  // 防抖,避免每击键全量重绘
   _allLimit=60;                                          // 新搜索从头渐进渲染
   clearTimeout(_qH);
   if(v.trim())_qH=setTimeout(()=>pushQHist(v.trim()),1200);  // 停止输入 1.2s 记为一次搜索
@@ -690,7 +728,7 @@ function filtered(){
     &&(!settings.hideDone||!isDone(e))  // 可选:已打钩做完的条目不再显示
     &&activeCats.has(e.category)
     &&(!gp||e.game_id===gp.id)
-    &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+(e.category||'')).toLowerCase().includes(k))));
+    &&(!raw||(quick?quickMatch(e,raw,now):((e.title||'')+' '+(e.game||'')+' '+gameShort(e.game_id)+' '+(e.category||'')).toLowerCase().includes(k))));
 }
 /* kind 分流: 进行中/即将开始只看真活动(event); 全部资讯页签含公告资讯(info) */
 function isEv(e){return (e.kind||'event')==='event'}
