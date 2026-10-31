@@ -878,7 +878,7 @@ function openReports(){
         </div>`).join('')
           :(_repPending?'<div class="empty">没有待核查反馈<br>都处理完了</div>'
             :'<div class="empty">还没有提交过反馈<br>在活动详情里点「缺图 / 缺结束时间 / 时间不对」即可</div>')}
-        <div class="stat-sub" style="margin-top:12px">处理由每日核查 Agent 执行:补图、回源核实起止时间后会把状态改为「已处理」。</div>
+        <div class="stat-sub" style="margin-top:12px">数据补全(补封面 / 补结束时间)后会自动标记「已处理」;也可在这里撤回还没处理的反馈。</div>
       </div>
     </div>`;
     over.addEventListener('click',function(ev){if(ev.target===this)this.remove()});

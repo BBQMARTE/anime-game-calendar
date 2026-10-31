@@ -30,6 +30,7 @@ def check(label, got, expect):
 def main():
     tmp = tempfile.mkdtemp(prefix='ycal_rp_')
     app.REPORT_FILE = os.path.join(tmp, 'reports.json')
+    app._state['events'] = []          # 自动处理逻辑依赖当前事件,先用空集合保证可重复
     c = app.app.test_client()
     H = {'X-Requested-With': 'ycal'}
 
@@ -120,6 +121,28 @@ def main():
     check("清除已处理反馈", (j.get('ok'), j.get('removed')), (True, 2))
     left = c.get('/api/report').get_json()['items']
     check("清除后只剩待核查", (len(left), any(x.get('done') for x in left)), (before - 2, False))
+
+    # 数据补全后 GET 自动把待核查标成已处理(no-end / missing-image)
+    c.post('/api/report', json={'title': '自动A', 'game_id': 'hsr', 'kind': 'no-end',
+                                'start': '2026-11-01T10:00'}, headers=H)
+    c.post('/api/report', json={'title': '自动B', 'game_id': 'hsr', 'kind': 'missing-image'}, headers=H)
+    c.post('/api/report', json={'title': '自动C', 'game_id': 'hsr', 'kind': 'no-end',
+                                'start': '2026-11-01T10:00'}, headers=H)
+    app._state['events'] = [
+        {'game_id': 'hsr', 'title': '自动A', 'start': '2026-11-01T10:00', 'end': '2026-11-10T03:59'},
+        {'game_id': 'hsr', 'title': '自动B', 'start': '2026-11-02T10:00', 'image': 'https://x/b.jpg'},
+        {'game_id': 'hsr', 'title': '自动C', 'start': '2026-11-05T10:00', 'end': '2026-11-10T03:59'},
+    ]
+    items = c.get('/api/report').get_json()['items']
+    auto_a = next(i for i in items if i['title'] == '自动A')
+    auto_b = next(i for i in items if i['title'] == '自动B')
+    auto_c = next(i for i in items if i['title'] == '自动C')
+    check("有结束时间 → 自动标记已处理", auto_a['done'], True)
+    check("自动备注写明原因", '结束时间' in auto_a['note'], True)
+    check("有封面 → 自动标记已处理", auto_b['done'], True)
+    check("封面原因写进备注", '封面' in auto_b['note'], True)
+    check("同名但开始日期不符不误关", auto_c['done'], False)
+    app._state['events'] = []          # 重置,避免影响后续用例
 
     # 上限:写入 400 条,只保留最近 300
     for i in range(400):

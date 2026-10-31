@@ -978,12 +978,59 @@ def _load_reports():
         return []
 
 
+def _autoclose_reports(items):
+    """数据已补全的待核查反馈自动标记 done:
+    no-end → 该活动现在有结束时间;missing-image → 该活动现在有封面。
+    只在同游戏同标题、且报告带开始日期时要求日期一致,避免同名活动误关。"""
+    with _lock:
+        events = list(_state['events'])
+    idx = {}
+    for e in events:
+        idx.setdefault(((e.get('game_id') or ''), (e.get('title') or '')), []).append(e)
+    changed = 0
+    for it in items:
+        if it.get('done'):
+            continue
+        kind = it.get('kind')
+        if kind not in ('no-end', 'missing-image'):
+            continue
+        cands = idx.get((str(it.get('game_id') or ''), it.get('title') or ''))
+        if not cands:
+            continue
+        rstart = str(it.get('start') or '')[:10]
+        hit = ''
+        for e in cands:
+            estart = str(e.get('start') or '')[:10]
+            if rstart and estart and rstart != estart:
+                continue
+            if kind == 'no-end' and e.get('end'):
+                hit = '已补到结束时间'
+                break
+            if kind == 'missing-image' and (e.get('image') or '').strip():
+                hit = '封面已补'
+                break
+        if not hit:
+            continue
+        it['done'] = True
+        it['note'] = ((it.get('note') or '') + ('；' if it.get('note') else '') + '自动核实: ' + hit)[:200]
+        changed += 1
+    return changed
+
+
 @app.route('/api/report', methods=['GET', 'POST', 'DELETE'])
 def api_report():
-    """用户反馈:GET 读清单,POST 追加一条(10 分钟内重复去重),DELETE 撤回一条待核查反馈"""
+    """用户反馈:GET 读清单(数据补全时自动标记已处理),POST 追加,DELETE 撤回/清除"""
     if request.method == 'GET':
         with _report_lock:
-            return jsonify({'items': _load_reports()})
+            items = _load_reports()
+            changed = _autoclose_reports(items)
+            if changed:
+                try:
+                    with open(REPORT_FILE, 'w', encoding='utf-8') as f:
+                        json.dump({'items': items}, f, ensure_ascii=False, indent=1)
+                except Exception as e:  # noqa: BLE001
+                    print(f'[反馈] 自动处理状态保存失败: {e}')
+            return jsonify({'items': items})
     # 与 /api/refresh、/api/todo 同样的简单 CSRF 防护
     if request.headers.get('X-Requested-With') != 'ycal':
         return jsonify({'ok': False, 'error': 'forbidden'}), 403
