@@ -15,6 +15,7 @@
 import csv
 import hashlib
 import io
+import json
 import os
 import re
 import sys
@@ -87,7 +88,9 @@ def main():
         check('首页含 %s' % marker, marker in page, True)
 
     pairs = [('static/index.html', 'android/app/src/main/assets/www/index.html'),
-             ('static/sw.js', 'android/app/src/main/assets/www/sw.js')]
+             ('static/sw.js', 'android/app/src/main/assets/www/sw.js'),
+             ('static/manifest.webmanifest',
+              'android/app/src/main/assets/www/manifest.webmanifest')]
     for a, b in pairs:
         check('%s 双端一致' % os.path.basename(a),
               md5(os.path.join(ROOT, a)), md5(os.path.join(ROOT, b)))
@@ -97,6 +100,9 @@ def main():
                    open(os.path.join(ROOT, 'android/app/src/main/assets/www/sw.js'),
                         encoding='utf-8').read())
     check('SW 版本一致', sv and av and sv.group(1), av and av.group(1))
+
+    man = json.load(open(os.path.join(ROOT, 'static/manifest.webmanifest'), encoding='utf-8'))
+    check('manifest 快捷方式数量', len(man.get('shortcuts') or []), 2)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

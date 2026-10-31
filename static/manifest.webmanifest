@@ -9,8 +9,25 @@
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
   "lang": "zh-CN",
+  "categories": ["lifestyle", "utilities"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "进行中",
+      "short_name": "进行中",
+      "description": "只看正在进行的活动",
+      "url": "/?tab=ongoing",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "我的收藏",
+      "short_name": "收藏",
+      "description": "查看收藏的活动",
+      "url": "/?tab=fav",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

@@ -1,5 +1,12 @@
 # 更新日志
 
+## 2026-10-31 · v1.9.29 · PWA 图标快捷方式
+
+- **manifest 新增 `shortcuts`**:安卓/桌面把网页「添加到主屏幕」后,长按图标可直接进入「进行中」与「我的收藏」两个列表(`/?tab=ongoing`、`/?tab=fav`),少点两次
+- 同时补充 `categories: lifestyle / utilities`,便于系统归类;快捷方式图标复用现有 192 图标
+- 新增 `tests/test_manifest.py`(名称/启动地址/图标文件存在/categories/快捷方式名称与 tab/前端 TAB_IDS 支持/双端 manifest 一致);`tools/smoke.py` 增加 manifest 双端一致与快捷方式数量检查;全量 75 个测试文件 0 失败;SW v109→v110;APK versionCode 38 / v1.9.29
+- 三语 README 同步说明
+
 ## 2026-10-31 · v1.9.28 · 多关键词 AND 搜索
 
 - **空格分隔多个关键词**:如 `崩铁 活动`、`星穹 铁道` 现在按 AND 匹配(标题 / 游戏名 / 游戏短名 / 分类拼成的检索文本里每个词都出现才命中),比单串子串更贴近日常搜索习惯
