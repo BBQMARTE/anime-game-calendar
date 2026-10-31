@@ -1321,7 +1321,8 @@ def api_ics():
                   f'DTSTAMP:{now}',
                   f'DTSTART:{ds}',
                   f'DTEND:{de}',
-                  f'SUMMARY:{_ics_escape("【" + (e.get("game") or "活动") + "】" + e.get("title", ""))}']
+                  f'SUMMARY:{_ics_escape("【" + (e.get("game") or "活动") + "】" + e.get("title", ""))}',
+                  f'CATEGORIES:{_ics_escape(e.get("game") or "活动")}']
         if e.get('link'):
             lines.append(f'URL:{_ics_escape(e["link"])}')
         if alarm:

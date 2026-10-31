@@ -70,6 +70,9 @@ def main():
     r1 = requests.get(BASE + '/api/calendar.ics', timeout=15)
     check('ICS 200', r1.status_code, 200)
     check('ICS 含日历头', b'BEGIN:VCALENDAR' in r1.content, True)
+    body = r1.content.decode('utf-8', 'replace')
+    check('ICS 每条事件带 CATEGORIES',
+          body.count('CATEGORIES:'), body.count('BEGIN:VEVENT'))
     etag = r1.headers.get('ETag') or ''
     check('ICS 带 ETag', bool(etag), True)
     r2 = requests.get(BASE + '/api/calendar.ics', headers={'If-None-Match': etag}, timeout=15)

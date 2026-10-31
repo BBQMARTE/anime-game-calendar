@@ -48,6 +48,9 @@ def main():
     check("games=hsr 只留星铁", body.count('BEGIN:VEVENT'), 1)
     check("games=hsr 含活动A", '活动A' in body, True)
     check("games=hsr 不含活动B", '活动B' in body, False)
+    # CATEGORIES:日历客户端可按游戏分组/着色
+    check("每条事件都有 CATEGORIES", body.count('CATEGORIES:'), 1)
+    check("CATEGORIES 是游戏名", 'CATEGORIES:崩坏：星穹铁道' in body, True)
 
     st, body = ics(evs, '?games=zzz,hsr')
     check("多游戏逗号分隔", body.count('BEGIN:VEVENT'), 2)
