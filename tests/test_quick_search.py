@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""搜索快捷词测试:今天 / 明天 / 本周 / 周末 / 未开始。
+"""搜索快捷词测试:今天 / 明天 / 本周 / 周末 / 未开始 / 今天开始 / 今天结束 / 进行中。
 
 从 index.html 提取 isQuickWord / quickMatch / filtered,注入固定时间与依赖桩验证口径。
 运行:python3 tests/test_quick_search.py(node 缺失则 SKIP)
@@ -30,7 +30,7 @@ const EVENTS = {events: __EVENTS__, games: [
   {id:'hsr', name:'崩坏：星穹铁道'}, {id:'zzz', name:'绝区零'}, {id:'wuwa', name:'鸣潮'}]};
 function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
-    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
+    "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始','今天开始','今天结束','进行中'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
     + "function gameShort(id){return ({hsr:'崩铁',zzz:'绝区零',wuwa:'鸣潮'})[id]||''}\n"
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')
@@ -47,6 +47,7 @@ console.log(JSON.stringify({
   prefixUnknown: run('xxx:'),
   nextWeek: run('下周'), ended: run('已结束'), ending: run('即将结束'),
   weekStart: run('本周开始'), monthStart: run('本月开始'),
+  todayStart: run('今天开始'), todayEnd: run('今天结束'), running: run('进行中'),
   prefixHsrEnding: run('hsr: 即将结束'),
   shortHsr: run('崩铁'), shortZzz: run('绝区零'),
 }));
@@ -123,6 +124,9 @@ def main():
     check("已结束:必须真有结束时间", d['ended'], ['f'])
     check("即将结束:3 天内截止且未结束", d['ending'], ['b', 'i'])
     check("游戏前缀+即将结束", d['prefixHsrEnding'], ['i'])
+    check("今天开始:只算今天起点的", d['todayStart'], ['g'])
+    check("今天结束:只算真有结束时间且今天截止的", d['todayEnd'], ['b'])
+    check("进行中:已开始且未结束(无结束时间也算)", d['running'], ['a', 'b', 'g', 'h', 'i'])
     check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i'])
     check("搜索游戏全名「绝区零」命中绝区零全部", d['shortZzz'], ['b', 'e', 'h'])
 

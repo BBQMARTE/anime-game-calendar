@@ -82,7 +82,8 @@ def main():
     check('收藏订阅 ETag 带 fav 标记', '-fav-' in (rf.headers.get('ETag') or ''), True)
 
     page = requests.get(BASE + '/', timeout=15).text
-    for marker in ('状态同步码', 'openReports()', 'withdrawReport(', 'dq-bar', "statRange('本周开始'"):
+    for marker in ('状态同步码', 'openReports()', 'withdrawReport(', 'dq-bar', "statRange('本周开始'",
+                   "todayJump('今天开始')"):
         check('首页含 %s' % marker, marker in page, True)
 
     pairs = [('static/index.html', 'android/app/src/main/assets/www/index.html'),

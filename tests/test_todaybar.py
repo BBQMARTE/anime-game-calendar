@@ -80,6 +80,11 @@ def main():
     check("进行中 = 4(含今天起止与未写结束时间)", d['nums'][2], 4)
     check("输出非空", d['html'] > 0, True)
 
+    src = open(HTML, encoding='utf-8').read()
+    for w in ('今天开始', '今天结束', '进行中'):
+        check("摘要「%s」可点进列表" % w, "todayJump('%s')" % w in src, True)
+    check("todayJump 用同口径快捷词并切到列表", "function todayJump(" in src and "setTab('all')" in src, True)
+
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
 
