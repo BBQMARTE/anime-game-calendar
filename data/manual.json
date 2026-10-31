@@ -1,16 +1,6 @@
 [
   {
     "game_id": "hsr",
-    "id": "manual-96d0a557",
-    "title": "命运契约·再启（免费领联动五星）",
-    "category": "活动",
-    "start": "2026-07-24T12:00",
-    "end": "",
-    "link": "https://sr.mihoyo.com/news/165210",
-    "image": "/static/img/hsr/mingyun_qiyue_shengbeizhanzheng.jpg"
-  },
-  {
-    "game_id": "hsr",
     "id": "manual-cde6b8de",
     "title": "4.5版本上线（知更鸟·晴歌&砂金·戏浪）",
     "category": "活动",

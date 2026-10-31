@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-10-31 · v1.9 · 清理过期条目 + 版本号校正
+
+- **删掉一条挂错分区的过期活动**:`命运契约·再启（免费给联动五星）`(7 月 24 日开始、未写结束时间)已过期 98 天,却一直挂在「进行中·结束未知」;manual.json 197 → 196 条
+- **APK 版本号长期没动**:多次发版后 `versionCode` 仍是 8、`versionName` 仍是 1.6,安装器/系统设置里分不出新旧。本次改为 **versionCode 9 / v1.9**
+- 离线 bundle 重新生成(196 条);SW 缓存版本 v80→v81
+
 ## 2026-10-31 · 静态文本资源也走 gzip
 
 - **首页/JS 压缩**:SW 每次版本升级都要重拉 `index.html`、`manual-data.js`、`scraper.js`(合计约 220KB)。after_request 对 HTML/JS/JSON/ICS 按 `Accept-Encoding` 压缩,浏览器透明解压,前端零改动
