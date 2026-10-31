@@ -77,7 +77,8 @@ header{
   display:flex; gap:14px; overflow-x:auto; scrollbar-width:none;
 }
 .sources::-webkit-scrollbar{display:none}
-.src{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--label2); white-space:nowrap}
+.src{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--label2); white-space:nowrap; cursor:pointer}
+.src:active{opacity:.6}
 .src i{width:6px; height:6px; border-radius:50%; background:var(--label3)}
 .src.ok i{background:var(--green)}
 .src.bad i{background:var(--red)}
@@ -997,12 +998,19 @@ function withdrawReport(btn){
 }
 
 /* ================= 状态 / 筛选 ================= */
+/* 数据源状态:移动端没有 tooltip,点一下直接把「条数 / 失败原因 / 上次成功」弹出来 */
+function srcInfo(el){
+  if(!el||!el.getAttribute)return;
+  const name=el.getAttribute('data-name')||'';
+  const tip=el.getAttribute('data-tip')||'';
+  alert(name+(name&&tip?'\n':'')+(tip||'暂无状态'));
+}
 function renderMeta(){
   $('#updated').textContent=DATA.updated?('更新于 '+String(DATA.updated).replace('T',' ').slice(5,16)):'';
   $('#sources').innerHTML=Object.entries(DATA.sources||{}).map(([k,s])=>{
     const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`
       :('抓取失败: '+(s.error||'未知')+(s.last_ok?' · 上次成功 '+String(s.last_ok).replace('T',' ').slice(5,16):' · 从未成功'));
-    return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
+    return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}" data-name="${esc(s.name||k)}" data-tip="${esc(tip)}" onclick="srcInfo(this)" role="button" aria-label="${esc(s.name||k)}：${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
   }).join('');
   const gs=(DATA.games||[]).filter(g=>calGamesSet().has(g.id)||(_urlGames&&_urlGames.has(g.id)));  // 设置里勾掉的不出现在筛选器(分享链接点名的除外)
   const allOn=gs.length>0&&gs.every(g=>activeGames.has(g.id));
