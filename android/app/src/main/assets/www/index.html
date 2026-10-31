@@ -165,8 +165,8 @@ mark{background:rgba(255,214,10,.45); color:inherit; border-radius:3px; padding:
 .cal-nav:active{opacity:.6}
 .cal-today{padding:6px 13px; border-radius:99px; background:var(--fill); font-size:12px; font-weight:600; color:var(--label2); cursor:pointer}
 .cal-today:active{opacity:.6}
-/* 周视图右上角「导出本周 .ics」 */
-.cal-week-bar{display:flex; justify-content:flex-end; padding:0 12px 6px}
+/* 周视图右上角「复制本周 / 导出本周 .ics」 */
+.cal-week-bar{display:flex; justify-content:flex-end; gap:14px; padding:0 12px 6px}
 .cal-week-bar .stat-link{color:var(--blue)}
 .cal-grid{display:grid; grid-template-columns:repeat(7,1fr)}
 .cal-wd{font-size:11px; font-weight:600; color:var(--label3); text-align:center; padding-bottom:6px}
@@ -1203,7 +1203,7 @@ function renderCal(){
       <b class="${calWeek?'':'on'}" onclick="setCalView('month')" role="button" aria-label="月视图">月</b>
       <b class="${calWeek?'on':''}" onclick="setCalView('week')" role="button" aria-label="周视图">周</b>
     </span>
-  </div>${calWeek?`<div class="cal-week-bar"><span class="stat-link" style="font-size:12px" onclick="exportWeekIcs()">导出本周 .ics</span></div>`:''}<div class="cal-grid${calWeek?' week':''}">
+  </div>${calWeek?`<div class="cal-week-bar"><span class="stat-link" style="font-size:12px" onclick="copyWeek()">复制本周</span><span class="stat-link" style="font-size:12px" onclick="exportWeekIcs()">导出本周 .ics</span></div>`:''}<div class="cal-grid${calWeek?' week':''}">
   ${'日一二三四五六'.split('').map(w=>`<div class="cal-wd">${w}</div>`).join('')}
   ${cells.map(d=>{
     const inM=calWeek||d.getMonth()===calM;
@@ -1282,6 +1282,25 @@ function exportWeekIcs(){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   flash('已导出本周 '+list.length+' 个活动');
+}
+/* 本周活动纯文本:一行一条(游戏｜标题｜时间),按开始时间排序,发群里不用逐条找 */
+function weekCopyText(list,label){
+  if(!list.length)return '';
+  const key=e=>{const s=evStart(e);return s?s.getTime():8.64e15};   // 无开始时间排最后
+  const sorted=[...list].sort((a,b)=>key(a)-key(b));
+  const lines=[label+' · '+sorted.length+' 个活动'];
+  sorted.forEach(e=>lines.push('- '+gameName(e.game_id)+'｜'+(e.title||'')+'｜'
+    +(evStart(e)?fmtRange(e):'时间待定')));
+  return lines.join('\n');
+}
+function copyWeek(){
+  const range=weekRange(selDay||new Date());
+  const list=weekEvents((DATA&&DATA.events||[]).filter(e=>isEv(e)&&calVisible(e)),range);
+  const f=d=>d.getMonth()+1+'月'+d.getDate()+'日';
+  const last=new Date(range.end.getTime()-864e5);
+  const text=weekCopyText(list,'本周活动 '+f(range.start)+'–'+f(last));
+  if(!text){flash('本周没有活动可复制');return}
+  copyText(text).then(()=>flash('已复制本周活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
 }
 function dayCopyText(ev,label){
   const n=ev.starts.length+ev.runs.length+ev.ends.length;
