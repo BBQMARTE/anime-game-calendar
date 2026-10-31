@@ -711,12 +711,15 @@ function imgUrl(u){
   return '/api/img?url='+encodeURIComponent(u);
 }
 /* 列表/详情头的小缩略图:本地封面图交给服务端按需压到 200px(原图几百 KB);
-   安卓离线模式用随包生成的 www/thumb/ 小图,避免 99MB 原图进 APK */
-/* 图片按指定宽度取:列表 200px、详情大图 800px;离线模式只有随包的 200px 小图 */
+   安卓离线模式用随包生成的 www/thumb/ 图(200px 列表 + 800px 详情),避免 99MB 原图进 APK。
+   离线文件名统一转成 .jpg(生成器会把 png/webp 也转成 jpg) */
 function imgAt(u,w){
   if(!u)return '';
   if(/^\/static\/img\//i.test(u)){
-    if(location.protocol==='file:')return w<=200?'thumb'+u.slice(7):u;
+    if(location.protocol==='file:'){
+      const rel=u.slice(7).replace(/\.(jpe?g|png|webp)$/i,'');
+      return 'thumb'+rel+(w<=200?'.jpg':'@800.jpg');
+    }
     return '/api/thumb?path='+encodeURIComponent(u)+'&w='+w;
   }
   if(/^https?:/i.test(u)){

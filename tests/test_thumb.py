@@ -129,6 +129,8 @@ console.log(JSON.stringify({
   localHttp800: http.imgAt('/static/img/hsr/a.jpg', 800),
   localFile: file.thumbUrl('/static/img/hsr/a.jpg'),
   localFile800: file.imgAt('/static/img/hsr/a.jpg', 800),
+  localFilePng: file.thumbUrl('/static/img/hsr/b.png'),
+  localFilePng800: file.imgAt('/static/img/hsr/b.png', 800),
   remoteHttp: http.thumbUrl('https://example.com/a.jpg'),
   empty: http.thumbUrl(''),
 }));
@@ -145,7 +147,9 @@ console.log(JSON.stringify({
             check('详情本地图走 800px',
                   d['localHttp800'], '/api/thumb?path=%2Fstatic%2Fimg%2Fhsr%2Fa.jpg&w=800')
             check('离线列表走相对 thumb/img', d['localFile'], 'thumb/img/hsr/a.jpg')
-            check('离线详情回退原图(随包只有小图)', d['localFile800'], '/static/img/hsr/a.jpg')
+            check('离线详情走随包 800px', d['localFile800'], 'thumb/img/hsr/a@800.jpg')
+            check('离线 png 也映射到生成的 jpg', d['localFilePng'], 'thumb/img/hsr/b.jpg')
+            check('离线 png 详情也映射 jpg', d['localFilePng800'], 'thumb/img/hsr/b@800.jpg')
             check('远程图走代理并缩到 200px',
                   d['remoteHttp'], '/api/img?url=https%3A%2F%2Fexample.com%2Fa.jpg&w=200')
             check('空图片返回空串', d['empty'], '')
