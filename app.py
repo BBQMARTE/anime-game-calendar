@@ -1027,9 +1027,14 @@ def _autoclose_reports(items):
             estart = str(e.get('start') or '')[:10]
             if rstart and estart and rstart != estart:
                 continue
-            if kind == 'no-end' and e.get('end'):
-                hit = '已补到结束时间'
-                break
+            if kind == 'no-end':
+                if e.get('end'):
+                    hit = '已补到结束时间'
+                    break
+                if _is_point_item(e):
+                    # 版本上线 / 前瞻直播本来就没有结束时间,反馈不需要人工再补,直接收尾
+                    hit = '单点里程碑无需结束时间'
+                    break
             if kind == 'missing-image' and (e.get('image') or '').strip():
                 hit = '封面已补'
                 break

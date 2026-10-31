@@ -186,6 +186,24 @@ def main():
     check("短标题不做前缀误关", t_short['done'], False)
     app._state['events'] = []
 
+    # 单点里程碑(版本上线)本来就没有结束时间:反馈自动收尾,不再无限挂起
+    point_title = '4.7版本「此刻将群星付之一笑」上线'
+    c.post('/api/report', json={'title': point_title, 'game_id': 'hsr', 'kind': 'no-end',
+                                'start': '2026-11-05T10:00'}, headers=H)
+    c.post('/api/report', json={'title': '普通无结束活动', 'game_id': 'hsr', 'kind': 'no-end',
+                                'start': '2026-11-06T10:00'}, headers=H)
+    app._state['events'] = [
+        {'game_id': 'hsr', 'kind': 'event', 'title': point_title, 'start': '2026-11-05T10:00'},
+        {'game_id': 'hsr', 'kind': 'event', 'title': '普通无结束活动', 'start': '2026-11-06T10:00'},
+    ]
+    items = c.get('/api/report').get_json()['items']
+    t_point = next(i for i in items if i['title'] == point_title)
+    t_plain = next(i for i in items if i['title'] == '普通无结束活动')
+    check("单点里程碑缺结束 → 自动标记已处理", t_point['done'], True)
+    check("备注说明是单点里程碑", '单点里程碑' in t_point['note'], True)
+    check("普通活动缺结束 → 仍待核查", t_plain['done'], False)
+    app._state['events'] = []
+
     # 上限:写入 400 条,只保留最近 300
     for i in range(400):
         c.post('/api/report', json={'title': '批量%d' % i, 'game_id': 'hsr', 'kind': 'other'}, headers=H)
