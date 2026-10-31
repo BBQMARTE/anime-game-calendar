@@ -1063,6 +1063,7 @@ function renderMeta(){
   h+=Object.keys(CAT_COLOR).map(c=>
     `<span class="chip cat ${activeCats.has(c)?'on':''}" style="--c:${CAT_COLOR[c]}" onclick="toggleCat('${c}')">${c}</span>`
   ).join('');
+  h+='<span class="vsep"></span><span class="chip" style="--c:var(--blue)" role="button" aria-label="复制当前筛选清单" onclick="copyFiltered()">复制清单</span>';
   $('#filters').innerHTML=h;
   a11yScan($('#sources'));a11yScan($('#filters'));
 }
@@ -1380,6 +1381,22 @@ function copyWeek(){
   const text=weekCopyText(list,'本周活动 '+f(range.start)+'–'+f(last));
   if(!text){flash('本周没有活动可复制');return}
   copyText(text).then(()=>flash('已复制本周活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
+}
+/* 当前筛选的纯文本清单:一行一条(游戏｜标题｜时间),把搜索结果直接发群里 */
+function filterCopyText(list,label){
+  if(!list.length)return '';
+  const key=e=>{const s=evStart(e);return s?s.getTime():8.64e15};   // 无开始时间排最后
+  const sorted=[...list].sort((a,b)=>key(a)-key(b));
+  const lines=[label+' · '+sorted.length+' 个活动'];
+  sorted.forEach(e=>lines.push('- '+gameName(e.game_id)+'｜'+(e.title||'')+'｜'
+    +(evStart(e)?fmtRange(e):'时间待定')));
+  return lines.join('\n');
+}
+function copyFiltered(){
+  const evs=filteredEvents();
+  const text=filterCopyText(evs,'当前筛选');
+  if(!text){flash('当前筛选没有活动可复制');return}
+  copyText(text).then(()=>flash('已复制 '+evs.length+' 个活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
 }
 /* 月范围:1 日 00:00 到下月 1 日 00:00(start 含 / end 不含) */
 function monthRange(y,m){
