@@ -70,7 +70,7 @@ def main():
         check('缺图:除 run 外 4 条', d['missing_images'], 4)
         check('默认无刷新错误', d['last_error'], None)
         check('默认无错误时间', d['last_error_at'], None)
-        check('数据源状态保留', d['sources']['manual'], {'ok': True, 'count': 3})
+        check('数据源状态保留', d['sources']['manual'], {'ok': True, 'count': 3, 'last_ok': None})
         check('未过期', d['stale'], False)
 
         # 辅助函数边界:开始超过 30 天但已有结束时间 → 不算「结束未知」
@@ -84,6 +84,20 @@ def main():
               app._is_stale_unknown({'start': (now - timedelta(days=30, minutes=1))
                                      .isoformat(timespec='seconds')}, now=now), True)
         check('31 天前算 stale', app._is_stale_unknown({'start': day(-31)}, now=now), True)
+
+        # 数据源最近成功时间:成功源刷新为本次,失败源沿用上一次(便于判断失败多久了)
+        st = app._stamp_sources({'a': {'ok': True}, 'b': {'ok': False}},
+                                {'b': {'last_ok': '2026-10-31T10:00:00'}},
+                                '2026-10-31T15:00:00')
+        check('成功源记录本次成功时刻', st['a'].get('last_ok'), '2026-10-31T15:00:00')
+        check('失败源沿用上次成功时刻', st['b'].get('last_ok'), '2026-10-31T10:00:00')
+        check('从未成功的失败源没有 last_ok',
+              'last_ok' in app._stamp_sources({'c': {'ok': False}}, {}, '2026-10-31T15:00:00')['c'],
+              False)
+        check('前端 tooltip 会显示上次成功时间',
+              '上次成功' in open(os.path.join(os.path.dirname(os.path.dirname(
+                  os.path.abspath(__file__))), 'static', 'index.html'), encoding='utf-8').read(),
+              True)
 
         # updated 超过 24 小时 → stale
         app._state['updated'] = iso(-2)

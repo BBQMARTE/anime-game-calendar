@@ -823,7 +823,8 @@ function statCat(c,el){
 function renderMeta(){
   $('#updated').textContent=DATA.updated?('更新于 '+String(DATA.updated).replace('T',' ').slice(5,16)):'';
   $('#sources').innerHTML=Object.entries(DATA.sources||{}).map(([k,s])=>{
-    const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`:('抓取失败: '+(s.error||'未知'));
+    const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`
+      :('抓取失败: '+(s.error||'未知')+(s.last_ok?' · 上次成功 '+String(s.last_ok).replace('T',' ').slice(5,16):' · 从未成功'));
     return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
   }).join('');
   const gs=(DATA.games||[]).filter(g=>calGamesSet().has(g.id)||(_urlGames&&_urlGames.has(g.id)));  // 设置里勾掉的不出现在筛选器(分享链接点名的除外)

@@ -519,6 +519,25 @@ def _manual_events():
         return []
 
 
+def _stamp_sources(sources, prev, stamp=None):
+    """给每个数据源记「最近一次成功时间」;本轮失败的源沿用上一次的 last_ok。
+
+    只给前端/health 看,不参与抓取逻辑;失败源保留旧值,便于判断「失败多久了」。
+    """
+    stamp = stamp or datetime.now().isoformat(timespec='seconds')
+    out = dict(sources or {})
+    for k, st in out.items():
+        if not isinstance(st, dict):
+            continue
+        if st.get('ok'):
+            st['last_ok'] = stamp
+        else:
+            old = (prev or {}).get(k) or {}
+            if old.get('last_ok'):
+                st['last_ok'] = old['last_ok']
+    return out
+
+
 def do_refresh():
     with _lock:
         if _state['refreshing']:
@@ -568,6 +587,7 @@ def do_refresh():
         hist = _track_changes(prev_all, events)
         _attach_changes(events, hist)
         with _lock:
+            sources = _stamp_sources(sources, _state.get('sources') or {})
             _state['events'] = events
             _state['changes'] = _changes_list(hist)
             _state['sources'] = sources
@@ -592,10 +612,14 @@ def do_refresh():
         return False
 
 
+_REFRESH_RETRY = 5 * 60   # 整体刷新失败后 5 分钟补试一次,避免一次网络抖动空窗半小时
+
 def _refresh_loop():
     while True:
         time.sleep(REFRESH_INTERVAL)
-        do_refresh()
+        if not do_refresh():   # 失败(或与手动刷新撞车)时补试一次
+            time.sleep(_REFRESH_RETRY)
+            do_refresh()
 
 
 @app.route('/')
@@ -1313,7 +1337,8 @@ def api_health():
         'missing_end': sum(1 for e in real if not e.get('end')),
         'missing_images': sum(1 for e in real if not (e.get('image') or '').strip()),
         'sources': {k: {'ok': bool((v or {}).get('ok')),
-                        'count': (v or {}).get('count', 0)}
+                        'count': (v or {}).get('count', 0),
+                        'last_ok': (v or {}).get('last_ok')}
                     for k, v in sources.items() if not str(k).startswith('_')},
         'server_time': datetime.now().isoformat(timespec='seconds'),
     })
