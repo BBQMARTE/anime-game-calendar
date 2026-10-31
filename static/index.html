@@ -1764,10 +1764,15 @@ function copyEventText(id){
 /* ── 从详情页一键只看该游戏:收起弹窗并把顶部筛选切到单游戏 ── */
 function onlyThisGame(id){
   if(!id)return;
+  clearUrlGames();   // 分享链接里点名的游戏会绕过 activeGames,先清掉才不会漏出别的游戏
+  q=''; const qi=$('#q'); if(qi)qi.value='';
+  dq='';             // 「全部活动」:搜索词与质量筛选一并清掉
   activeGames=new Set([id]);
+  activeCats=new Set(Object.keys(CAT_COLOR));
   saveFilters();
   document.querySelectorAll('.detail-overlay').forEach(o=>o.remove());
   render();
+  flash('只看 '+gameName(id));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 /* ── 分享卡:把活动画成 1080×1350 的图,直接下载 ── */
