@@ -57,9 +57,9 @@ global.document = {
   createElement: () => ({ className: '', innerHTML: '', addEventListener(){}, querySelector(){ return null; } }),
   body: { appendChild(o) { captured.push(o); } },
 };
-const api = new Function('DATA', 'document', 'attachSwipeClose', 'Date',
+const api = new Function('DATA', 'document', 'attachSwipeClose', 'Date', 'mountOverlay',
   code + '\n' + CAT + '\n' + stats + '\nreturn {openStats, tlCount: 0};'
-)(DATA, global.document, () => {}, Date);
+)(DATA, global.document, () => {}, Date, o => global.document.body.appendChild(o));
 api.openStats();
 const out = captured.length ? captured[0].innerHTML : '';
 console.log(JSON.stringify({

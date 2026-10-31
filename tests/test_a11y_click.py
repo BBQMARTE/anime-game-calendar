@@ -40,6 +40,13 @@ const div = mk('DIV');
 const btn = mk('BUTTON');
 const kept = mk('SPAN', {tabindex: '-1', role: 'link'});
 fn({querySelectorAll: () => [span, div, btn, kept]});
+// 弹窗挂载:appendChild 后自动扫描,弹窗里的重排/关闭等 div 才能键盘操作
+const appended = [];
+const mount = new Function('document', 'a11yScan', grab('mountOverlay') + '\nreturn mountOverlay;')(
+  {body: {appendChild: x => appended.push(x)}}, fn);
+const closeBtn = mk('DIV');
+const fakeOverlay = {querySelectorAll: () => [closeBtn]};
+const ret = mount(fakeOverlay);
 console.log(JSON.stringify({
   span: span._attrs,
   div: div._attrs,
@@ -50,6 +57,13 @@ console.log(JSON.stringify({
   scansFilters: src.includes("a11yScan($('#filters'))"),
   keyCase: src.includes("e.key!=='Enter'&&e.key!==' '"),
   focusCss: src.includes('[role="button"]:focus-visible'),
+  hasMount: src.includes('function mountOverlay('),
+  mountCalls: src.split('mountOverlay(').length - 1,
+  mountedSpan: closeBtn._attrs,
+  appendedOnce: appended.length,
+  returned: ret === fakeOverlay,
+  closeAria: (src.match(/class="detail-close" role="button" tabindex="0" aria-label="关闭"/g) || []).length,
+  notifyScan: src.includes('a11yScan(box)'),
 }));
 """
 
@@ -87,6 +101,14 @@ def main():
     check('筛选 chip 渲染后扫描', d['scansFilters'], True)
     check('Enter / 空格触发点击', d['keyCase'], True)
     check('有可见焦点环样式', d['focusCss'], True)
+    check('弹窗挂载统一扫描键盘可达', d['hasMount'], True)
+    check('7 个弹窗都走 mountOverlay', d['mountCalls'], 8)
+    check('挂载后弹窗内 div 补上 role/tabindex',
+          (d['mountedSpan'].get('tabindex'), d['mountedSpan'].get('role')), ('0', 'button'))
+    check('挂载时追加到 body 一次', d['appendedOnce'], 1)
+    check('mountOverlay 返回弹窗本身', d['returned'], True)
+    check('7 个弹窗关闭按钮都有语义', d['closeAria'], 7)
+    check('异步渲染的提醒配置也扫描', d['notifyScan'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1

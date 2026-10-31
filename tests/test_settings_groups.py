@@ -45,9 +45,9 @@ const document = {
   body: { appendChild(o) { captured.push(o); } },
 };
 const settings = {calOn:true, hideAuto:false};
-const api = new Function('DATA','document','calGamesSet','settings','attachSwipeClose','loadNotifyCfgUI',
+const api = new Function('DATA','document','calGamesSet','settings','attachSwipeClose','loadNotifyCfgUI','mountOverlay',
   code + '\nreturn {openSettings};')
-  (DATA, document, () => new Set(['hsr','zzz']), settings, () => {}, () => {});
+  (DATA, document, () => new Set(['hsr','zzz']), settings, () => {}, () => {}, o => document.body.appendChild(o));
 api.openSettings();
 const out = captured.length ? captured[0].innerHTML : '';
 console.log(JSON.stringify({

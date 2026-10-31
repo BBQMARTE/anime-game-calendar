@@ -644,6 +644,12 @@ document.addEventListener('keydown',e=>{
     if(typeof t.click==='function')t.click();
   }
 });
+/* 弹窗统一挂载:追加到 body 后立刻扫描键盘可达,避免某个弹窗漏补 role/tabindex */
+function mountOverlay(o){
+  document.body.appendChild(o);
+  a11yScan(o);
+  return o;
+}
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
@@ -959,7 +965,7 @@ function openReports(){
       <div class="detail-header" style="--c:var(--orange)">
         <div class="dthumb" style="font-size:15px">反</div>
         <div class="dmeta"><div class="dtitle">我的反馈</div><div class="dsub">共 ${all.length} 条 · 待核查 ${pendAll} 条 · 每日核查会优先处理</div></div>
-        <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+        <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
       </div>
       <div class="detail-body">
         <div class="rep-bar">
@@ -980,7 +986,7 @@ function openReports(){
       </div>
     </div>`;
     over.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
-    document.body.appendChild(over);
+    mountOverlay(over);
     attachSwipeClose(over);
   }).catch(()=>alert('读取反馈失败,请确认服务端在线'));
 }
@@ -1576,7 +1582,7 @@ function showDetail(e){
         ?`<div class="dthumb" style="background:var(--card2);overflow:hidden"><img src="${esc(thumbUrl(e.image))}" style="width:100%;height:100%;object-fit:cover" onerror="var p=this.parentNode;p.style.background='${c}';p.style.fontSize='${fsD}';p.textContent='${esc(short)}'"></div>`
         :`<div class="dthumb" style="font-size:${fsD}">${esc(short)}</div>`}
       <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
       ${e.image?`<img src="${esc(imgAt(e.image,800))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
@@ -1608,7 +1614,7 @@ function showDetail(e){
     </div>
   </div>`;
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
-  document.body.appendChild(overlay);
+  mountOverlay(overlay);
   attachSwipeClose(overlay);
   markReported(overlay,e);   // 已提交过的反馈在按钮上标「待核查」
 }
@@ -1910,12 +1916,12 @@ async function showMihoyoDetail(e){
     <div class="detail-header" style="--c:${gameColor(e.game_id)}">
       <div class="dthumb">${esc(gameName(e.game_id).slice(0,1))}</div>
       <div class="dmeta"><div class="dtitle">${esc(e.title)}</div><div class="dsub">${esc(e.game)} · ${fmtRange(e)}</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body"><div class="detail-loading"><svg viewBox="0 0 24 24"><path d="M12 4V1L7 6l5 5V7c3.3 0 6 2.7 6 6 0 1.3-.4 2.5-1.1 3.5l1.5 1.5C19.4 16.5 20 14.3 20 12c0-4.4-3.6-8-8-8z"/></svg><br>加载中…</div></div>
   </div>`;
   overlay.addEventListener('click',function(ev){if(ev.target===this)this.remove();});
-  document.body.appendChild(overlay);
+  mountOverlay(overlay);
   attachSwipeClose(overlay);
   // 获取公告正文
   try{
@@ -2221,7 +2227,7 @@ function openMemoTpl(){
     <div class="detail-header" style="--c:var(--blue)">
       <div class="dthumb">周</div>
       <div class="dmeta"><div class="dtitle">每周模板</div><div class="dsub">保存每周固定要做的事,一键导入本周清单;周一自动重置打钩</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
       <div id="tplList">${tpl.length?tpl.map((t,i)=>`<div class="note-row" data-i="${i}"><span class="note-title">${esc(t)}</span><span class="note-edit" data-tedit="${i}" title="修改模板">✎</span><span class="note-del" data-tdel="${i}">×</span></div>`).join(''):'<div class="empty" style="padding:18px 0">模板还是空的,先加几条</div>'}</div>
@@ -2237,7 +2243,7 @@ function openMemoTpl(){
     const del=ev.target.closest('[data-tdel]');
     if(del){const a=memoTpl();a.splice(+del.dataset.tdel,1);saveMemoTpl(a);this.remove();openMemoTpl()}
   });
-  document.body.appendChild(o);
+  mountOverlay(o);
   attachSwipeClose(o);
   setTimeout(()=>{const i=document.getElementById('tplTitle');if(i)i.focus()},120);
 }
@@ -2320,7 +2326,7 @@ function openNoteAdd(){
     <div class="detail-header" style="--c:var(--orange)">
       <div class="dthumb">忘</div>
       <div class="dmeta"><div class="dtitle">写个备忘</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
       <input id="ntTitle" class="note-input" placeholder="比如:记得清完这期剿灭 / 领联动奖励">
@@ -2328,7 +2334,7 @@ function openNoteAdd(){
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
-  document.body.appendChild(o);
+  mountOverlay(o);
   attachSwipeClose(o);
   setTimeout(()=>{const i=document.getElementById('ntTitle');if(i)i.focus()},120);
 }
@@ -2358,7 +2364,7 @@ function openSettings(){
     <div class="detail-header" style="--c:var(--blue)">
       <div class="dthumb">设</div>
       <div class="dmeta"><div class="dtitle">设置</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body" style="padding-top:4px">
       <details class="set-group" open>
@@ -2432,7 +2438,7 @@ function openSettings(){
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
-  document.body.appendChild(o);
+  mountOverlay(o);
   attachSwipeClose(o);
   loadNotifyCfgUI();
 }
@@ -2560,7 +2566,7 @@ function openStats(){
     <div class="detail-header" style="--c:var(--blue)">
       <div class="dthumb">统</div>
       <div class="dmeta"><div class="dtitle">数据统计</div><div class="dsub">共 ${evs.length} 个活动 · 全量口径(不受筛选影响) · 更新于 ${(DATA&&DATA.updated||'').replace('T',' ').slice(5,16)}</div></div>
-      <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
+      <div class="detail-close" role="button" tabindex="0" aria-label="关闭" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
       <div class="stat-total">
@@ -2587,7 +2593,7 @@ function openStats(){
     </div>
   </div>`;
   o.addEventListener('click',function(ev){if(ev.target===this)this.remove()});
-  document.body.appendChild(o);
+  mountOverlay(o);
   attachSwipeClose(o);
 }
 /* ── 提醒配置(服务端 notify.json 的界面化,离线模式不可用) ── */
@@ -2638,6 +2644,7 @@ async function loadNotifyCfgUI(){
       <div class="lbl">只推送收藏的活动<span class="sub">${NC.fav_only?'已开启:每天只推你点过 ★ 收藏的活动':'关闭:每日推送包含全部活动'}</span></div>
       <label class="switch"><input type="checkbox" ${NC.fav_only?'checked':''} onchange="saveNotifyCfg({fav_only:this.checked})" aria-label="只推送收藏的活动"><span class="tr"></span></label>
     </div>`;
+  a11yScan(box);   // 提醒配置是异步渲染进来,挂载时扫不到,这里补一次
 }
 async function saveNotifyWebhook(){
   const w=document.getElementById('ncWebhook');

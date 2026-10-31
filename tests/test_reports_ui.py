@@ -45,10 +45,10 @@ const items = [
 const fetchStub = () => Promise.resolve({ json: () => Promise.resolve({ items }) });
 const REP_KINDS = ['missing-image','no-end','wrong-time','other'];
 const mk = (origin, kind) => new Function('fetch','document','apiOrigin','esc','gameName','REPORT_LABEL',
-  'attachSwipeClose','alert','_repPending','REP_KINDS','_repKind',
+  'attachSwipeClose','alert','_repPending','REP_KINDS','_repKind','mountOverlay',
   grab('openReports') + '\nreturn openReports;')(
     fetchStub, documentStub, () => origin, esc, gameName, REPORT_LABEL, () => {},
-    (m) => alerts.push(m), false, REP_KINDS, kind || '');
+    (m) => alerts.push(m), false, REP_KINDS, kind || '', o => documentStub.body.appendChild(o));
 mk('http://127.0.0.1:5000')();
 mk('http://127.0.0.1:5000', 'missing-image')();   // 只看缺图
 mk('')();   // 离线:apiOrigin 为空

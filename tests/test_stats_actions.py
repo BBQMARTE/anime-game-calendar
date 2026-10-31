@@ -62,9 +62,9 @@ global.document = {
 };
 function chgTypeLabel(t){return t==='moved'?'改期':t==='removed'?'移除':'新增'}
 function chgDesc(r){return r.type==='moved'?'原时间 → 现时间':'已移除'}
-const api = new Function('DATA', 'document', 'attachSwipeClose', 'Date', 'chgTypeLabel', 'chgDesc',
+const api = new Function('DATA', 'document', 'attachSwipeClose', 'Date', 'chgTypeLabel', 'chgDesc', 'mountOverlay',
   code + '\n' + CAT + '\n' + stats + '\nreturn {openStats};'
-)(DATA, global.document, () => {}, Date, chgTypeLabel, chgDesc);
+)(DATA, global.document, () => {}, Date, chgTypeLabel, chgDesc, o => global.document.body.appendChild(o));
 api.openStats();
 const out = captured.length ? captured[0].innerHTML : '';
 console.log(JSON.stringify({
