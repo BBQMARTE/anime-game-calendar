@@ -195,24 +195,24 @@ function grab(name) {
   }
   throw new Error('unbalanced: ' + name);
 }
-const posted = [], alerts = [];
+const posted = [], alerts = [], flashes = [];
 const DATA = {events:[{id:'x',game_id:'endfield',title:'画外遗光',
   start:'2026-11-12T12:00',end:null,link:'https://example.com/e'}]};
 const REPORT_LABEL = {'missing-image':'缺图','wrong-time':'时间不对','other':'其他','no-end':'缺结束时间'};
 const fetchStub = (u, opt) => { posted.push(JSON.parse(opt.body));
   return Promise.resolve({json: () => Promise.resolve({ok:true})}); };
 const pend = {};
-const fn = new Function('DATA','REPORT_LABEL','fetch','alert','prompt','REPORTS_PEND',
+const fn = new Function('DATA','REPORT_LABEL','fetch','alert','flash','prompt','REPORTS_PEND',
   grab('repKey') + '\n' + grab('reportEv') + '\nreturn reportEv;');
-fn(DATA, REPORT_LABEL, fetchStub, m => alerts.push(m), () => '', pend)('x','no-end');
+fn(DATA, REPORT_LABEL, fetchStub, m => alerts.push(m), m => flashes.push(m), () => '', pend)('x','no-end');
 
-// 再次点击已提交的反馈:不再发 POST,提示处理中
-const posted2 = [], alerts2 = [];
+// 再次点击已提交的反馈:不再发 POST,提示处理中(轻提示,不弹窗)
+const posted2 = [], flashes2 = [];
 const pend2 = {'endfield|画外遗光|no-end':{kind:'no-end'}};
 const fetchBlocked = () => { posted2.push(1); return Promise.resolve({json:()=>Promise.resolve({ok:true})}); };
-new Function('DATA','REPORT_LABEL','fetch','alert','prompt','REPORTS_PEND',
+new Function('DATA','REPORT_LABEL','fetch','alert','flash','prompt','REPORTS_PEND',
   grab('repKey') + '\n' + grab('reportEv') + '\nreturn reportEv;')(
-  DATA, REPORT_LABEL, fetchBlocked, m => alerts2.push(m), () => '', pend2)('x','no-end');
+  DATA, REPORT_LABEL, fetchBlocked, () => {}, m => flashes2.push(m), () => '', pend2)('x','no-end');
 
 // 详情按钮标记:待核查的 kind 加「· 待核查」,已处理/无记录的不动
 const chips = [
@@ -229,19 +229,19 @@ new Function('fetch','apiOrigin','REPORTS_PEND', grab('repKey') + '\n' + grab('m
   markFetch, () => 'http://127.0.0.1:5000', {})(over, DATA.events[0]);
 
 // 撤回:构造一行待核查反馈,校验 DELETE 方法与请求体
-const wposted = [], flashes = [], removed = [];
+const wposted = [], wflashes = [], removed = [];
 const row = {dataset:{at:'2026-10-31T10:00:00', game:'zzz', title:'活动A', kind:'missing-image'},
   closest: sel => (sel === '.detail-overlay' ? {remove:() => removed.push(1)} : row)};
 const wbtn = {closest: sel => (sel === '.chg-row' ? row : null)};
 const wfetch = (u, opt) => { wposted.push({method:opt.method, csrf:opt.headers['X-Requested-With'],
   body:JSON.parse(opt.body)}); return Promise.resolve({json:()=>Promise.resolve({ok:true,removed:1})}); };
 const wfn = new Function('fetch','flash','openReports', grab('withdrawReport') + '\nreturn withdrawReport;');
-wfn(wfetch, m => flashes.push(m), () => {}) (wbtn);
+wfn(wfetch, m => wflashes.push(m), () => {}) (wbtn);
 
-setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0],
-  cacheKeys:Object.keys(pend).length, blockedAlert:alerts2[0], blockedPosts:posted2.length,
+setTimeout(() => console.log(JSON.stringify({payload:posted[0], flash:flashes[0],
+  cacheKeys:Object.keys(pend).length, blockedFlash:flashes2[0], blockedPosts:posted2.length,
   chipTexts:chips.map(c => c.textContent),
-  wreq:wposted[0], wflash:flashes[0], wremoved:removed.length})) , 0);
+  wreq:wposted[0], wflash:wflashes[0], wremoved:removed.length})) , 0);
 """
         r = subprocess.run([node, '-e', loader], input=src,
                            capture_output=True, text=True, encoding='utf-8', timeout=60)
@@ -252,9 +252,9 @@ setTimeout(() => console.log(JSON.stringify({payload:posted[0], alert:alerts[0],
             d = json.loads(r.stdout.strip().splitlines()[-1])
             check("前端上报 kind=no-end", d['payload']['kind'], 'no-end')
             check("前端带上结束时间为空", d['payload']['end'], None)
-            check("反馈成功提示含类型名", '缺结束时间' in (d['alert'] or ''), True)
+            check("反馈成功提示含类型名", '缺结束时间' in (d['flash'] or ''), True)
             check("提交成功后记入会话缓存", d['cacheKeys'], 1)
-            check("重复点已提交反馈有提示", '已反馈过' in (d['blockedAlert'] or ''), True)
+            check("重复点已提交反馈有提示", '已反馈过' in (d['blockedFlash'] or ''), True)
             check("重复点不再发 POST", d['blockedPosts'], 0)
             check("待核查按钮标「· 待核查」", d['chipTexts'][0], '缺结束时间 · 待核查')
             check("已处理/未提交的按钮不动",

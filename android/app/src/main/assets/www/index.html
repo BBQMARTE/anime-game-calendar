@@ -1679,11 +1679,7 @@ function copyEventText(id){
   if(!e)return;
   const text=eventText(e);
   const fallback=()=>alert('活动信息(复制后粘贴到群聊):\n\n'+text);
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text)
-      .then(()=>alert('已复制活动信息,可直接粘贴分享'))
-      .catch(fallback);
-  }else fallback();
+  copyText(text).then(()=>flash('已复制活动信息,可直接粘贴分享'),fallback);
 }
 /* ── 从详情页一键只看该游戏:收起弹窗并把顶部筛选切到单游戏 ── */
 function onlyThisGame(id){
@@ -1772,7 +1768,7 @@ async function shareCard(id){
     a.href=url;a.download=(e.title||'活动').replace(/[\\/:*?"<>|]/g,'').slice(0,24)+'.png';
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),5000);
-    alert('分享卡已生成,可在下载里查看');
+    flash('分享卡已生成,可在下载里查看');
   },'image/png');
 }
 /* ── 一键反馈:写入服务端待核查清单(data/reports.json),每日核查优先处理 ── */
@@ -1802,15 +1798,17 @@ function reportEv(id,kind){
   const e=(DATA&&DATA.events||[]).find(x=>x.id===id);
   if(!e)return;
   const k=repKey(e.game_id,e.title,kind);
-  if(REPORTS_PEND[k]){alert('已反馈过「'+(REPORT_LABEL[kind]||kind)+'」,正在核查中');return}
+  if(REPORTS_PEND[k]){flash('已反馈过「'+(REPORT_LABEL[kind]||kind)+'」,正在核查中');return}
   let note='';
   if(kind==='other')note=(prompt('补充说明(可留空):')||'').slice(0,120);
   fetch('/api/report',{method:'POST',
     headers:{'Content-Type':'application/json','X-Requested-With':'ycal'},
     body:JSON.stringify({game_id:e.game_id,title:e.title,kind,note,start:e.start,end:e.end,link:e.link})
   }).then(r=>r.json()).then(d=>{
-    if(d&&d.ok)REPORTS_PEND[k]={game_id:e.game_id,title:e.title,kind};   // 同一次会话里再点不再重复发
-    alert(d&&d.ok?('已反馈「'+(REPORT_LABEL[kind]||kind)+'」,下次核查会优先处理'):'反馈失败,请稍后再试');
+    if(d&&d.ok){
+      REPORTS_PEND[k]={game_id:e.game_id,title:e.title,kind};   // 同一次会话里再点不再重复发
+      flash('已反馈「'+(REPORT_LABEL[kind]||kind)+'」,下次核查会优先处理');
+    }else alert('反馈失败,请稍后再试');
   }).catch(()=>alert('当前无法连接服务端,反馈未发出(连上后再试)'));
 }
 function openUrl(u){
@@ -2458,11 +2456,7 @@ function copyIcsUrl(){
   const u=icsUrl();
   if(!u){alert('离线模式无法生成订阅链接,请先在 APK 里连接电脑上的服务端');return}
   const fallback=()=>alert('日历订阅链接(复制后粘到系统日历/Google 日历):\n\n'+u);
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(u)
-      .then(()=>alert('已复制日历订阅链接:\n\n'+u))
-      .catch(fallback);
-  }else fallback();
+  copyText(u).then(()=>flash('日历订阅链接已复制,可粘到系统日历订阅'),fallback);
 }
 /* ── 数据统计弹窗(纯前端计算 DATA.events,零依赖 CSS 条形图) ── */
 function openStats(){

@@ -35,9 +35,13 @@ console.log(JSON.stringify({
   full: api.eventText(full),
   noLink: api.eventText(noLink),
   nodate: api.eventText(nodate),
-  hasBtn: html.includes('复制活动信息'),
+  hasEntry: html.includes('复制活动信息'),
   hasFn: html.includes('function copyEventText'),
-  hasClip: html.includes("navigator.clipboard.writeText(text)"),
+  hasClip: html.includes('navigator.clipboard.writeText'),
+  hasFlash: html.includes("flash('已复制活动信息"),
+  noPopup: !html.includes("alert('已复制活动信息"),
+  shareFlash: html.includes("flash('分享卡已生成"),
+  icsFlash: html.includes("flash('日历订阅链接已复制"),
 }));
 """
 
@@ -68,9 +72,12 @@ def main():
     check("无链接时省略链接行,游戏回退 game_id", d['noLink'],
           '【zzz】活动B\n时间:11月5日 10:00 ~ 11月6日 23:59\n分类:签到')
     check("无日期的条目时间写作待定", d['nodate'], '【绝区零】活动C\n时间:待定')
-    check("详情页有「复制活动信息」按钮", d['hasBtn'], True)
+    check("详情页有「复制活动信息」按钮", d['hasEntry'], True)
     check("copyEventText 已实现", d['hasFn'], True)
     check("使用剪贴板 API", d['hasClip'], True)
+    check("复制成功用轻提示,不再弹窗", (d['hasFlash'], d['noPopup']), (True, True))
+    check("分享卡生成用轻提示", d['shareFlash'], True)
+    check("订阅链接复制用轻提示", d['icsFlash'], True)
 
     print('\n%s' % ('ALL PASS' if bad == 0 else 'SOME FAILED'))
     return 0 if bad == 0 else 1
