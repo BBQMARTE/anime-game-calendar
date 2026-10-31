@@ -60,11 +60,11 @@ def ics_uids(events):
 
 # ---- 1. 与数组顺序无关：同一活动插到任意位置，UID 不变 ----
 A = [
-    {'game_id': 'hsr', 'title': '活动甲', 'start': '2026-09-10T12:00', 'end': '2026-09-20T23:59'},
-    {'game_id': 'zzz', 'title': '活动乙', 'start': '2026-09-11T12:00', 'end': '2026-09-21T23:59'},
-    {'game_id': 'r1999', 'title': '活动丙', 'start': '2026-09-12T12:00', 'end': '2026-09-22T23:59'},
+    {'game_id': 'hsr', 'title': '活动甲', 'start': '2027-09-10T12:00', 'end': '2027-09-20T23:59'},
+    {'game_id': 'zzz', 'title': '活动乙', 'start': '2027-09-11T12:00', 'end': '2027-09-21T23:59'},
+    {'game_id': 'r1999', 'title': '活动丙', 'start': '2027-09-12T12:00', 'end': '2027-09-22T23:59'},
 ]
-B = ([{'game_id': 'hsr', 'title': '新补录活动', 'start': '2026-09-01T12:00', 'end': ''}]
+B = ([{'game_id': 'hsr', 'title': '新补录活动', 'start': '2027-09-01T12:00', 'end': ''}]
      + A[::-1])
 ua = {e['title']: e['id'] for e in load_manual(A)}
 ub = {e['title']: e['id'] for e in load_manual(B)}
@@ -78,10 +78,10 @@ keyed = {(e['game_id'], e['title'], e['start']): e['id'] for e in events}
 check('UID 与内容一一对应', len(keyed), len(ids))
 
 # ---- 3. 派生口径：未写 id 时按「游戏+标题」哈希（不含 start，改期不换 UID） ----
-derived = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2026-09-10T12:00'}])
+derived = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2027-09-10T12:00'}])
 want = 'manual-' + hashlib.md5('hsr|派生检查'.encode('utf-8')).hexdigest()[:8]
 check('ID 由游戏+标题派生', derived[0]['id'], want)
-moved = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2026-09-12T12:00'}])
+moved = load_manual([{'game_id': 'hsr', 'title': '派生检查', 'start': '2027-09-12T12:00'}])
 check('改期后派生 ID 不变', moved[0]['id'], want)
 # 当前数据已全部固化显式 id（= 迁移前的旧 UID），迁移本身不改变已有订阅
 check('真实数据均已写入显式 id',
@@ -92,31 +92,31 @@ check('ID 不再形如 manual-<小下标>',
 
 # ---- 4. 数据侧显式 id 优先 ----
 explicit = load_manual([{'game_id': 'hsr', 'id': 'official-1', 'title': '显式 ID 活动',
-                         'start': '2026-09-10T12:00'}])
+                         'start': '2027-09-10T12:00'}])
 check('显式 id 优先（安全字符集内）', explicit[0]['id'], 'official-1')
 cjk = load_manual([{'game_id': 'hsr', 'id': '官方一号', 'title': '中文 ID 活动',
-                    'start': '2026-09-10T12:00'}])
+                    'start': '2027-09-10T12:00'}])
 check('安全字符集外的显式 id 退回内容哈希',
       re.fullmatch(r'manual-[0-9a-f]{8}', cjk[0]['id']) is not None, True)
 
 # ---- 4.5 不安全的显式 id 不吃：退回内容哈希，不进内联属性
 unsafe = load_manual([{'game_id': 'hsr', 'id': "x');alert(1);//", 'title': '带引号 ID',
-                       'start': '2026-09-10T12:00'}])
+                       'start': '2027-09-10T12:00'}])
 check('非法字符的显式 id 被拒绝（退回哈希）',
       re.fullmatch(r'manual-[0-9a-f]{8}', unsafe[0]['id']) is not None, True)
 
 # ---- 4.6 改期后 ICS UID 不变：订阅端应原地更新，而不是多出一条旧时间的条目 ----
 b1 = load_manual([{'game_id': 'hsr', 'id': 'manual-fixed1', 'title': '改期活动',
-                    'start': '2026-09-10T12:00', 'end': '2026-09-20T23:59'}])
+                    'start': '2027-09-10T12:00', 'end': '2027-09-20T23:59'}])
 uids_before = ics_uids(b1)
 b2 = load_manual([{'game_id': 'hsr', 'id': 'manual-fixed1', 'title': '改期活动',
-                    'start': '2026-09-12T12:00', 'end': '2026-09-22T23:59'}])
+                    'start': '2027-09-12T12:00', 'end': '2027-09-22T23:59'}])
 uids_after = ics_uids(b2)
 check('改期后 ICS UID 集合不变', sorted(uids_before), sorted(uids_after))
 check('改期后 DTSTART 已更新',
-      'DTSTART:20260912T' in app.app.test_client().get('/api/calendar.ics').get_data(as_text=True), True)
-d1 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2026-09-10T10:00'}])
-d2 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2026-09-12T10:00'}])
+      'DTSTART:20270912T' in app.app.test_client().get('/api/calendar.ics').get_data(as_text=True), True)
+d1 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2027-09-10T10:00'}])
+d2 = load_manual([{'game_id': 'wuwa', 'title': '派生改期活动', 'start': '2027-09-12T10:00'}])
 check('派生 ID 改期不变', d2[0]['id'], d1[0]['id'])
 
 # ---- 5. 端到端 ICS：两份顺序不同的数据，UID 集合相同且与内容绑定 ----

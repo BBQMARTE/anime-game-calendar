@@ -65,11 +65,11 @@ LONG_LINK = ('https://sdk.hoyoverse.com/mihoyo-sdk-web/mihoyo-h5/#/login'
 app._state['events'] = [
     {'id': 'manual-0a1b2c', 'game_id': 'r1999', 'game': '重返未来：1999', 'kind': 'event',
      'title': '《重返未来：1999》2026箱中巡游·特别前瞻节目与版本福利总览（含兑换商店与签到）',
-     'start': '2026-09-10T00:00', 'end': '2026-09-20T23:59', 'link': LONG_LINK},
+     'start': '2027-09-10T00:00', 'end': '2027-09-20T23:59', 'link': LONG_LINK},
     {'id': 'manual-1a2b3c', 'game_id': 'hsr', 'game': '崩坏：星穹铁道', 'kind': 'event',
-     'title': '换行\n测试条目', 'start': '2026-09-10T12:00', 'end': None},
+     'title': '换行\n测试条目', 'start': '2027-09-10T12:00', 'end': None},
     {'id': 'manual-2a3b4c', 'game_id': 'zzz', 'game': '绝区零', 'kind': 'info',
-     'title': '资讯条目不进订阅', 'start': '2026-09-10T00:00', 'end': None},
+     'title': '资讯条目不进订阅', 'start': '2027-09-10T00:00', 'end': None},
 ]
 client = app.app.test_client()
 

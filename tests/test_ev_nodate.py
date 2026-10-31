@@ -65,10 +65,10 @@ with_feature = scrapers._ev('arknights', '明日方舟', '限时双倍掉落开�
 check('无日期但有活动特征词 → 规则 5 放行', tuple(scrapers._validate_event(with_feature)), (True, ''))
 
 # ---- 3. 有 start 的条目行为不变（补 2 天窗口、跨年、9999 年界） ----
-start = datetime(2026, 9, 10)
+start = datetime(2027, 9, 10)
 e2 = scrapers._ev('g1', '测试', '「盛夏嘉年华」开启', '活动', PUB, start, None, '')
 check('有 start 仍补 2 天窗口', (e2['start'], e2['end']),
-      ('2026-09-10T00:00:00', '2026-09-12T00:00:00'))
+      ('2027-09-10T00:00:00', '2027-09-12T00:00:00'))
 check('有 start 不打 _nodate', e2.get('_nodate'), None)
 e3 = scrapers._ev('g1', '测试', '限时活动', '活动', datetime(9999, 1, 10), datetime(9999, 12, 30), None, '')
 check('9999 年起点补窗不越界、不抛异常', (e3['start'], e3['end']), ('9999-12-30T00:00:00', None))
@@ -80,7 +80,7 @@ nodate_ev = {'id': 'arknights-deadbeef', 'game_id': 'arknights', 'game': '明日
              '_nodate': True, 'link': 'https://x'}
 ok_ev = {'id': 'arknights-cafe0001', 'game_id': 'arknights', 'game': '明日方舟',
          'title': '「盛夏嘉年华」开启', 'category': '活动', 'kind': 'event',
-         'start': '2026-09-10T12:00', 'end': '2026-09-12T12:00',
+         'start': '2027-09-10T12:00', 'end': '2027-09-12T12:00',
          'date': '2026-09-01T12:00', 'link': 'https://x'}
 _real = app._state['events']
 try:

@@ -1079,6 +1079,8 @@ def api_ics():
     games = {g.strip() for g in (request.args.get('games') or '').split(',') if g.strip()}
     # ?cats=活动,签到:只订阅指定分类(角色与专武/公告/资讯同理)
     cats = {c.strip() for c in (request.args.get('cats') or '').split(',') if c.strip()}
+    today = _bj_now().replace(tzinfo=None).strftime('%Y-%m-%d')
+    stale_cut = (_bj_now().replace(tzinfo=None) - timedelta(days=30)).strftime('%Y-%m-%d')
     n = 0
     for e in events:
         if games and e.get('game_id') not in games:
@@ -1090,6 +1092,13 @@ def api_ics():
         # 无解析到开始时间的条目不得拿 pub(date) 当 DTSTART 伪造事件(Issue #25)
         s_iso = e.get('start')
         if not s_iso or e.get('_nodate'):
+            continue
+        # 已结束的条目不进订阅(状态里通常已被 _drop_expired 过滤,这里防御性兜底)
+        if e.get('end') and str(e['end'])[:10] < today:
+            continue
+        # 与前端「更早开始·结束未知」的折叠口径一致:开始超过 30 天仍无结束的,
+        # 不再补默认 2 天窗口塞进订阅日历(以前会留下一堆过去的事件)
+        if not e.get('end') and str(s_iso)[:10] < stale_cut:
             continue
         ds = _ics_utc(s_iso)
         # 无结束时间的条目补默认窗口(与前端 evEnd 同口径),否则会产出 DTEND==DTSTART
