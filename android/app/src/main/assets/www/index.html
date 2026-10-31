@@ -165,6 +165,9 @@ mark{background:rgba(255,214,10,.45); color:inherit; border-radius:3px; padding:
 .cal-nav:active{opacity:.6}
 .cal-today{padding:6px 13px; border-radius:99px; background:var(--fill); font-size:12px; font-weight:600; color:var(--label2); cursor:pointer}
 .cal-today:active{opacity:.6}
+/* 周视图右上角「导出本周 .ics」 */
+.cal-week-bar{display:flex; justify-content:flex-end; padding:0 12px 6px}
+.cal-week-bar .stat-link{color:var(--blue)}
 .cal-grid{display:grid; grid-template-columns:repeat(7,1fr)}
 .cal-wd{font-size:11px; font-weight:600; color:var(--label3); text-align:center; padding-bottom:6px}
 .cal-cell{display:flex; flex-direction:column; align-items:center; gap:3px; padding:2px 0 5px; cursor:pointer; border-radius:10px}
@@ -1200,7 +1203,7 @@ function renderCal(){
       <b class="${calWeek?'':'on'}" onclick="setCalView('month')" role="button" aria-label="月视图">月</b>
       <b class="${calWeek?'on':''}" onclick="setCalView('week')" role="button" aria-label="周视图">周</b>
     </span>
-  </div><div class="cal-grid${calWeek?' week':''}">
+  </div>${calWeek?`<div class="cal-week-bar"><span class="stat-link" style="font-size:12px" onclick="exportWeekIcs()">导出本周 .ics</span></div>`:''}<div class="cal-grid${calWeek?' week':''}">
   ${'日一二三四五六'.split('').map(w=>`<div class="cal-wd">${w}</div>`).join('')}
   ${cells.map(d=>{
     const inM=calWeek||d.getMonth()===calM;
@@ -1245,7 +1248,41 @@ function exportDayIcs(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   flash('已导出当天 '+list.length+' 个活动');
 }
-/* 把选中日的活动整理成纯文本:日期 + 总数,再按「当天开始 / 进行中 / 当天结束」分组 */
+/* 周范围(周日起 7 天):start 含、end 不含,便于按日窗口判断 */
+function weekRange(base){
+  const b=base||new Date();
+  const start=new Date(b.getFullYear(),b.getMonth(),b.getDate()-b.getDay());
+  const end=new Date(start); end.setDate(start.getDate()+7);
+  return {start,end};
+}
+/* 本周活动:开始日落在本周;跨周的活动只要有明确结束时间且仍在本周内也保留。
+   无结束时间的条目只在开始当天出现(与月历/当日列表口径一致),不会提前漏进来。 */
+function weekEvents(evs,range){
+  const start=range.start, end=range.end;
+  return (evs||[]).filter(ev=>{
+    const st=evStart(ev);
+    if(!st||st>=end)return false;
+    if(st>=start)return true;
+    return !!ev.end && evEnd(ev)>=start;
+  });
+}
+/* 导出本周活动 .ics:把整周排期一次性导入系统日历 */
+function exportWeekIcs(){
+  const range=weekRange(selDay||new Date());
+  const list=weekEvents((DATA&&DATA.events||[]).filter(e=>isEv(e)&&calVisible(e)),range);
+  if(!list.length){flash('本周没有活动可导出');return}
+  const f=d=>d.getMonth()+1+'月'+d.getDate()+'日';
+  const last=new Date(range.end.getTime()-864e5);
+  const label='本周活动 '+f(range.start)+'–'+f(last);
+  const ics=buildDayIcs(list,label);
+  const name=('二游活动_'+label).replace(/[\\/:*?"<>|·\s]/g,'_').slice(0,60)+'.ics';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  flash('已导出本周 '+list.length+' 个活动');
+}
 function dayCopyText(ev,label){
   const n=ev.starts.length+ev.runs.length+ev.ends.length;
   if(!n)return '';
