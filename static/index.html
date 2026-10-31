@@ -1337,6 +1337,30 @@ function copyWeek(){
   if(!text){flash('本周没有活动可复制');return}
   copyText(text).then(()=>flash('已复制本周活动,可粘贴到群聊'),()=>flash('复制失败,请手动选择文字'));
 }
+/* 月范围:1 日 00:00 到下月 1 日 00:00(start 含 / end 不含) */
+function monthRange(y,m){
+  const start=new Date(y,m,1);
+  const end=new Date(y,m+1,1);
+  return {start,end};
+}
+/* 导出整月活动 .ics(设置「数据」里入口;月份取当前浏览的月,没开过日历则用本月) */
+function exportMonthIcs(){
+  const n=new Date();
+  const y=(calY===null||calY===undefined)?n.getFullYear():calY;
+  const m=(calY===null||calY===undefined)?n.getMonth():calM;
+  const range=monthRange(y,m);
+  const list=weekEvents((DATA&&DATA.events||[]).filter(e=>isEv(e)&&calVisible(e)),range);
+  if(!list.length){flash('这个月没有活动可导出');return}
+  const label=y+'年'+(m+1)+'月活动';
+  const ics=buildDayIcs(list,label);
+  const name=('二游活动_'+label).replace(/[\\/:*?"<>|·\s]/g,'_').slice(0,60)+'.ics';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  flash('已导出'+y+'年'+(m+1)+'月 '+list.length+' 个活动');
+}
 function dayCopyText(ev,label){
   const n=ev.starts.length+ev.runs.length+ev.ends.length;
   if(!n)return '';
@@ -2363,6 +2387,10 @@ function openSettings(){
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exportFavCsv()" role="button" aria-label="导出收藏 CSV">
         <div class="lbl">导出收藏 CSV<span class="sub">只导出已收藏的活动,不受顶部筛选影响</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="set-row" style="cursor:pointer" onclick="exportMonthIcs()" role="button" aria-label="导出整月日历">
+        <div class="lbl">导出整月 .ics<span class="sub">当前浏览的月份(没开过日历则用本月),整月排期一次导入系统日历</span></div>
         <span class="chev">›</span>
       </div>
       <div class="set-row" style="display:block;border-bottom:none">
