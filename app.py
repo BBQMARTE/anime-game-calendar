@@ -42,6 +42,8 @@ _state = {
     'sources': {},
     'games': scrapers.GAMES_META,
     'changes': [],   # 近期变更(含已移除的条目,供统计页展示)
+    'last_error': None,   # 最近一次整体刷新失败(供 /api/health 监控),成功后清空
+    'last_error_at': None,
 }
 
 
@@ -570,6 +572,8 @@ def do_refresh():
             _state['changes'] = _changes_list(hist)
             _state['sources'] = sources
             _state['updated'] = datetime.now().isoformat(timespec='seconds')
+            _state['last_error'] = None
+            _state['last_error_at'] = None
             _state['refreshing'] = False
         _save_cache()
         ok = sum(1 for s in sources.values() if s['ok'])
@@ -578,6 +582,8 @@ def do_refresh():
     except Exception as e:  # noqa: BLE001
         with _lock:
             _state['refreshing'] = False
+            _state['last_error'] = str(e)[:200]
+            _state['last_error_at'] = datetime.now().isoformat(timespec='seconds')
             # 全链路崩了也要让前端可见:旧数据继续展示,来源区标记本轮刷新失败
             _state['sources'] = {**(_state.get('sources') or {}),
                                  '_system': {'name': '本轮抓取', 'ok': False, 'count': 0,
@@ -1278,6 +1284,8 @@ def api_health():
         events = list(_state['events'])
         sources = dict(_state['sources'] or {})
         refreshing = _state['refreshing']
+        last_error = _state.get('last_error')
+        last_error_at = _state.get('last_error_at')
     hours = None
     if updated:
         try:
@@ -1295,6 +1303,8 @@ def api_health():
         'stale': bool(hours is not None and hours >= 24),
         'stale_hours': round(hours, 1) if hours is not None else None,
         'refreshing': refreshing,
+        'last_error': last_error,
+        'last_error_at': last_error_at,
         'events': len(events),
         'events_real': len(real),
         'ongoing': sum(1 for e in real if _is_ongoing(e, now)),

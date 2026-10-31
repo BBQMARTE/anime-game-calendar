@@ -68,6 +68,8 @@ def main():
         check('近 14 天变更', d['changes_recent'], 2)
         check('缺结束时间:noend / future / stale 共 3 条', d['missing_end'], 3)
         check('缺图:除 run 外 4 条', d['missing_images'], 4)
+        check('默认无刷新错误', d['last_error'], None)
+        check('默认无错误时间', d['last_error_at'], None)
         check('数据源状态保留', d['sources']['manual'], {'ok': True, 'count': 3})
         check('未过期', d['stale'], False)
 
@@ -88,6 +90,22 @@ def main():
         d2 = client.get('/api/health').get_json()
         check('超过 24 小时标记 stale', d2['stale'], True)
         check('stale_hours 约为 48', round(d2['stale_hours']), 48)
+
+        # 全链路刷新失败:旧数据沿用,但 health 必须能看到失败原因
+        # (失败明细原先只写进 sources._system,而 health 会过滤下划线开头的内部源)
+        real_fetch = app.scrapers.fetch_all
+
+        def boom():
+            raise RuntimeError('fetch boom')
+        app.scrapers.fetch_all = boom
+        try:
+            app.do_refresh()
+        finally:
+            app.scrapers.fetch_all = real_fetch
+        d3 = client.get('/api/health').get_json()
+        check('失败原因可见', 'fetch boom' in (d3.get('last_error') or ''), True)
+        check('失败时间已记录', bool(d3.get('last_error_at')), True)
+        check('内部源仍不对外', '_system' in (d3.get('sources') or {}), False)
     finally:
         app._load_changes = backup_changes
         app._state.clear()
