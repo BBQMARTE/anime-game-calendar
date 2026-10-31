@@ -322,7 +322,7 @@ THUMB_MAX = 200   # 列表行 40px(2x 屏 80px),200px 足够且比原图小一�
 
 @app.route('/api/thumb')
 def api_thumb():
-    """本地封面图的列表缩略图:按需压缩到 200px 并缓存。
+    """本地封面图的缩略图:按需压缩(默认 200px,?w=800 用于详情大图)并缓存。
 
     原图动辄几百 KB,首屏几十张 40px 缩略图直接拉原图很慢;这里只接受
     /static/img/ 下的文件,不开放任意路径/远程地址。压缩失败退回原图。
@@ -340,15 +340,22 @@ def api_thumb():
         return jsonify({'error': 'bad path'}), 400
     if not os.path.isfile(real):
         return jsonify({'error': 'not found'}), 404
+    try:
+        want_w = int(request.args.get('w') or THUMB_MAX)
+    except ValueError:
+        want_w = THUMB_MAX
+    width = want_w if 80 <= want_w <= 1200 else THUMB_MAX   # 列表 200 / 详情大图 800
     rel = os.path.relpath(real, os.path.join(app.static_folder, 'img'))
-    dst = os.path.join(THUMB_DIR, os.path.splitext(rel)[0] + '.jpg')
+    stem = os.path.splitext(rel)[0]
+    dst = os.path.join(THUMB_DIR, stem + ('' if width == THUMB_MAX else '@%d' % width) + '.jpg')
     try:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(real):
-            from PIL import Image
-            im = Image.open(real).convert('RGB')
-            im.thumbnail((THUMB_MAX, THUMB_MAX))
-            im.save(dst, 'JPEG', quality=80, optimize=True)
+            small = _shrink_image(open(real, 'rb').read(), width)
+            if not small:
+                return send_file(real)
+            with open(dst, 'wb') as f:
+                f.write(small)
     except Exception:  # noqa: BLE001 - 压缩失败退回原图,不影响列表
         return send_file(real)
     resp = send_file(dst, mimetype='image/jpeg')

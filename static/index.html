@@ -712,18 +712,20 @@ function imgUrl(u){
 }
 /* 列表/详情头的小缩略图:本地封面图交给服务端按需压到 200px(原图几百 KB);
    安卓离线模式用随包生成的 www/thumb/ 小图,避免 99MB 原图进 APK */
-function thumbUrl(u){
+/* 图片按指定宽度取:列表 200px、详情大图 800px;离线模式只有随包的 200px 小图 */
+function imgAt(u,w){
   if(!u)return '';
-  if(/^\/static\/img\//i.test(u)){   // 本地封面:服务端压 200px / 离线用随包小图
-    if(location.protocol==='file:')return 'thumb'+u.slice(7);
-    return '/api/thumb?path='+encodeURIComponent(u);
+  if(/^\/static\/img\//i.test(u)){
+    if(location.protocol==='file:')return w<=200?'thumb'+u.slice(7):u;
+    return '/api/thumb?path='+encodeURIComponent(u)+'&w='+w;
   }
-  if(/^https?:/i.test(u)){            // 远程图:B站/官网图床交给代理时顺带缩到 200px
+  if(/^https?:/i.test(u)){
     if(location.protocol==='file:')return u;
-    return '/api/img?url='+encodeURIComponent(u)+'&w=200';
+    return '/api/img?url='+encodeURIComponent(u)+'&w='+w;
   }
   return u;
 }
+function thumbUrl(u){return imgAt(u,200)}
 function rowHtml(e){
   const c=gameColor(e.game_id), cc=CAT_COLOR[e.category]||'#007AFF';
   const cd=cdText(e);
@@ -1001,7 +1003,7 @@ function showDetail(e){
       <div class="detail-close" onclick="this.closest('.detail-overlay').remove()">×</div>
     </div>
     <div class="detail-body">
-      ${e.image?`<img src="${esc(imgUrl(e.image))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
+      ${e.image?`<img src="${esc(imgAt(e.image,800))}" loading="lazy" style="cursor:zoom-in" onclick="openUrl('${esc(e.image)}')" onerror="this.remove()">`:''}
       ${cd?`<div class="detail-cd" style="color:${cd.urgent?'var(--red)':c}">${cd.txt}${cd.prog!==undefined?` · 已进行 ${Math.round(Math.min(100,Math.max(0,cd.prog)))}%`:''}</div>`:''}
       ${!e.end&&e.start?`<div class="detail-cd" style="color:var(--label2)">已开始 · 结束时间未知</div>`:''}
       <div class="detail-desc">${esc(descFor(e))}</div>

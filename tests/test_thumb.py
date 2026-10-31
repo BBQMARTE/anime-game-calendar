@@ -62,6 +62,13 @@ def main():
     check('第二次命中缓存,字节一致', r2.data == r1.data, True)
     check('缓存文件未被重写', os.path.getmtime(cache), mtime)
 
+    big = client.get('/api/thumb?path=' + path + '&w=800')
+    check('w=800 返回 200', big.status_code, 200)
+    check('w=800 比 200px 更大(更清晰)', len(big.data) > len(r1.data), True)
+    cache800 = os.path.join(ROOT, 'static', 'thumb',
+                            os.path.splitext(rel_img)[0] + '@800.jpg')
+    check('w=800 缓存文件名带宽度', os.path.exists(cache800), True)
+
     check('拒绝非 static/img 路径', client.get('/api/thumb?path=/app.py').status_code, 400)
     check('拒绝目录穿越',
           client.get('/api/thumb?path=/static/img/../../app.py').status_code, 400)
@@ -111,15 +118,17 @@ function grab(name) {
   throw new Error('unbalanced: ' + name);
 }
 function build(proto) {
-  const fn = new Function('location', grab('imgUrl') + '\n' + grab('thumbUrl')
-    + '\nreturn {imgUrl, thumbUrl};');
+  const fn = new Function('location', grab('imgUrl') + '\n' + grab('imgAt') + '\n' + grab('thumbUrl')
+    + '\nreturn {imgUrl, thumbUrl, imgAt};');
   return fn({protocol: proto});
 }
 const http = build('http:');
 const file = build('file:');
 console.log(JSON.stringify({
   localHttp: http.thumbUrl('/static/img/hsr/a.jpg'),
+  localHttp800: http.imgAt('/static/img/hsr/a.jpg', 800),
   localFile: file.thumbUrl('/static/img/hsr/a.jpg'),
+  localFile800: file.imgAt('/static/img/hsr/a.jpg', 800),
   remoteHttp: http.thumbUrl('https://example.com/a.jpg'),
   empty: http.thumbUrl(''),
 }));
@@ -131,9 +140,12 @@ console.log(JSON.stringify({
             bad += 1
         else:
             d = json.loads(r.stdout.strip().splitlines()[-1])
-            check('服务端本地图走 /api/thumb',
-                  d['localHttp'], '/api/thumb?path=%2Fstatic%2Fimg%2Fhsr%2Fa.jpg')
-            check('离线模式走相对 thumb/img', d['localFile'], 'thumb/img/hsr/a.jpg')
+            check('列表本地图走 200px',
+                  d['localHttp'], '/api/thumb?path=%2Fstatic%2Fimg%2Fhsr%2Fa.jpg&w=200')
+            check('详情本地图走 800px',
+                  d['localHttp800'], '/api/thumb?path=%2Fstatic%2Fimg%2Fhsr%2Fa.jpg&w=800')
+            check('离线列表走相对 thumb/img', d['localFile'], 'thumb/img/hsr/a.jpg')
+            check('离线详情回退原图(随包只有小图)', d['localFile800'], '/static/img/hsr/a.jpg')
             check('远程图走代理并缩到 200px',
                   d['remoteHttp'], '/api/img?url=https%3A%2F%2Fexample.com%2Fa.jpg&w=200')
             check('空图片返回空串', d['empty'], '')

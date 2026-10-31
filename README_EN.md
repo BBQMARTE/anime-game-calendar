@@ -222,7 +222,7 @@ Official teaser/schedule images are often "hundreds of events packed into one ul
 2. Deduplicate by (game_id + title); do not add entries that already exist
 3. Append new entries at the end of the JSON array:
    {"game_id": "hsr", "title": "Event Name", "category": "活动", "start": "2026-08-20T10:00", "end": "2026-09-03T03:59", "link": "official link", "image": "image URL, optional"}
-   image: direct URL of the official artwork/schedule image — shown as list thumbnail & detail popup; empty string if none
+   image: direct URL of the official artwork/schedule image — compressed to a 200px thumbnail in lists and 800px in the detail popup (share cards keep the original); empty string if none
    category values: 活动 (event) / 角色与专武 (character & weapon banner) / 公告 (notice) / 资讯 (info)
    Leave end as an empty string for permanent/no-end events; only record events whose end time is in the future
 4. Cleanup: delete entries whose end is a valid date earlier than now; keep entries with an empty end
