@@ -1253,9 +1253,13 @@ function favList(){
   return ((DATA&&DATA.events)||[]).filter(e=>isFav(e)&&calVisible(e)&&(!settings.hideDone||!isDone(e)));
 }
 /* 收藏视图排序:进行中(按结束时间) → 即将开始(按开始时间) → 已结束/时间未知 */
+function favRank(e,now){
+  const s=evStart(e);if(!s)return 3;if(s>now)return 1;
+  return (e.end?evEnd(e)>=now:true)?0:2;
+}
 function favEvents(evs,now){
-  const rank=e=>{const s=evStart(e);if(!s)return 3;if(s>now)return 1;return (e.end?evEnd(e)>=now:true)?0:2};
   const endKey=e=>e.end?evEnd(e).getTime():8.64e15;   // 无结束时间排最后
+  const rank=e=>favRank(e,now);
   return evs.filter(isFav).sort((a,b)=>{
     const ra=rank(a),rb=rank(b);
     if(ra!==rb)return ra-rb;
@@ -1263,6 +1267,12 @@ function favEvents(evs,now){
     if(ra===0)return endKey(a)-endKey(b);          // 进行中:先结束的在前
     return (evStart(b)||0)-(evStart(a)||0);         // 已结束/时间未知:最近的在前
   });
+}
+/* 收藏页分组:进行中 / 即将开始 / 已结束·时间未知(沿用 favRank,排序仍由 favEvents 决定) */
+function favGroups(arr,now){
+  const g={live:[],upcoming:[],past:[]};
+  arr.forEach(e=>{const r=favRank(e,now);(r===0?g.live:r===1?g.upcoming:g.past).push(e)});
+  return g;
 }
 let _unknownAll=false;   // 「更早开始·结束未知」是否展开(默认折叠)
 function toggleUnknownAll(){_unknownAll=!_unknownAll;renderList()}
@@ -1308,9 +1318,15 @@ function renderList(){
         +(_unknownAll?`<div class="group">${g.stale.map(rowHtml).join('')}</div>`:'');
   }else if(tab==='fav'){
     const arr=favEvents(favList(),now);
-    html=`<div class="sec-title" title="收藏页不受顶部游戏/分类筛选影响">★ 收藏 · ${arr.length}</div>`
-      +(arr.length?`<div class="group">${arr.map(rowHtml).join('')}</div>`
-        :'<div class="empty">还没有收藏<br>在活动行右侧点 ☆ 即可收藏置顶</div>');
+    const g=favGroups(arr,now);
+    html=`<div class="sec-title" title="收藏页不受顶部游戏/分类筛选影响">★ 收藏 · ${arr.length}</div>`;
+    if(!arr.length){
+      html+='<div class="empty">还没有收藏<br>在活动行右侧点 ☆ 即可收藏置顶</div>';
+    }else{
+      if(g.live.length)html+=`<div class="sec-title">进行中 · ${g.live.length}</div><div class="group">${g.live.map(rowHtml).join('')}</div>`;
+      if(g.upcoming.length)html+=`<div class="sec-title">即将开始 · ${g.upcoming.length}</div><div class="group">${g.upcoming.map(rowHtml).join('')}</div>`;
+      if(g.past.length)html+=`<div class="sec-title">已结束 / 时间未知 · ${g.past.length}</div><div class="group">${g.past.map(rowHtml).join('')}</div>`;
+    }
   }else{
     const all=filteredAll();
     const arr=(tab==='soon'

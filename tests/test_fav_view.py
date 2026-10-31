@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""「收藏」页签排序与过滤测试。
+"""「收藏」页签排序、分组与过滤测试。
 
 收藏此前只能在各个列表里置顶,没有独立入口;新增「收藏」页签后,
-排序口径为:进行中(先结束的在前) → 即将开始(最近的在前) → 已结束/时间未知。
+排序口径为:进行中(先结束的在前) → 即将开始(最近的在前) → 已结束/时间未知;
+现在页内再按这三类分组显示小标题,收藏多了也能一眼分开。
 
 运行:python3 tests/test_fav_view.py(node 缺失则 SKIP)
 """
@@ -31,15 +32,24 @@ function grab(name) {
 }
 const EVENTS = __EVENTS__;
 const FAV = new Set(__FAV__);
-const fn = new Function('evStart', 'evEnd', 'isFav', grab('favEvents') + '\nreturn favEvents;');
-const arr = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id))(EVENTS, new Date('2026-10-31T12:00:00+08:00'));
+const fn = new Function('evStart', 'evEnd', 'isFav',
+  grab('favRank') + '\n' + grab('favEvents') + '\nreturn {favEvents,favRank};');
+const api = fn(e => new Date(e.start), e => (e.end ? new Date(e.end) : null), e => FAV.has(e.id));
+const now = new Date('2026-10-31T12:00:00+08:00');
+const arr = api.favEvents(EVENTS, now);
+const ranks = EVENTS.map(e => [e.id, api.favRank(e, now)]);
+const grpFn = new Function('evStart', 'evEnd', 'favRank', grab('favGroups') + '\nreturn favGroups;')(
+  e => new Date(e.start), e => (e.end ? new Date(e.end) : null), api.favRank);
+const grp = grpFn(arr, now);
 // favList:收藏页不受顶部筛选影响,只受「设置里隐藏的游戏 / 隐藏已完成」影响
 const DATA2 = {events: __EVENTS2__};
 const FAV2 = new Set(__FAV2__);
 const fl = new Function('DATA', 'settings', 'calVisible', 'isDone', 'isFav',
   grab('favList') + '\nreturn favList;')(
   DATA2, {hideDone: true}, e => e.game_id !== 'wuwa', e => e.id === 'c', e => FAV2.has(e.id));
-console.log(JSON.stringify({ ids: arr.map(e => e.id), favList: fl().map(e => e.id) }));
+console.log(JSON.stringify({ ids: arr.map(e => e.id), ranks,
+  groups: {live: grp.live.map(e => e.id), upcoming: grp.upcoming.map(e => e.id), past: grp.past.map(e => e.id)},
+  favList: fl().map(e => e.id) }));
 """
 
 EV = [
@@ -92,6 +102,12 @@ def main():
     check('只列出收藏条目', 'f' in got['ids'], False)
     check('排序:进行中(先结束)→ 即将开始 → 已结束 → 时间未知',
           got['ids'], ['b', 'a', 'e', 'c', 'd'])
+    check('收藏页按三类分组', got['groups'],
+          {'live': ['b', 'a', 'e'], 'upcoming': ['c'], 'past': ['d']})
+    check('分组口径(0 进行中 / 1 即将开始 / 2 已结束 / 3 无开始时间)',
+          got['ranks'], [['a', 0], ['b', 0], ['c', 1], ['d', 2], ['e', 0], ['f', 0]])
+    check('页面有「即将开始」分组标题', '即将开始 · ' in html, True)
+    check('页面有「已结束 / 时间未知」分组标题', '已结束 / 时间未知 · ' in html, True)
     check('页签按钮存在', 'data-tab="fav"' in html, True)
     check('收藏页不受顶部筛选影响,但过滤隐藏游戏与已完成', got['favList'], ['a', 'b'])
 
