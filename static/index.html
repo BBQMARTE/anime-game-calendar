@@ -408,6 +408,30 @@ const CAT_COLOR={'活动':'#34C759','签到':'#AF52DE','角色与专武':'#FF2D5
 const IS_ANDROID=/[?&]platform=android/.test(location.search)||!!window.YCalNative;
 let DATA=null, activeGames=new Set(), activeCats=new Set(Object.keys(CAT_COLOR));
 let tab='cal', q='';
+/* 分享链接参数:?games=hsr,zzz&cats=活动,签到&tab=ongoing
+   纯函数便于测试;未知游戏 id 会在 data 载入后被过滤,非法 tab 忽略 */
+const TAB_IDS=['cal','ongoing','soon','all','fav'];
+function parseFilterParams(search){
+  const out={games:null,cats:null,tab:null};
+  try{
+    const sp=new URLSearchParams(search||'');
+    if(sp.has('games'))out.games=sp.get('games').split(',').map(s=>s.trim()).filter(Boolean);
+    if(sp.has('cats'))out.cats=sp.get('cats').split(',').map(s=>s.trim()).filter(Boolean);
+    const t=sp.get('tab');
+    if(t&&TAB_IDS.includes(t))out.tab=t;
+  }catch(e){}
+  return out;
+}
+/* 反向:当前筛选 → 可分享的 query(全部选中/默认 tab 不写进 URL,保持地址干净) */
+function buildFilterQuery(games,cats,tab,allGames,allCats){
+  const p=new URLSearchParams();
+  const gs=[...games], cs=[...cats];
+  if(gs.length&&gs.length<(allGames||[]).length)p.set('games',gs.join(','));
+  if(cs.length<(allCats||[]).length)p.set('cats',cs.join(','));
+  if(tab&&tab!=='cal')p.set('tab',tab);
+  const qs=p.toString();
+  return qs?'?'+qs:'';
+}
 /* 筛选状态记忆(跨会话保留;键升级 v2 以重置旧 tab 记忆,让月历成为默认视图) */
 try{
   const f=JSON.parse(localStorage.getItem('ycal_filters2')||'null');
@@ -415,7 +439,27 @@ try{
     if(f.c&&f.c.length)activeCats=new Set(f.c);
     if(f.tab)tab=f.tab;}
 }catch(e){}
-function saveFilters(){try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}}
+/* 带筛选参数的链接优先于本地记忆(分享给别人时看到同一视图) */
+let _urlGames=null;   // 分享链接里显式点名的游戏:即使本机设置里隐藏了,也要在列表里显示
+(function applySharedFilters(){
+  const u=parseFilterParams(location.search);
+  if(u.games!==null){activeGames=new Set(u.games);_urlGames=new Set(u.games);}
+  if(u.cats!==null)activeCats=new Set(u.cats.length?u.cats:Object.keys(CAT_COLOR));
+  if(u.tab)tab=u.tab;
+})();
+function saveFilters(){
+  try{localStorage.setItem('ycal_filters2',JSON.stringify({g:[...activeGames],c:[...activeCats],tab}))}catch(e){}
+  syncUrl();
+}
+/* 地址栏同步当前视图;file:// 离线包不支持 replaceState,直接跳过 */
+function syncUrl(){
+  try{
+    if(!/^http/.test(location.protocol))return;
+    const ids=(DATA&&DATA.games||[]).map(g=>g.id);
+    const qs=buildFilterQuery(activeGames,activeCats,tab,ids,Object.keys(CAT_COLOR));
+    history.replaceState(null,'',location.pathname+qs+location.hash);
+  }catch(e){}
+}
 /* 设置:日历开关 + 各游戏是否显示在日历上(独立于列表筛选) */
 let settings={calOn:true,calGames:null,hideAuto:false,hideDone:false};
 try{settings=Object.assign(settings,JSON.parse(localStorage.getItem('ycal_settings')||'{}'))}catch(e){}
@@ -490,9 +534,17 @@ function tagText(bg){
 /* ================= 数据加载(双模式) ================= */
 /* 游戏勾选与当前列表对齐:剔除已下架的游戏id,空则全选 */
 function syncGames(){
-  const ids=(DATA.games||[]).map(g=>g.id).filter(id=>calGamesSet().has(id));  // 只同步设置里未勾掉的游戏
+  const all=(DATA.games||[]).map(g=>g.id);
+  const vis=all.filter(id=>calGamesSet().has(id));  // 设置里勾掉的不算
+  // 分享链接显式点名的游戏即便本机隐藏,也要保留:否则打开别人的链接是一片空白
+  const asked=_urlGames?all.filter(id=>_urlGames.has(id)):[];
+  const ids=[...new Set([...vis,...asked])];
   if(activeGames.size)activeGames=new Set([...activeGames].filter(id=>ids.includes(id)));
   if(!activeGames.size)ids.forEach(id=>activeGames.add(id));
+  /* 分类同理:分享链接里写错的分类直接忽略,清空则回到全选 */
+  const ck=Object.keys(CAT_COLOR);
+  if(activeCats.size)activeCats=new Set([...activeCats].filter(c=>ck.includes(c)));
+  if(!activeCats.size)ck.forEach(c=>activeCats.add(c));
 }
 async function load(){
   if(IS_ANDROID){
@@ -633,7 +685,7 @@ function filtered(){
   const now=new Date();
   return (DATA.events||[]).filter(e=>
     (activeGames.has(e.game_id)||(e.src==='manual'&&!e.game_id))  // 手动事件可无游戏归属(README:game_id 可选)
-    &&calVisible(e)  // 设置里勾掉的游戏:列表同样隐藏(与月历一致)
+    &&(calVisible(e)||(_urlGames&&_urlGames.has(e.game_id)))  // 设置里勾掉的游戏:列表隐藏(分享链接点名的除外)
     &&(!settings.hideAuto||e.src==='manual'||e.src==='bilibili')  // 只留有来源保证的条目
     &&(!settings.hideDone||!isDone(e))  // 可选:已打钩做完的条目不再显示
     &&activeCats.has(e.category)
@@ -665,7 +717,7 @@ function renderMeta(){
     const tip=s.ok?`${s.count||0} 条${s.took?' · 耗时 '+s.took+'s':''}`:('抓取失败: '+(s.error||'未知'));
     return `<span class="src ${s.ok?'ok':'bad'}" title="${esc(s.name||k)} · ${esc(tip)}"><i></i>${esc(s.name||k)}</span>`;
   }).join('');
-  const gs=(DATA.games||[]).filter(g=>calGamesSet().has(g.id));  // 设置里勾掉的游戏不出现在顶部筛选器
+  const gs=(DATA.games||[]).filter(g=>calGamesSet().has(g.id)||(_urlGames&&_urlGames.has(g.id)));  // 设置里勾掉的不出现在筛选器(分享链接点名的除外)
   const allOn=gs.length>0&&gs.every(g=>activeGames.has(g.id));
   let h=`<span class="chip ${allOn?'on':''}" style="--c:var(--blue)" onclick="toggleAll()">全部</span>`;
   h+=gs.map(g=>

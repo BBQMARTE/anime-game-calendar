@@ -1,5 +1,12 @@
 # 更新日志
 
+## 2026-10-31 · v1.9.2 · 分享当前筛选视图
+
+- **地址栏就是分享链接**:筛游戏 / 分类 / 页签后,地址栏自动同步为 `?games=hsr,wuwa&cats=活动&tab=ongoing`,把链接发给别人即可打开同一视图;打开带参数的链接时,链接优先于本机记忆,非法游戏 id/分类会被忽略
+- 细节:全部选中与默认「日历」页签不写进 URL,保持地址干净;离线 APK 走 `file://`,`replaceState` 会被跳过(不报 SecurityError);分享链接里点名的游戏即使本机设置里隐藏过也会显示,避免对方打开是一片空白
+- 新增 `tests/test_share_url.py`(解析、生成、往返、空格/编码/非法 tab 共 11 条断言);全量 66 个测试文件 0 失败;SW v82→v83;APK versionCode 11 / v1.9.2
+- 真机流程已用浏览器实测:打开 `?games=hsr&tab=ongoing` 只显示星铁条目,再点鸣潮后地址栏变为 `?games=hsr%2Cwuwa&tab=ongoing`
+
 ## 2026-10-31 · ICS 订阅支持条件请求（304）
 
 - **日历订阅不再每次全量传输**:Apple 日历 / Google 日历会周期性拉取订阅源,之前每次都要重新生成约 30KB 的 ICS。现在 `/api/calendar.ics` 返回 `ETag`(含 updated、事件数与 `?games=` / `?cats=` 筛选),数据没变时只回 304,生成与传输都省掉
