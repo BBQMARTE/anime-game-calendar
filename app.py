@@ -229,6 +229,71 @@ def _attach_changes(events, hist=None):
             e['_change'] = {k: rec.get(k) for k in ('type', 'at', 'from', 'to')}
 
 
+# ================= 爬虫条目 ID 稳定化 =================
+EVENT_IDS_FILE = os.path.join(DATA_DIR, 'event_ids.json')
+_EVENT_ID_KEEP_DAYS = 180
+_EVENT_ID_MAX = 2000
+
+
+def _load_event_ids():
+    try:
+        with open(EVENT_IDS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        items = data.get('items') if isinstance(data, dict) else None
+        return items if isinstance(items, dict) else {}
+    except Exception:  # noqa: BLE001 - 文件不存在/损坏按空登记表
+        return {}
+
+
+def _save_event_ids(items):
+    try:
+        with open(EVENT_IDS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'items': items}, f, ensure_ascii=False)
+    except Exception as e:  # noqa: BLE001
+        print(f'[ID] 保存失败: {e}')
+
+
+def _stabilize_event_ids(events, now=None):
+    """复用历史 ID:爬虫条目的 id 目前由「标题|开始时间」哈希派生,官方一改期就变。
+
+    ID 同时是日历订阅的 UID 与收藏/打钩的键——跟着开始时间变,会让订阅端多出
+    一条旧时间的条目,收藏也会丢。这里按「游戏+归一化标题」登记首次见到的 ID,
+    同一条活动后续刷新一律复用,改期不再换 ID。
+
+    人工条目(显式 id)与 B站条目(opus_id)本来就稳定,直接跳过。
+    本轮内同一 key 出现多条时,后来者保留自己的派生 id,避免 UID 撞车。
+    """
+    now = now or _bj_now().replace(tzinfo=None)
+    today = now.strftime('%Y-%m-%d')
+    reg = _load_event_ids()
+    used = set()
+    for e in events or []:
+        if e.get('src') in ('manual', 'bilibili'):
+            used.add(e.get('id'))
+            continue
+        key = _change_key(e)
+        rec = reg.get(key)
+        cur = e.get('id')
+        if rec and rec.get('id') and rec['id'] not in used:
+            e['id'] = rec['id']
+        elif rec:
+            # 该 key 的历史 id 已被本轮另一条占用:保留本条自己的派生 id
+            used.add(cur)
+            rec['last_seen'] = today
+            continue
+        else:
+            reg[key] = {'id': cur, 'last_seen': today}
+        used.add(e.get('id'))
+        reg[key]['last_seen'] = today
+    cut = (now - timedelta(days=_EVENT_ID_KEEP_DAYS)).strftime('%Y-%m-%d')
+    reg = {k: v for k, v in reg.items() if str((v or {}).get('last_seen') or '') >= cut}
+    if len(reg) > _EVENT_ID_MAX:
+        newest = sorted(reg.items(), key=lambda kv: str(kv[1].get('last_seen') or ''), reverse=True)
+        reg = dict(newest[:_EVENT_ID_MAX])
+    _save_event_ids(reg)
+    return reg
+
+
 def _changes_list(hist, limit=20):
     """把变更历史转成按时间倒序的列表(接口用)。removed 条目已不在活动列表里,
     只能靠这份摘要让用户知道「官方把这活动撤了」。"""
@@ -393,6 +458,8 @@ def do_refresh():
         # 合并全部来源(抓取/手动)后统一校验,与 App 端 scraper.js::fetchAll 的时机一致
         scrapers.validate_events(events)
         events.sort(key=lambda e: (e['start'] or e['date'] or ''), reverse=True)
+        # 复用历史 ID(改期不换 UID,收藏/打钩不丢),再做变更对比
+        _stabilize_event_ids(events)
         # 与上一轮对比,记录官方新增/改期/移除,并把近期变更挂到条目上(前端角标)
         hist = _track_changes(prev_all, events)
         _attach_changes(events, hist)
