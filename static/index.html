@@ -1648,6 +1648,42 @@ function favBtnState(btn,id){  // 详情弹窗内的收藏按钮原地刷新(不
   btn.style.background=isFav(e)?'var(--orange)':'';
   btn.style.color=isFav(e)?'#fff':'var(--orange)';
 }
+/* ── 收藏同步码:网页(服务端)与离线 APK(本地)互导收藏 ──
+   只带正向收藏(值为时间戳),导入时走 mergeTS 合并,不会把本机更新的取消状态覆盖掉。 */
+function favCodeOf(fav){
+  const out={};
+  for(const k in (fav||{})){ const v=+fav[k]; if(v>0)out[k]=v; }
+  if(!Object.keys(out).length)return '';
+  return 'YCALFAV1:'+btoa(unescape(encodeURIComponent(JSON.stringify(out))));
+}
+function decodeFavCode(s){
+  const t=String(s||'').trim();
+  if(!/^YCALFAV1:[A-Za-z0-9+/=]+$/.test(t))return null;
+  try{
+    const d=JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));
+    if(!d||typeof d!=='object')return null;
+    const out={};
+    for(const k in d){ const v=+d[k]; if(v>0)out[k]=v; }   // 只接受正向收藏
+    return out;
+  }catch(e){return null}
+}
+function copyFavCode(){
+  const c=favCodeOf(FAV);
+  if(!c){flash('还没有收藏的活动');return}
+  copyText(c).then(()=>flash('收藏码已复制,在另一台设备粘贴导入'),
+                   ()=>flash('复制失败,请手动复制'));
+}
+function importFavCode(){
+  const el=document.getElementById('favCodeIn');
+  const d=decodeFavCode(el&&el.value);
+  if(!d){flash('收藏码无效,请检查是否完整复制');return}
+  const n=Object.keys(d).length;
+  FAV=mergeTS(FAV,d);
+  try{localStorage.setItem('ycal_fav',JSON.stringify(FAV))}catch(e){}
+  saveUserState({fav:d});
+  renderView();
+  flash('已导入 '+n+' 条收藏');
+}
 /* ================= 备忘录(置顶在活动列表最上面) ================= */
 let NOTES={items:[]}, notesReady=false;
 function loadNotes(){
@@ -1884,6 +1920,14 @@ function openSettings(){
       <div class="set-row" style="cursor:pointer" onclick="exportFavCsv()" role="button" aria-label="导出收藏 CSV">
         <div class="lbl">导出收藏 CSV<span class="sub">只导出已收藏的活动,不受顶部筛选影响</span></div>
         <span class="chev">›</span>
+      </div>
+      <div class="set-row" style="display:block;border-bottom:none">
+        <div class="lbl">收藏同步码<span class="sub">网页与离线 APK 互导收藏:复制后在另一台设备粘贴导入,只合并收藏、不会取消已有的</span></div>
+        <textarea id="favCodeIn" class="note-input" style="margin:10px 0 6px;min-height:58px;font-size:12px;padding:9px" placeholder="粘贴 YCALFAV1:… 收藏码"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="detail-btn" style="flex:1;padding:8px 0" onclick="copyFavCode()">复制我的收藏码</button>
+          <button class="detail-btn" style="flex:1;padding:8px 0;background:var(--fill);color:var(--label)" onclick="importFavCode()">导入收藏码</button>
+        </div>
       </div>
       </details>
     </div>
