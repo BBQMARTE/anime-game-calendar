@@ -36,9 +36,9 @@ const isStaleUnknown = new Function('evStart', 'Date',
 const isOngoing = new Function('evStart', 'evEnd', 'isStaleUnknown',
   grab('isPointItem') + '\n' + grab('isOngoingEvent') + '\nreturn isOngoingEvent;')(evStart, evEnd, isStaleUnknown);
 const fn = new Function('$', 'filteredEvents', 'evStart', 'evEnd', 'jumpToday', 'Date',
-  'isOngoingEvent', grab('renderTodayBar') + '\nreturn renderTodayBar;');
+  'isOngoingEvent', 'a11yScan', grab('renderTodayBar') + '\nreturn renderTodayBar;');
 fn(() => box, () => EVENTS, evStart, evEnd,
-   () => {}, FakeDate, isOngoing)();
+   () => {}, FakeDate, isOngoing, () => {})();
 const nums = [...box.innerHTML.matchAll(/<b>(\d+)<\/b>/g)].map(m => +m[1]);
 console.log(JSON.stringify({ nums, html: box.innerHTML.length }));
 """

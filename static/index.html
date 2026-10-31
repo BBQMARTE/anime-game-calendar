@@ -39,6 +39,8 @@ body{
   letter-spacing:-.01em; min-height:100vh;
 }
 button{font-family:inherit; border:none; background:none; cursor:pointer; color:inherit}
+/* 键盘焦点可见:给补了 tabindex 的 role=button 元素一个清晰焦点环 */
+[role="button"]:focus-visible{outline:2px solid var(--blue); outline-offset:2px; border-radius:8px}
 
 /* ---------- 顶部毛玻璃导航 ---------- */
 header{
@@ -623,6 +625,25 @@ document.addEventListener('click',e=>{  // 点搜索框外收起历史
 document.addEventListener('keydown',e=>{  // Esc 收起
   if(e.key==='Escape')hideQHist();
 });
+/* 键盘可达:渲染后给只带 onclick 的 div/span 补 role=button + tabindex,
+   Enter/Space 直接触发点击(按钮元素本身已可聚焦,不重复处理) */
+function a11yScan(root){
+  const scope=root||document;
+  if(!scope||!scope.querySelectorAll)return;
+  scope.querySelectorAll('[onclick]').forEach(x=>{
+    if(!x||!x.setAttribute||x.tagName==='BUTTON')return;
+    if(!x.getAttribute('tabindex'))x.setAttribute('tabindex','0');
+    if(!x.getAttribute('role'))x.setAttribute('role','button');
+  });
+}
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const t=e.target;
+  if(t&&t.tagName!=='BUTTON'&&t.getAttribute&&t.getAttribute('role')==='button'){
+    e.preventDefault();
+    if(typeof t.click==='function')t.click();
+  }
+});
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
@@ -1023,6 +1044,7 @@ function renderMeta(){
     `<span class="chip cat ${activeCats.has(c)?'on':''}" style="--c:${CAT_COLOR[c]}" onclick="toggleCat('${c}')">${c}</span>`
   ).join('');
   $('#filters').innerHTML=h;
+  a11yScan($('#sources'));a11yScan($('#filters'));
 }
 function toggleGame(id){clearUrlGames();activeGames.has(id)?activeGames.delete(id):activeGames.add(id);saveFilters();render()}
 function toggleCat(c){clearUrlGames();activeCats.has(c)?activeCats.delete(c):activeCats.add(c);saveFilters();render()}
@@ -1256,6 +1278,7 @@ function renderCal(){
   if(ev.runs.length) h+=`<div class="sec-title">进行中 · ${ev.runs.length}</div><div class="group">${ev.runs.map(rowHtml).join('')}</div>`;
   if(ev.ends.length) h+=`<div class="sec-title">当天结束 · ${ev.ends.length}</div><div class="group">${ev.ends.map(rowHtml).join('')}</div>`;
   $('#list').innerHTML=h;
+  a11yScan($('#list'));
 }
 function copyDay(){
   const text=dayCopyText(eventsOnDay(selDay.getFullYear(),selDay.getMonth(),selDay.getDate()),dayLabel(selDay));
@@ -1503,6 +1526,7 @@ function renderList(){
   // 数据质量筛选条:显示当前口径与命中条数,点 × 退出
   const dqHtml=dq?`<div class="dq-bar" role="status"><span>只看「${esc(DQ_LABEL[dq]||dq)}」 · ${filteredAll().length} 条</span><b onclick="exportCsv()" style="font-size:12.5px;padding:0 6px" role="button" aria-label="导出当前质量筛选 CSV">导出</b><b onclick="setQuality('')" role="button" aria-label="退出数据质量筛选">×</b></div>`:'';
   $('#list').innerHTML=dqHtml+(html||`<div class="empty">${emptyHint}</div>`);
+  a11yScan($('#list'));
 }
 let _loadingMore=false;
 window.addEventListener('scroll',()=>{  // 接近底部追加下一批(节流)
@@ -1956,6 +1980,7 @@ function renderTodayBar(){
   el.innerHTML=`<div class="tb" onclick="todayJump('今天开始')" role="button" aria-label="今天开始 ${start} 个活动"><b>${start}</b><span>今天开始</span></div>`
     +`<div class="tb" onclick="todayJump('今天结束')" role="button" aria-label="今天结束 ${end} 个活动"><b>${end}</b><span>今天结束</span></div>`
     +`<div class="tb" onclick="todayJump('进行中')" role="button" aria-label="进行中 ${run} 个活动"><b>${run}</b><span>进行中</span></div>`;
+  a11yScan(el);
 }
 /* 今日摘要三块分别可点:用同口径快捷词筛列表,数量与摘要卡片一致(保留当前游戏/分类筛选) */
 function todayJump(w){
