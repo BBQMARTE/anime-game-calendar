@@ -822,8 +822,8 @@ function quickMatch(e,w,now){
   }
   if(w==='今天开始')return same(s,now);                 // 与今日摘要「今天开始」同口径
   if(w==='今天结束')return hasEnd&&same(t,now);         // 只算真有结束时间的
-  if(w==='进行中')return s<=now&&(!t||t>=now)
-    &&!( !hasEnd && s<new Date(now.getTime()-30*864e5));   // 更早开始·结束未知不算进行中(与统计同口径)
+  if(w==='进行中')return !isPointItem(e)&&s<=now&&(!t||t>=now)
+    &&!( !hasEnd && s<new Date(now.getTime()-30*864e5));   // 单点里程碑与更早开始·结束未知不算进行中(与统计同口径)
   if(w==='未开始')return s>now;
   if(w==='已结束')return hasEnd&&t<now;
   if(w==='即将结束')return hasEnd&&t>=now&&(t-now)<=3*864e5;   // 3 天内截止:提醒别漏最后一天

@@ -32,6 +32,7 @@ function makeFiltered(w) {
   return new Function('DATA','q','activeGames','activeCats','calVisible','settings','evStart','evEnd','Date',
     "const QUICK_WORDS=['今天','明天','本周','周末','未开始','下周','已结束','即将结束','本周开始','本月开始','今天开始','今天结束','进行中'];\nfunction isDone(){return false}\nlet dq='';\nfunction dqMatch(){return true}\n"
     + "function gameShort(id){return ({hsr:'崩铁',zzz:'绝区零',wuwa:'鸣潮'})[id]||''}\n"
+    + grab('isPointItem') + '\n'
     + grab('isQuickWord') + '\n' + grab('quickMatch') + '\n' + grab('gamePrefix') + '\n' + grab('filtered')
     + '\nreturn {isQuickWord, quickMatch, gamePrefix, filtered};')
     (EVENTS, w, new Set(['hsr','zzz','wuwa']),
@@ -70,6 +71,8 @@ console.log(JSON.stringify({
   multiMatch: run('崩铁 活动'), multiMiss: run('活动 签到'), hl: hl,
   staleRun: makeFiltered('进行中').quickMatch({start:'2026-09-01T10:00'}, '进行中', FakeDate()),
   recentRun: makeFiltered('进行中').quickMatch({start:'2026-10-20T10:00'}, '进行中', FakeDate()),
+  pointRun: makeFiltered('进行中').quickMatch(
+    {title:'4.2版本「此刻将群星付之一笑」上线', start:'2026-10-20T10:00'}, '进行中', FakeDate()),
 }));
 """
 
@@ -101,6 +104,9 @@ EV = [
     # 两天后结束(3 天内) → 命中「即将结束」
     {'id': 'i', 'game_id': 'hsr', 'title': '活动I', 'category': '活动',
      'start': '2026-10-29T10:00', 'end': '2026-11-02T23:59'},
+    # 单点里程碑(版本上线,无结束时间):不算进行中,但仍受日期/游戏等其它筛选
+    {'id': 'p', 'game_id': 'hsr', 'title': '4.2版本「此刻将群星付之一笑」上线', 'category': '活动',
+     'start': '2026-10-20T10:00'},
 ]
 
 bad = 0
@@ -133,14 +139,14 @@ def main():
     check("周末:11/1(周日)开始的活动", d['weekend'], ['a', 'b', 'c', 'g', 'i'])
     check("未开始:开始时间晚于此刻", d['notStarted'], ['c', 'd', 'e'])
     check("普通关键词仍按文本匹配", d['plain'], ['a'])
-    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd', 'g', 'i'])
-    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd', 'g', 'i'])
+    check("游戏前缀 hsr: 只看该游戏", d['prefixHsr'], ['a', 'd', 'g', 'i', 'p'])
+    check("游戏前缀允许缩写 hs:", d['prefixHsrAbbr'], ['a', 'd', 'g', 'i', 'p'])
     check("游戏前缀+关键词 zzz: 活动", d['prefixZzzWord'], ['b', 'e'])
     check("游戏前缀+快捷词 hsr: 今天", d['prefixHsrToday'], ['a', 'g', 'i'])
     check("不认识的游戏前缀按普通文本处理", d['prefixUnknown'], [])
     check("下周:跨到下周或下周内开始", d['nextWeek'], ['a', 'c', 'd', 'i'])
     check("本周开始(只算本周内开始的)", d['weekStart'], ['c', 'g', 'i'])
-    check("本月开始(只算本月内开始的)", d['monthStart'], ['a', 'b', 'f', 'g', 'h', 'i'])
+    check("本月开始(只算本月内开始的)", d['monthStart'], ['a', 'b', 'f', 'g', 'h', 'i', 'p'])
     check("无结束时间的老条目不进日期筛选", 'h' in (d['today'] + d['week'] + d['weekend'] + d['nextWeek']), False)
     check("已结束:必须真有结束时间", d['ended'], ['f'])
     check("即将结束:3 天内截止且未结束", d['ending'], ['b', 'i'])
@@ -150,7 +156,9 @@ def main():
     check("进行中:已开始且未结束(无结束时间也算)", d['running'], ['a', 'b', 'g', 'h', 'i'])
     check("进行中:更早开始·结束未知不算", d['staleRun'], False)
     check("进行中:30 天内的未知结束仍算", d['recentRun'], True)
-    check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i'])
+    check("进行中:单点里程碑不算", d['pointRun'], False)
+    check("进行中列表里不含里程碑", 'p' in d['running'], False)
+    check("搜索游戏短名「崩铁」命中星铁全部", d['shortHsr'], ['a', 'd', 'g', 'i', 'p'])
     check("搜索游戏全名「绝区零」命中绝区零全部", d['shortZzz'], ['b', 'e', 'h'])
     check("高亮:中文关键词包一层 mark", d['hl']['cn'], '<mark>活动</mark>A')
     check("高亮:游戏前缀不算关键词", d['hl']['prefixed'], '<mark>活动</mark>A')
@@ -159,7 +167,7 @@ def main():
     check("高亮:快捷词不高亮", d['hl']['quick'], '今天开始活动')
     check("高亮:输出已转义,不注入标签", d['hl']['xss'], '<mark>&lt;b&gt;</mark>x')
     check("高亮:实体字符也转义", d['hl']['amp'], 'A<mark>&amp;</mark>B')
-    check("多关键词:空格分隔按 AND", d['multiMatch'], ['a', 'd', 'g', 'i'])
+    check("多关键词:空格分隔按 AND", d['multiMatch'], ['a', 'd', 'g', 'i', 'p'])
     check("多关键词:任一条件不满足即不命中", d['multiMiss'], [])
     check("高亮:多词命中标题里的词", d['hl']['multiTitle'], '<mark>活动</mark>A')
     check("高亮:多词命中游戏名里的词", d['hl']['multiGame'], '<mark>星穹</mark>铁道')
